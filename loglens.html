@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogLens — Log Extraction &amp; PII Masking Dashboard</title>
+<style>
+:root{
+  --bg:#f4f6f9;--card:#fff;--ink:#1c2733;--mut:#5b6b7b;--line:#e3e8ee;
+  --accent:#0f62fe;--red:#d13438;--amber:#b26a00;--green:#107c41;--dark:#0b1f3a;
+  --code:#0e1720;--codeink:#d8e4f0;
+  --mono:Consolas,'Cascadia Mono',Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 "Segoe UI",system-ui,Arial,sans-serif}
+.wrap{max-width:1280px;margin:0 auto;padding:18px 20px 80px}
+header.top{display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,#0b1f3a,#123a6b 70%,#0f62fe 160%);color:#fff;border-radius:12px;padding:16px 20px;margin-bottom:16px}
+header.top h1{margin:0;font-size:20px}
+header.top p{margin:2px 0 0;opacity:.85;font-size:12.5px}
+.logo{width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:19px}
+.spacer{flex:1}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13.5px;font-weight:600;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--red)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 18px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:15.5px}
+.card .sub{color:var(--mut);font-size:12.5px;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:980px){.grid2{grid-template-columns:1fr}}
+.drop{border:2px dashed #b9c6d4;border-radius:10px;padding:22px;text-align:center;color:var(--mut);cursor:pointer;transition:.15s}
+.drop.over{border-color:var(--accent);background:#eef5ff;color:var(--accent)}
+.filelist{margin-top:10px}
+.fileitem{display:flex;align-items:center;gap:10px;background:#f2f6fa;border:1px solid var(--line);border-radius:8px;padding:7px 12px;margin-top:6px;font-size:13px}
+.fileitem .nm{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.fileitem .sz{color:var(--mut);white-space:nowrap}
+.rule{display:flex;gap:8px;align-items:center;margin-bottom:7px;background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+.rule input[type=text]{flex:1;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px}
+.rule input[type=text].nm{flex:0 0 130px}
+.rule input[type=text].rp{flex:0 0 150px}
+.rule .sw{width:15px;height:15px;flex:0 0 15px}
+.rule .x{border:none;background:none;color:var(--mut);cursor:pointer;font-size:15px;padding:0 2px}
+.rule .x:hover{color:var(--red)}
+.rule .aa{border:1px solid var(--line);background:#fff;border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer;color:var(--mut);white-space:nowrap}
+.rule .aa.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.rule .hits{font-size:11px;color:var(--amber);white-space:nowrap;min-width:52px;text-align:right}
+.badge{display:inline-block;background:#e8eef7;color:#274970;border-radius:5px;padding:0 8px;font-size:11.5px}
+.badge.blue{background:#e4f0ff;color:#0b5ed7}.badge.red{background:#fde3e3;color:#b3261e}.badge.gray{background:#eceff3;color:#556}.badge.green{background:#eefaf1;color:#107c41}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:2px 12px;font-size:12px;cursor:pointer;user-select:none}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+label.tgl{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);cursor:pointer;margin-right:14px}
+label.tgl input{accent-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 14px}
+.stat .n{font-size:21px;font-weight:700}
+.stat .l{font-size:11.5px;color:var(--mut)}
+.stat.red .n{color:var(--red)}.stat.blue .n{color:var(--accent)}.stat.amber .n{color:var(--amber)}.stat.green .n{color:var(--green)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#eef2f7;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#3a4a5a;position:sticky;top:0}
+td.mono,th.mono{font-family:var(--mono);font-size:11.5px}
+.reswrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:9px;background:#fff}
+.lv{display:inline-block;border-radius:4px;padding:0 6px;font-weight:700;font-size:10.5px}
+.lvV{background:#f0f0f4;color:#666}.lvD{background:#eceff3;color:#556}.lvI{background:#e4f0ff;color:#0b5ed7}
+.lvW{background:#fff3d6;color:#9a6b00}.lvE{background:#fde3e3;color:#b3261e}.lvF{background:#b3261e;color:#fff}
+.errrow td{background:#fff8f8}
+.ctxrow td{background:#fafbfd;color:#5b6b7b;font-style:italic}
+.search{width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:8px;font-family:var(--mono)}
+.progress{height:8px;background:#e6ecf3;border-radius:99px;overflow:hidden;margin:10px 0 4px;display:none}
+.progress .bar{height:100%;width:0;background:linear-gradient(90deg,#0f62fe,#4d8bff);transition:width .2s}
+.ptext{font-size:12px;color:var(--mut);display:none}
+.hbox{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:16px}
+.preview{font-family:var(--mono);font-size:12px;background:var(--code);color:var(--codeink);border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-all}
+.ok{color:var(--green);font-weight:600}.bad{color:var(--red);font-weight:600}
+.note{background:#eef5ff;border:1px solid #c9defc;border-left:4px solid var(--accent);border-radius:8px;padding:9px 13px;font-size:12.5px;margin-top:10px}
+h3.mini{margin:14px 0 6px;font-size:13px;color:#3a4a5a;text-transform:uppercase;letter-spacing:.5px}
+.footer{margin-top:30px;color:var(--mut);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+.toast{position:fixed;right:18px;bottom:18px;background:var(--dark);color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+.toast.show{opacity:.96}
+.reswrap tr[data-i]{cursor:copy}
+input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
+/* dark theme (toggle in header; persisted) */
+body[data-theme=dark]{--bg:#0d1218;--card:#151c24;--ink:#d7e3ee;--mut:#8ba1b5;--line:#263140;
+  --accent:#4d8bff;--red:#ff6b6e;--amber:#e0a52e;--green:#3fbf6f;--dark:#0a1017;--code:#0a0f15;--codeink:#c9d8e6}
+body[data-theme=dark] .stat,body[data-theme=dark] .hbox,body[data-theme=dark] .reswrap{background:var(--card)}
+body[data-theme=dark] .rule{background:#10171f}
+body[data-theme=dark] .rule input[type=text],body[data-theme=dark] .search,body[data-theme=dark] textarea,
+body[data-theme=dark] select,body[data-theme=dark] input[type=number],body[data-theme=dark] input[type=password],
+body[data-theme=dark] .rule input[type=text],body[data-theme=dark] .rule .aa{background:#0d141b;color:var(--ink);border-color:var(--line)}
+body[data-theme=dark] .rule .aa.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+body[data-theme=dark] .fileitem{background:#10171f}
+body[data-theme=dark] th{background:#1a2330;color:#a9bccd}
+body[data-theme=dark] .drop{border-color:#3a4a5c}
+body[data-theme=dark] .drop.over{border-color:var(--accent);background:#12203a;color:var(--accent)}
+body[data-theme=dark] .chip{background:var(--card)}
+body[data-theme=dark] .chip.on{background:var(--accent)}
+body[data-theme=dark] .errrow td{background:#241418}
+body[data-theme=dark] .ctxrow td{background:#111823}
+body[data-theme=dark] .lvD{background:#222b36;color:#9fb0c0}
+body[data-theme=dark] .lvI{background:#12233d;color:#7fb0ff}
+body[data-theme=dark] .lvW{background:#33270e;color:#e0b45c}
+body[data-theme=dark] .lvE{background:#3a1416;color:#ff9a9c}
+body[data-theme=dark] .badge{background:#1c2733;color:#a9bccd}
+body[data-theme=dark] .badge.blue{background:#12233d;color:#7fb0ff}
+body[data-theme=dark] .badge.red{background:#3a1416;color:#ff9a9c}
+body[data-theme=dark] .badge.green{background:#12291a;color:#5fd38a}
+body[data-theme=dark] .note{background:#12203a;border-color:#274a7a}
+body[data-theme=dark] .btn.sec{background:var(--card);color:var(--ink)}
+body[data-theme=dark] .preview{background:#0a0f15}
+/* ---- logcat display themes (results view; applied via body[data-logtheme]) ---- */
+body[data-logtheme="as"] .reswrap{background:#2B2B2B;color:#A9B7C6}
+body[data-logtheme="as"] .reswrap td{color:#A9B7C6;border-bottom-color:#3c3f41}
+body[data-logtheme="as"] .lvV{background:#323232;color:#8C8C8C}
+body[data-logtheme="as"] .lvD{background:#22303f;color:#548AF7}
+body[data-logtheme="as"] .lvI{background:#2d3a16;color:#A8C023}
+body[data-logtheme="as"] .lvW{background:#3a3210;color:#BBB529}
+body[data-logtheme="as"] .lvE{background:#3a1717;color:#FF6B68}
+body[data-logtheme="as"] .lvF{background:#FF6B68;color:#2B2B2B}
+body[data-logtheme="as"] .errrow td{background:#3a2020}
+body[data-logtheme="as"] .ctxrow td{background:#31373d;color:#7f8b97}
+body[data-logtheme="vscode"] .reswrap{background:#1E1E1E;color:#D4D4D4}
+body[data-logtheme="vscode"] .reswrap td{color:#D4D4D4;border-bottom-color:#333}
+body[data-logtheme="vscode"] .lvV{background:#2d2d2d;color:#808080}
+body[data-logtheme="vscode"] .lvD{background:#1e2f44;color:#569CD6}
+body[data-logtheme="vscode"] .lvI{background:#103a35;color:#4EC9B0}
+body[data-logtheme="vscode"] .lvW{background:#3a3510;color:#DCDCAA}
+body[data-logtheme="vscode"] .lvE{background:#3a1d1d;color:#F48771}
+body[data-logtheme="vscode"] .lvF{background:#F48771;color:#1E1E1E}
+body[data-logtheme="vscode"] .errrow td{background:#3a1d1d}
+body[data-logtheme="vscode"] .ctxrow td{background:#262a30;color:#9aa4ad}
+body[data-logtheme="dracula"] .reswrap{background:#282A36;color:#F8F8F2}
+body[data-logtheme="dracula"] .reswrap td{color:#F8F8F2;border-bottom-color:#3a3f4d}
+body[data-logtheme="dracula"] .lvV{background:#232733;color:#6272A4}
+body[data-logtheme="dracula"] .lvD{background:#10333b;color:#8BE9FD}
+body[data-logtheme="dracula"] .lvI{background:#0e3320;color:#50FA7B}
+body[data-logtheme="dracula"] .lvW{background:#3a2a10;color:#FFB86C}
+body[data-logtheme="dracula"] .lvE{background:#3a1416;color:#FF5555}
+body[data-logtheme="dracula"] .lvF{background:#FF5555;color:#282A36}
+body[data-logtheme="dracula"] .errrow td{background:#3a1416}
+body[data-logtheme="dracula"] .ctxrow td{background:#232733;color:#9da6c1}
+body[data-logtheme="solarized"] .reswrap{background:#002B36;color:#93A1A1}
+body[data-logtheme="solarized"] .reswrap td{color:#93A1A1;border-bottom-color:#0a3d4a}
+body[data-logtheme="solarized"] .lvV{background:#0a2530;color:#586E75}
+body[data-logtheme="solarized"] .lvD{background:#0a2d3d;color:#268BD2}
+body[data-logtheme="solarized"] .lvI{background:#22300a;color:#859900}
+body[data-logtheme="solarized"] .lvW{background:#33290a;color:#B58900}
+body[data-logtheme="solarized"] .lvE{background:#3a1010;color:#DC322F}
+body[data-logtheme="solarized"] .lvF{background:#DC322F;color:#002B36}
+body[data-logtheme="solarized"] .errrow td{background:#3a1010}
+body[data-logtheme="solarized"] .ctxrow td{background:#0a2530;color:#6f8289}
+body[data-logtheme="hc"] .reswrap{background:#000;color:#fff}
+body[data-logtheme="hc"] .reswrap td{color:#fff;border-bottom-color:#444}
+body[data-logtheme="hc"] .lvV{background:#1a1a1a;color:#fff}
+body[data-logtheme="hc"] .lvD{background:#000;color:#00B4FF}
+body[data-logtheme="hc"] .lvI{background:#000;color:#00FF00}
+body[data-logtheme="hc"] .lvW{background:#201a00;color:#FFD700}
+body[data-logtheme="hc"] .lvE{background:#400;color:#FF3333}
+body[data-logtheme="hc"] .lvF{background:#fff;color:#000}
+body[data-logtheme="hc"] .errrow td{background:#2a0000}
+body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="logo">🔍</div>
+  <div>
+    <h1>LogLens — Log Extraction &amp; PII Masking Dashboard</h1>
+    <p>Load logcat/log files → filter with flexible extract rules → auto-mask personal data → analyze &amp; export. 100% client-side; files never leave this machine.</p>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn sec" id="btnDemo">Load demo sample</button>
+  <button class="btn sec" id="btnTheme" title="toggle dark mode">🌙</button>
+</header>
+<div class="chips" id="navChips" style="margin:0 0 14px"></div>
+
+<!-- FILES -->
+<div class="card" id="secFiles">
+  <h2>1 · Input files</h2>
+  <div class="sub">Drag &amp; drop one or more log files (tested up to ~450 MB), or click to browse. Files are streamed line-by-line, so very large logs are fine. Common log types (logcat, syslog, ISO-8601, Apache/CLF) are timestamp auto-detected.</div>
+  <div class="drop" id="drop">⬇ Drop .log / .txt files (or whole folders) here, or click to choose</div>
+  <input type="file" id="fpick" multiple accept=".log,.txt,.text" style="display:none">
+  <input type="file" id="dpick" webkitdirectory multiple style="display:none">
+  <div style="margin-top:6px"><button class="btn sec" id="dpickBtn">＋ add folder (recursive)</button></div>
+  <div class="filelist" id="filelist"></div>
+</div>
+
+<div class="grid2">
+  <!-- EXTRACT RULES -->
+  <div class="card" id="secExtract">
+    <h2>2 · Extraction rules</h2>
+    <div class="sub">A line is kept when it matches any <b>include</b> rule and no <b>exclude</b> rule. Regex, case-insensitive by default. With no include rules at all, every line is kept.</div>
+    <div class="chips" id="lvlChips"></div>
+    <div id="lvlWarn" style="display:none;color:var(--red);font-size:12px;margin:-2px 0 8px">no levels selected — nothing will ever match</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label class="tgl">presets
+        <select id="extPreset" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px">
+          <option value="">— choose —</option>
+          <option value="crash">Crash / ANR hunt</option>
+          <option value="conn">Connectivity triage</option>
+          <option value="auth">Auth / session issues</option>
+        </select>
+      </label>
+      <label class="tgl" title="keep N lines before/after each match (stack traces!) — costs performance when > 0">context ± <input type="number" id="optCtx" min="0" max="50" value="0" style="width:60px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"> lines</label>
+      <label class="tgl" title="max matches kept in memory for the results table / CSV (direct-to-file export is uncapped)">result cap <input type="number" id="optCap" min="1000" step="10000" value="200000" style="width:96px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"></label>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <label class="tgl"><input type="checkbox" id="optErrish" checked> tag error-ish lines</label>
+      <input type="text" id="errishRx" spellcheck="false" style="flex:1;min-width:240px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:11.5px" title="a kept line is error-ish if this regex matches, or its level is E/W/F">
+      <label class="tgl"><input type="checkbox" id="optMask" checked> apply masking to results</label>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:2px;flex-wrap:wrap">
+      <label class="tgl">time from <input type="text" id="tsFrom" placeholder="08-24 15:37" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-family:var(--mono);font-size:11.5px"></label>
+      <label class="tgl">to <input type="text" id="tsTo" placeholder="08-24 19:22" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-family:var(--mono);font-size:11.5px"></label>
+    </div>
+    <div id="tsFmt" style="font-size:11px;color:var(--mut);margin:0 0 8px"></div>
+    <div id="extRules"></div>
+    <button class="btn sec" id="addInclude" style="margin-right:6px">+ include rule</button>
+    <button class="btn sec" id="addExclude">+ exclude rule</button>
+    <h3 class="mini">Test rules against sample</h3>
+    <textarea id="extSample" rows="3" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:var(--mono);resize:vertical" placeholder="paste a few lines, then Test — shows which include rules match and what gets kept"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
+      <button class="btn sec" id="extTest">Test rules</button>
+      <button class="btn sec" id="extSampleFill" title="fills the sample with the first lines of the first loaded file">use first lines of file 1</button>
+      <span id="extSampleOut" style="font-size:12px;color:var(--mut)"></span>
+    </div>
+    <div class="preview" id="extSamplePreview" style="display:none;max-height:180px;overflow:auto"></div>
+  </div>
+
+  <!-- MASK RULES -->
+  <div class="card" id="secMask">
+    <h2>3 · Masking rules <span class="badge blue">PII</span></h2>
+    <div class="sub">Ordered rules; each match is replaced (supports $1 group refs). Hit counts appear after a run. Defaults cover common vehicle/embedded-log PII.</div>
+    <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn sec" id="restoreMask">Restore default PII presets</button>
+    </div>
+    <div class="rule" style="background:#eef2f7;font-weight:600;font-size:11px;color:#3a4a5a">
+      <span style="width:15px"></span><span class="nm" style="width:130px;flex:0 0 130px">name</span>
+      <span style="flex:1">pattern (regex)</span><span class="rp" style="width:150px;flex:0 0 150px">replacement</span><span class="hits">hits</span><span style="width:22px"></span>
+    </div>
+    <div id="maskRules"></div>
+    <button class="btn sec" id="addMask">+ mask rule</button>
+    <h3 class="mini">Live mask preview</h3>
+    <input class="search" id="pvIn" placeholder="paste a sample log line to preview masking…">
+    <div class="preview" id="pvOut">—</div>
+  </div>
+</div>
+
+<!-- MASK-ONLY MODE -->
+<div class="card" id="secMaskOnly">
+  <h2>3b · Mask-only mode — full masked copy <span class="badge green">no extraction</span></h2>
+  <div class="sub">Run the mask rules from section&nbsp;3 over <b>every line</b> of the file(s) from section&nbsp;1 and write a complete masked copy straight to disk. No include/exclude rules, no match cap, no line-number prefixes — the &ldquo;sanitize this log before sharing&rdquo; path. Output name: <span style="font-family:Consolas">&lt;original&gt;.masked.log</span>.</div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn" id="mRun">🛡 Mask file(s) to disk</button>
+    <button class="btn sec" id="mStop" disabled>Stop</button>
+    <label class="tgl" title="gzip the output (Chromium; single-file only)"><input type="checkbox" id="mGz"> write .gz</label>
+    <span style="font-size:12px;color:var(--mut)">uses current mask rules — edit them in section 3, watch the live preview</span>
+  </div>
+  <div class="progress" id="mProg"><div class="bar" id="mProgBar"></div></div>
+  <div class="ptext" id="mProgText"></div>
+  <div id="mSummary" class="note" style="display:none"></div>
+  <div class="note" style="background:#fffbe8;border-color:#f2ddb0;border-left-color:var(--amber)">Chromium browsers (Edge/Chrome) stream the output directly to disk — any file size, constant memory. Other browsers fall back to an in-memory download (single file, practical up to ~1&nbsp;GB).</div>
+</div>
+
+<!-- RUN -->
+<div class="card" id="runCard" style="position:sticky;top:8px;z-index:40;box-shadow:0 4px 14px rgba(20,40,70,.08)">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <button class="btn" id="btnRun">▶ Run extraction</button>
+    <button class="btn sec" id="btnStop" disabled>Stop</button>
+    <span id="readyInfo" style="font-size:12px;color:var(--mut)"></span>
+    <div class="spacer" style="flex:1"></div>
+    <label class="tgl" title="Stream every matched line straight to a file while scanning — recommended for multi-GB logs (Chromium browsers). One input file → single output file; multiple input files → pick an output folder and get one <name>.extract.log per input.">
+      <input type="checkbox" id="optDirect"> direct-to-file export (multi-GB / batch)
+    </label>
+    <button class="btn sec" id="expProfile">Export profile</button>
+    <button class="btn sec" id="impProfile">Import profile</button>
+    <input type="file" id="profPick" accept=".json" style="display:none">
+  </div>
+  <div class="progress" id="prog"><div class="bar" id="progBar"></div></div>
+  <div class="ptext" id="progText"></div>
+  <div class="note" id="runNote" style="display:none"></div>
+</div>
+
+<!-- STATS -->
+<div class="card" id="statsCard" style="display:none">
+  <h2>4 · Results overview</h2>
+  <div class="stats" id="statCards"></div>
+  <div id="truncNote" class="note" style="display:none;background:#fff4f2;border-color:#f3c1bd;border-left-color:var(--red)"></div>
+  <div class="hbox"><div id="histBox"></div></div>
+  <div class="grid2">
+    <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">Top tags</h3><div style="max-height:260px;overflow:auto"><table id="tagTable"></table></div></div>
+    <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">Masking coverage (hits per rule)</h3><div style="max-height:260px;overflow:auto"><table id="maskTable"></table></div></div>
+  </div>
+    <div class="hbox" style="margin-top:16px"><h3 class="mini" style="margin-top:0">Per-file breakdown</h3><div style="max-height:220px;overflow:auto"><table id="fileTable"></table></div></div>
+</div>
+
+<!-- RESULTS -->
+<div class="card" id="resCard" style="display:none">
+  <h2>5 · Matched lines</h2>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <label class="tgl">font
+      <select id="fontSel" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px"></select>
+    </label>
+    <label class="tgl" title="fetch the selected font from Google Fonts when it is not installed locally (needs internet)"><input type="checkbox" id="fontWf"> webfonts (online)</label>
+    <label class="tgl">logcat theme
+      <select id="logThemeSel" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px">
+        <option value="default">LogLens default</option>
+        <option value="as">Android Studio</option>
+        <option value="vscode">VS Code Dark+</option>
+        <option value="dracula">Dracula</option>
+        <option value="solarized">Solarized Dark</option>
+        <option value="hc">High Contrast</option>
+      </select>
+    </label>
+  </div>
+  <div class="chips" id="filterChips" style="margin:0 0 6px"></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <input class="search" id="resFilter" placeholder="filter results (regex over tag+message)…" style="flex:1;margin:0">
+    <label class="tgl"><input type="checkbox" id="errOnly"> error-ish only</label>
+  </div>
+  <div class="reswrap" id="resWrap"><table id="resTable"></table></div>
+  <button class="btn sec" id="moreBtn" style="margin-top:10px">Show more rows</button>
+</div>
+
+<!-- EXPORT -->
+<div class="card" id="expCard" style="display:none">
+  <h2>6 · Export</h2>
+  <div class="sub">Extracts default to the pipeline format <span style="font-family:Consolas">[L&lt;line&gt;] &lt;masked line&gt;</span> — the prefix is optional (timestamps usually suffice). Raw lines are never stored in memory, so an unmasked export is impossible by design.</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn" id="dlExtract">⬇ Extract (.log, masked)</button>
+    <button class="btn sec" id="cpExtract" title="copy the masked extract to the clipboard">⧉ Copy</button>
+    <button class="btn sec" id="dlGz" title="same extract, gzip-compressed (Chromium)">⬇ Extract (.gz)</button>
+    <button class="btn sec" id="dlStats">⬇ Stats (.json)</button>
+    <button class="btn sec" id="dlCsv" title="message column is capped at 1000 characters per row">⬇ Results (.csv)</button>
+    <label class="tgl" style="margin-left:12px"><input type="checkbox" id="optLnnn" checked> [Lnnn] line-number prefix</label>
+  </div>
+</div>
+
+<!-- AI WIZARD -->
+<div class="card" id="wizCard">
+  <h2>7 · AI rule wizard <span class="badge gray">beta</span></h2>
+  <div class="sub">Describe your requirement in plain language — an AI agent returns a ready-to-apply rule JSON. Works with any <b>OpenAI-compatible chat API</b> (OpenAI, GLM, Azure, Ollama, LM Studio, local proxies…). Requests go directly from your browser to the endpoint you configure; nothing is sent anywhere else.</div>
+  <div class="grid2">
+    <div>
+      <h3 class="mini" style="margin-top:0">Connection</h3>
+      <input class="search" id="aiBase" placeholder="API base URL — e.g. https://api.openai.com/v1" style="margin-bottom:6px">
+      <input class="search" id="aiKey" type="password" placeholder="API key (optional for local models)" style="margin-bottom:6px">
+      <input class="search" id="aiModel" placeholder="model — e.g. gpt-4o-mini / glm-4.7 / llama3.2" style="margin-bottom:8px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn sec" id="aiTest">Test connection</button>
+        <label class="tgl"><input type="checkbox" id="aiRemember"> remember key in this browser</label>
+      </div>
+      <div id="aiTestOut" style="font-size:12px;margin-top:4px"></div>
+      <div class="note">CORS note: browsers can only call endpoints that allow cross-origin requests. Most cloud APIs and LM Studio do; for Ollama start it with <span style="font-family:Consolas">OLLAMA_ORIGINS=*</span>.</div>
+    </div>
+    <div>
+      <h3 class="mini" style="margin-top:0">Your requirement</h3>
+      <textarea id="aiReq" rows="7" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:var(--mono);resize:vertical" placeholder="e.g. Extract all Bluetooth pairing failures and connection drops; additionally mask phone numbers and IMEIs; exclude verbose HCI packet dump lines."></textarea>
+      <div class="chips" id="aiExChips"></div>
+      <textarea id="aiSamples" rows="3" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:var(--mono);resize:vertical;margin-bottom:6px" placeholder="optional: paste 3–10 real sample log lines so the model sees your exact format (strongly improves regex quality)"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="aiGen">✨ Generate rules</button>
+        <label class="tgl" title="send your current extract+mask rules to the model as context — good for extending/improving them"><input type="checkbox" id="aiIncRules"> include current rules as context</label>
+        <span id="aiStatus" style="font-size:12px;color:var(--mut)"></span>
+      </div>
+    </div>
+  </div>
+  <div id="aiResult" style="display:none;margin-top:14px">
+    <h3 class="mini">Generated profile — preview</h3>
+    <div class="hbox" id="aiPreview"></div>
+    <div id="aiErrors" class="note" style="display:none"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn" id="aiApply">✔ Apply (replace rules)</button>
+      <button class="btn sec" id="aiAppend">Append to rules</button>
+      <button class="btn sec" id="aiCopy">Copy JSON</button>
+      <button class="btn sec" id="aiDl">Download .json</button>
+    </div>
+    <h3 class="mini">Raw model output (parsed)</h3>
+    <div class="preview" id="aiRaw"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="footer">
+  LogLens v1.8 · single-file tool, no server, works offline · profiles auto-save in this browser (localStorage) ·
+  default PII presets cover common vehicle/embedded-log identifiers ·
+  optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+</div>
+</div>
+
+<!-- ============================================================ CORE (pure, testable) -->
+<script id="core">
+"use strict";
+const CORE = (function(){
+
+  // logcat header: "MM-DD HH:MM:SS.mmm  pid  tid L tag : msg"
+  // tag may contain ':' (e.g. MyApp:Sub) — separator is colon+whitespace
+  const HDR = /^(\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(-?\d+)\s+(-?\d+)\s+([VDIWEF])\s+(.+?)\s*:\s(.*)$/;
+  // legacy "L/tag( pid): msg"
+  const HDR2 = /^([VDIWEF])\/([^\s(]+)\(\s*(\d+)\)\s*:\s?(.*)$/;
+
+  // ---------- generic timestamp auto-detection ----------
+  // Every format is normalized to the canonical "MM-DD HH:MM:SS.mmm" key so the
+  // existing time filters, buckets and histogram work on any log type.
+  const MM = '0[1-9]|1[0-2]', DD = '0[1-9]|[12]\\d|3[01]', DD1 = '0?[1-9]|[12]\\d|3[01]', HH = '[01]\\d|2[0-3]', MI = '[0-5]\\d', SS = '[0-5]\\d';
+  const MON = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  const p2 = n => n.length===1 ? '0'+n : n;
+  const TS_PATTERNS = [
+    // ISO 8601 / SQL: 2026-08-24[T ]15:37:01(.123)?(Z|±HH:MM)?
+    { rx: new RegExp('\\b(\\d{4})-(' + MM + ')-(' + DD + ')[T ](' + HH + '):(' + MI + '):(' + SS + ')(?:\\.(\\d{1,3}))?', 'i'),
+      fn: m => m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] + ':' + m[6] + '.' + (m[7]||'0').padEnd(3,'0').slice(0,3) },
+    // RFC3164 syslog: Aug 24 15:37:01(.123)?  (day may be space-padded single digit)
+    { rx: new RegExp('\\b([A-Za-z]{3})\\s+(' + DD1 + ')\\s+(' + HH + '):(' + MI + '):(' + SS + ')(?:\\.(\\d{1,3}))?\\b'),
+      fn: m => { const mo = MON[m[1].toLowerCase()]; return mo ? mo + '-' + p2(m[2]) + ' ' + m[3] + ':' + m[4] + ':' + m[5] + '.' + (m[6]||'0').padEnd(3,'0').slice(0,3) : null; } },
+    // Apache/CLF: [24/Aug/2026:15:37:01 +00:00]
+    { rx: new RegExp('\\[(' + DD1 + ')\\/([A-Za-z]{3})\\/\\d{4}:(' + HH + '):(' + MI + '):(' + SS + ')(?:\\.(\\d{1,3}))?'),
+      fn: m => { const mo = MON[m[2].toLowerCase()]; return mo ? mo + '-' + p2(m[1]) + ' ' + m[3] + ':' + m[4] + ':' + m[5] + '.' + (m[6]||'0').padEnd(3,'0').slice(0,3) : null; } },
+    // bare MM-DD HH:MM:SS (logcat-style without pid/tid, or app logs)
+    { rx: new RegExp('\\b(' + MM + ')-(' + DD + ')\\s+(' + HH + '):(' + MI + '):(' + SS + ')(?:\\.(\\d{1,3}))?\\b'),
+      fn: m => m[1] + '-' + m[2] + ' ' + m[3] + ':' + m[4] + ':' + m[5] + '.' + (m[6]||'0').padEnd(3,'0').slice(0,3) },
+  ];
+  function detectTs(line){
+    const r = detectTsInfo(line);
+    return r ? r.ts : null;
+  }
+  const TS_FAMILIES = ['iso','syslog','clf','mmd'];   // index-aligned with TS_PATTERNS
+  function detectTsInfo(line){
+    for (let i = 0; i < TS_PATTERNS.length; i++){
+      const m = TS_PATTERNS[i].rx.exec(line);
+      if (m){ const ts = TS_PATTERNS[i].fn(m); if (ts) return { ts, family: TS_FAMILIES[i] }; }
+    }
+    return null;
+  }
+
+  // ---------- time-window input parsing (any supported format -> canonical) ----------
+  // Accepts what the user's logs actually contain; returns the canonical
+  // "MM-DD HH:MM[:SS[.mmm]]" prefix used by the engine's boundary-inclusive compare.
+  const TSV = '(' + MM + ')-(' + DD + ')', TSH = '(' + HH + '):(' + MI + ')(?::(' + SS + ')(?:\\.(\\d{1,3}))?)?';
+  const TS_MON = '([A-Za-z]{3})', TS_D1 = '(0?[1-9]|[12]\\d|3[01])';
+  const USER_TS_RX = [
+    // canonical: 08-24 15:37[:01[.123]]
+    new RegExp('^' + TSV + '[T ]' + TSH + '$'),
+    // ISO/SQL: 2026-08-24[T ]15:37[:01[.123]] (optional trailing Z / ±hh:mm ignored)
+    new RegExp('^(\\d{4})-(' + MM + ')-(' + DD + ')[T ]' + TSH + '(?:Z|[+-]\\d{2}:?\\d{2})?$', 'i'),
+    // syslog: Aug 24 15:37[:01]
+    new RegExp('^' + TS_MON + '\\s+' + TS_D1 + '\\s+' + '(' + HH + '):(' + MI + ')(?::(' + SS + '))?$', 'i'),
+    // Apache/CLF: [24/Aug/2026:15:37[:01]]  (brackets optional)
+    new RegExp('^\\[?' + TS_D1 + '\\/' + TS_MON + '\\/\\d{4}:(' + HH + '):(' + MI + ')(?::(' + SS + '))?\\]?$', 'i'),
+  ];
+  function parseUserTs(s){
+    if (!s) return null;
+    s = s.trim();
+    let m = USER_TS_RX[0].exec(s);                       // canonical — pass through (validated)
+    if (m) return m[1] + '-' + m[2] + ' ' + m[3] + ':' + m[4] + (m[5] ? ':' + m[5] : '') + (m[6] ? '.' + m[6].padEnd(3,'0') : '');
+    m = USER_TS_RX[1].exec(s);                           // ISO — drop the year
+    if (m) return m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] + (m[6] ? ':' + m[6] : '') + (m[7] ? '.' + m[7].padEnd(3,'0') : '');
+    m = USER_TS_RX[2].exec(s);                           // syslog — map month name
+    if (m){ const mo = MON[m[1].toLowerCase()]; if (!mo) return null;
+      return mo + '-' + p2(m[2]) + ' ' + m[3] + ':' + m[4] + (m[5] ? ':' + m[5] : ''); }
+    m = USER_TS_RX[3].exec(s);                           // CLF
+    if (m){ const mo = MON[m[2].toLowerCase()]; if (!mo) return null;
+      return mo + '-' + p2(m[1]) + ' ' + m[3] + ':' + m[4] + (m[5] ? ':' + m[5] : ''); }
+    return null;
+  }
+  function validUserTs(s){ return s == null || s.trim() === '' || parseUserTs(s) !== null; }
+
+  const ERRISH_SOURCE = '(error|fail|fatal|exception|timeout|timed out|crash|anr |denied|not found|unable|cannot|abort|refused|disconnect|lost|invalid|unavailable|unreach)';
+  const ERRISH = new RegExp(ERRISH_SOURCE, 'i');
+
+  function parseHeader(line){
+    let m = HDR.exec(line);
+    if (m) return {ts:m[1], pid:m[2], tid:m[3], lvl:m[4], tag:m[5].trim(), msg:m[6]};
+    m = HDR2.exec(line);
+    if (m) return {ts:null, pid:m[3], tid:null, lvl:m[1], tag:m[2], msg:m[4]};
+    // generic formats (syslog, ISO, CLF, bare MM-DD): timestamp only — level/tag stay null
+    const ts = detectTs(line);
+    if (ts) return {ts, pid:null, tid:null, lvl:null, tag:null, msg:line};
+    return null;
+  }
+
+  function compile(rules, kind){
+    const out = [];
+    for (const r of rules){
+      if (r.enabled === false) continue;
+      // case sensitivity: r.ci (true=insensitive) — default true for extract rules, false for mask rules
+      const base = r.flags || (kind === 'mask' ? 'g' : '');
+      const ci = r.ci != null ? !!r.ci : (kind !== 'mask');
+      const flags = /i/.test(base) ? base : base + (ci ? 'i' : '');
+      try { out.push({ name:r.name, rx:new RegExp(r.pattern, flags), replace:(r.replace!=null?String(r.replace):'')}); }
+      catch(e){ out.push({name:r.name, error:String(e)}); }
+    }
+    return out;
+  }
+
+  function maskLine(line, compiledMask){
+    const hits = {};
+    for (const c of compiledMask){
+      if (c.error) continue;
+      let n = 0;
+      // single pass: one regex scan does the counting AND the substitution
+      line = line.replace(c.rx, (...args) => {
+        n++;
+        return String(c.replace).replace(/\$(\$|\d{1,2})/g, (m2, g) =>
+          g === '$' ? '$' : (args[+g] != null ? args[+g] : ''));
+      });
+      if (n) hits[c.name] = (hits[c.name]||0) + n;
+    }
+    return { line, hits };
+  }
+
+  function newState(){
+    return {
+      total:0, matched:0, errish:0, ctxCount:0, truncated:false,
+      byLevel:{}, byTag:{}, buckets:{}, byFile:{},
+      maskHits:{}, matches:[], firstTs:null, lastTs:null,
+      _ctxFile:null, _pendingAfter:0, _lastEmit:-1, _ring:[]
+    };
+  }
+
+  function bucketOf(ts, sizeMin){
+    // ts "MM-DD HH:MM:SS.mmm" -> "MM-DD HH:MM" floored to bucket minutes
+    const mm = parseInt(ts.substr(9,2),10);
+    const b = Math.floor(mm/sizeMin)*sizeMin;
+    return ts.substr(0,9) + (b<10?'0':'') + b;
+  }
+
+  function emitRec(state, opts, rec){
+    if (rec.ctx !== 'match') state.ctxCount++;
+    if (opts.onMatch) opts.onMatch(rec);                 // every emitted record (sink / ctx counter)
+    if (state.matches.length < opts.hardCap) state.matches.push(rec);
+    else state.truncated = true;                          // display store full — stats still count everything
+  }
+
+  function processLine(line, lineno, file, state, opts){
+    state.total++;
+    // context state is per-file: never leak ±N windows across files
+    if (file !== state._ctxFile){ state._ctxFile=file; state._pendingAfter=0; state._lastEmit=-1; state._ring.length=0; }
+    const ctx = Math.max(0, opts.context|0);
+
+    let excluded = false;
+    for (const r of opts.exclude){ if (r.rx.test(line)){ excluded = true; break; } }
+    let included = opts.include.length === 0;             // empty include list = match everything
+    if (!excluded && !included){
+      for (const r of opts.include){ if (r.rx.test(line)){ included = true; break; } }
+    }
+    const h = parseHeader(line);
+    const lvl = h ? h.lvl : null;
+    const ts = h ? h.ts : null;
+    let isMatch = included && !excluded;
+    if (isMatch){
+      if (opts.levels && lvl && !opts.levels.has(lvl)) isMatch = false;
+      // prefix-slice compare: 'to' includes its own boundary minute, 'from' its own second
+      if (isMatch && opts.fromTs && ts && ts.slice(0, opts.fromTs.length) < opts.fromTs) isMatch = false;
+      if (isMatch && opts.toTs && ts && ts.slice(0, opts.toTs.length) > opts.toTs) isMatch = false;
+    }
+
+    // per-file stats (every line)
+    const bf = state.byFile[file] || (state.byFile[file] = {lines:0, matched:0, errish:0, firstTs:null, lastTs:null});
+    bf.lines++;
+    if (ts){ if (!bf.firstTs) bf.firstTs = ts; bf.lastTs = ts; }
+
+    if (!isMatch){
+      if (ctx > 0){
+        const m = opts.applyMask ? maskLine(line, opts.maskCompiled) : {line, hits:null};
+        if (m.hits) for (const k in m.hits) state.maskHits[k] = (state.maskHits[k]||0) + m.hits[k];
+        if (state._pendingAfter > 0 && lineno > state._lastEmit){
+          state._pendingAfter--;
+          state._lastEmit = lineno;                 // dedup: an emitted after-line can't re-emit as before
+          emitRec(state, opts, {file, lineno, masked:m.line, ts, lvl, tag:h?h.tag:'', err:false, ctx:'after'});
+        }
+        state._ring.push({lineno, masked:m.line, ts, lvl, tag:h?h.tag:''});
+        if (state._ring.length > ctx) state._ring.shift();
+      }
+      return;
+    }
+
+    state.matched++;
+    bf.matched++;
+    if (ts){
+      if (!state.firstTs) state.firstTs = ts;
+      state.lastTs = ts;
+      const bk = bucketOf(ts, opts.bucketMin);
+      state.buckets[bk] = (state.buckets[bk]||0)+1;
+    }
+    if (lvl) state.byLevel[lvl] = (state.byLevel[lvl]||0)+1;
+    if (h && h.tag) state.byTag[h.tag] = (state.byTag[h.tag]||0)+1;
+    const isErr = (opts.errishRe ? opts.errishRe.test(line) : ERRISH.test(line)) || lvl==='E' || lvl==='W' || lvl==='F';
+    if (isErr){ state.errish++; bf.errish++; }
+    const m = opts.applyMask ? maskLine(line, opts.maskCompiled) : {line, hits:null};
+    if (m.hits) for (const k in m.hits) state.maskHits[k] = (state.maskHits[k]||0) + m.hits[k];
+
+    if (ctx > 0){
+      // before-context from the ring (dedup: never re-emit a line)
+      for (const b of state._ring){
+        if (b.lineno > state._lastEmit)
+          emitRec(state, opts, {file, lineno:b.lineno, masked:b.masked, ts:b.ts, lvl:b.lvl, tag:b.tag, err:false, ctx:'before'});
+      }
+      state._ring.length = 0;
+      state._pendingAfter = ctx;
+    }
+    state._lastEmit = lineno;
+    emitRec(state, opts, {file, lineno, masked:m.line, ts, lvl, tag:h?h.tag:'', err:isErr, ctx:'match'});
+  }
+
+  function autoBucket(firstTs, lastTs){
+    if (!firstTs || !lastTs) return 1;
+    const t2min = s => ((+s.substr(6,2))*60) + (+s.substr(9,2)) + ((+s.substr(12,2))/60);
+    const span = t2min(lastTs) - t2min(firstTs);
+    if (span > 240) return 10;
+    if (span > 90) return 5;
+    return 1;
+  }
+
+  // merge 1-minute buckets (keys "MM-DD HH:MM") into N-minute buckets at render time
+  function mergeBuckets(buckets, sizeMin){
+    const out = {};
+    for (const k in buckets){
+      const mm = +k.substr(9,2);
+      const f = Math.floor(mm/sizeMin)*sizeMin;
+      const nk = k.substr(0,9) + (f<10?'0':'') + f;
+      out[nk] = (out[nk]||0) + buckets[k];
+    }
+    return out;
+  }
+
+  // pick a merge size that keeps the histogram readable (~<=60 bars) for any capture length
+  function pickBucketSize(n){
+    if (n <= 24) return 1;
+    if (n <= 48) return 5;
+    if (n <= 120) return 10;
+    if (n <= 288) return 30;
+    if (n <= 672) return 60;
+    return 360;
+  }
+
+  // ------- default presets -------
+  const DEFAULT_MASK = [
+    {name:'VIN (17 chars)',  pattern:'(?<![A-Za-z0-9])([A-HJ-NPR-Z0-9]{3})([A-HJ-NPR-Z0-9]{10})([A-HJ-NPR-Z0-9]{4})(?![A-Za-z0-9])', replace:'$1**********$3', flags:'g'},
+    {name:'email',           pattern:'\\b([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b', replace:'$1***@***', flags:'g'},
+    {name:'device serial SN-', pattern:'(SN-)[0-9a-fA-F]{6,}', replace:'$1***', flags:'g'},
+    {name:'MAC (keep OUI)',  pattern:'\\b([0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2})(?::[0-9A-Fa-f]{2}){3}\\b', replace:'$1:**:**:**', flags:'g'},
+    {name:'private IPv4',    pattern:'\\b((?:10\\.\\d+\\.\\d+|192\\.168\\.\\d+|172\\.(?:1[6-9]|2\\d|3[01])\\.\\d+))\\.\\d{1,3}\\b', replace:'$1.x', flags:'g'},
+    {name:'IPv6 link-local/ULA', pattern:'\\b(?:fe80:|fd[0-9A-Fa-f]{2}:)[0-9A-Fa-f:]*[0-9A-Fa-f]', replace:'IPv6-masked', flags:'g'},
+    {name:'subscriberId',    pattern:'(subscriberId=)\\d+', replace:'$1***', flags:'g'},
+    {name:'hotspot SSID',    pattern:'(AndroidShare_)\\d+', replace:'$1****', flags:'g'},
+  ];
+  const DEFAULT_EXTRACT = [];   // empty include list = match all lines; add rules to filter
+
+  const DEMO = [
+    '08-24 12:45:33.910  4111  7681 I MyApp:Heartbeat: service idle — nothing to do',
+    '08-24 15:37:31.613  3807  3828 I MyApp:Service: init params:{server=@local, vin=YV4DEM0123AB34567, vehicleId=YV4DEM0123AB34567}',
+    '08-24 15:37:32.489  3807  3828 I MyApp:Config: {"vin":"YV4DEM0123AB34567","installDate":"2026-08-10"}',
+    '08-24 17:08:44.188  3381  3571 E MyApp:Auth: onError: session authentication failed',
+    '08-24 17:08:44.181  3807  7821 I MyApp:Session: SM: Enter Session::BlockedState state',
+    '08-24 12:47:20.130  3014  3168 I NetMon: send report [system]{"dID":"SN-abc123def456","agent":"demo"}',
+    '08-24 18:10:01.156  1532  1532 D JobQueue: completed job 97766a9 for account demo.user@example.com u=0',
+    '08-24 15:37:34.258   500   500 I netd: interfaceGetCfg(wlan1) -> {ipv4Addr: 192.168.1.123, hwAddr: 02:11:22:aa:bb:cc}',
+    '08-24 18:58:11.270  8805  8805 I dnsmasq: Closing listener [fe80::1111:2222:3333:4444]:53',
+    '08-24 15:37:34.340  1532  1658 D NetPolicy: template=CARRIER, subscriberId=123456789012, metered=true',
+    '08-24 15:37:34.285  1729  1729 I CarProj: AP started, ssid: AndroidShare_31415, bssid: 02:11:22:aa:bb:cc',
+    '08-24 12:52:40.207  5250  5278 I Upload: Status Code: 200',
+  ].join('\n');
+
+  // ---------- AI wizard helpers ----------
+  const SYSTEM_PROMPT = [
+    'You are a rule-config generator for LogLens, a generic text-log filtering + PII masking tool.',
+    'Reply with ONLY one JSON object — no prose, no code fences — matching this schema exactly:',
+    '{"extract":[{"name":string,"pattern":string,"kind":"include"|"exclude","enabled":boolean,"ci":boolean}],',
+    ' "mask":[{"name":string,"pattern":string,"replace":string,"enabled":boolean,"ci":boolean}]}',
+    'Patterns are JavaScript regex (lookbehind supported). Log lines are typically logcat-style:',
+    '"MM-DD HH:MM:SS.mmm  pid tid L TAG: message" where TAG may contain \':\' (e.g. MyApp:Sub);',
+    'syslog, ISO-8601 and other common timestamp formats also occur and are auto-normalized.',
+    'Extraction semantics: a line is kept when it matches ANY include rule and NO exclude rule; include patterns are applied case-insensitively unless ci=false.',
+    'Mask rules run in order over every kept line; "replace" may use $1/$2 group references.',
+    'Built-in PII presets already cover: VIN-style 17-char identifiers, email, device "SN-…" serials, MAC (keeps OUI), private IPv4, IPv6 link-local/ULA, subscriberId, hotspot SSID. Reuse their intent; do not duplicate them unless asked.',
+    'If the user only wants filtering, return an empty "mask" array; if only masking, return an empty "extract" array. Use short, descriptive rule names.'
+  ].join('\n');
+
+  function extractJSON(text){
+    let t = String(text).trim();
+    const f = /```(?:json)?\s*([\s\S]*?)```/.exec(t);
+    if (f) t = f[1].trim();
+    const a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if (a < 0 || b <= a) throw new Error('no JSON object found in model output');
+    return t.slice(a, b + 1);
+  }
+
+  function validateProfile(obj){
+    const errors = [], extract = [], mask = [];
+    const names = new Set();
+    function uniq(n){ let x=n,k=2; while(names.has(x)) x=n+' ('+(k++)+')'; names.add(x); return x; }
+    if (!obj || typeof obj !== 'object') return { extract, mask, errors:['root is not an object'] };
+    (Array.isArray(obj.extract) ? obj.extract : []).forEach((r,i)=>{
+      if (!r || typeof r !== 'object') { errors.push('extract['+i+']: not an object'); return; }
+      const name = String(r.name || ('rule '+(i+1)));
+      const pattern = String(r.pattern || '');
+      if (!pattern) { errors.push(name+': empty pattern'); return; }
+      try { new RegExp(pattern); } catch(e){ errors.push(name+': invalid regex — '+e.message); return; }
+      extract.push({ name: uniq(name), pattern, kind: r.kind==='exclude'?'exclude':'include', enabled: r.enabled!==false, ci: r.ci !== false });
+    });
+    (Array.isArray(obj.mask) ? obj.mask : []).forEach((r,i)=>{
+      if (!r || typeof r !== 'object') { errors.push('mask['+i+']: not an object'); return; }
+      const name = String(r.name || ('mask '+(i+1)));
+      const pattern = String(r.pattern || '');
+      if (!pattern) { errors.push(name+': empty pattern'); return; }
+      try { new RegExp(pattern,'g'); } catch(e){ errors.push(name+': invalid regex — '+e.message); return; }
+      mask.push({ name: uniq(name), pattern, replace: r.replace!=null ? String(r.replace) : '[redacted]', flags:'g' + (r.ci ? 'i' : ''), enabled: r.enabled!==false });
+    });
+    return { extract, mask, errors };
+  }
+
+  function processText(text, file, opts, state){
+    const lines = text.split('\n');
+    // pre-pass for bucket sizing on small texts; streaming uses per-file two-pass for accuracy
+    let firstTs=null,lastTs=null;
+    if (lines.length < 200000){
+      for (const l of lines){ const h=HDR.exec(l); if(h){ if(!firstTs)firstTs=h[1]; lastTs=h[1]; } }
+    }
+    const bucketMin = opts.bucketMin || autoBucket(firstTs,lastTs);
+    const o = Object.assign({}, opts, {bucketMin});
+    lines.forEach((l,i)=>processLine(l.replace(/\r$/,''), i+1, file, state, o));
+    return state;
+  }
+
+  function readiness(files, inc, exc, mask){
+    if (!files) return { ok:false, text:'no files loaded — add logs in section 1 first' };
+    const f = files===1 ? 'file' : 'files';
+    return { ok:true, text: files+' '+f+' · '+inc+' include · '+exc+' exclude · '+mask+' mask rules — ready' };
+  }
+  function validTs(s){ return s==='' || /^(\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?)$/.test(s); }
+
+  return { HDR, ERRISH, ERRISH_SOURCE, DEFAULT_ERRISH_SOURCE: ERRISH_SOURCE, parseHeader, detectTs, detectTsInfo, TS_FAMILIES,
+           parseUserTs, validUserTs,
+           compile, maskLine, processLine, processText, newState,
+           autoBucket, mergeBuckets, pickBucketSize, readiness, validTs,
+           DEFAULT_MASK, DEFAULT_EXTRACT, DEMO, SYSTEM_PROMPT, extractJSON, validateProfile };
+})();
+if (typeof window!=='undefined') window.CORE = CORE;
+if (typeof module!=='undefined' && module.exports) module.exports = CORE;
+</script>
+
+<!-- ============================================================ UI -->
+<script>
+(function(){
+if (typeof document === 'undefined') return; // core-only (node) mode
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+const store = {
+  load(){ try{ const s = localStorage.getItem('loglens.profile'); if (s) return JSON.parse(s); }catch(e){} return null; },
+  save(p){ try{ localStorage.setItem('loglens.profile', JSON.stringify(p)); }catch(e){} }
+};
+
+const S = {
+  files: [],            // {name, file}
+  extRules: JSON.parse(JSON.stringify(CORE.DEFAULT_EXTRACT)),
+  maskRules: JSON.parse(JSON.stringify(CORE.DEFAULT_MASK)),
+  levels: new Set(['V','D','I','W','E','F']),
+  result: null,         // {state, opts}
+  shown: 0,
+  aborted: false,
+  running: false
+};
+
+// ---------- rule editors ----------
+function renderExtRules(){
+  const box = $('extRules'); box.innerHTML='';
+  S.extRules.forEach((r,i)=>{
+    const d = document.createElement('div'); d.className='rule';
+    const bad = r._bad ? ' style="border-color:var(--red)"' : '';
+    const aaOn = r.ci !== false;
+    d.innerHTML =
+      `<input type="checkbox" class="sw" ${r.enabled!==false?'checked':''} title="enabled">`+
+      `<input type="text" class="nm" value="${esc(r.name)}" placeholder="name">`+
+      `<input type="text" value="${esc(r.pattern)}" placeholder="regex" spellcheck="false"${bad}>`+
+      `<button class="aa${aaOn?' on':''}" title="${aaOn?'case-insensitive (click for case-sensitive)':'case-sensitive (click for case-insensitive)'}">Aa</button>`+
+      `<span class="badge ${r.kind==='include'?'blue':'red'}" title="click to toggle include/exclude" style="cursor:pointer">${r.kind}</span>`+
+      `<button class="x" title="remove">✕</button>`;
+    const [sw,nm,pt] = d.querySelectorAll('input');
+    sw.onchange = ()=>{ r.enabled = sw.checked; saveProfile(); };
+    nm.oninput = ()=>{ r.name = nm.value; saveProfile(); };
+    pt.oninput = ()=>{ r.pattern = pt.value; r._bad=!validRe(pt.value); pt.style.borderColor=r._bad?'var(--red)':''; saveProfile(); };
+    d.querySelector('.aa').onclick = ()=>{ r.ci = !(r.ci!==false); renderExtRules(); saveProfile(); };
+    d.querySelector('.badge').onclick = (e)=>{ r.kind = r.kind==='include'?'exclude':'include'; e.target.className='badge '+(r.kind==='include'?'blue':'red'); e.target.textContent=r.kind; saveProfile(); };
+    d.querySelector('.x').onclick = ()=>{ S.extRules.splice(i,1); renderExtRules(); saveProfile(); };
+    box.appendChild(d);
+  });
+  updateReady();
+}
+function validRe(p){ try{ new RegExp(p); return true; }catch(e){ return false; } }
+
+function renderMaskRules(){
+  const box = $('maskRules'); box.innerHTML='';
+  S.maskRules.forEach((r,i)=>{
+    const d = document.createElement('div'); d.className='rule';
+    d.innerHTML =
+      `<input type="checkbox" class="sw" ${r.enabled!==false?'checked':''}>`+
+      `<input type="text" class="nm" value="${esc(r.name)}" placeholder="name">`+
+      `<input type="text" value="${esc(r.pattern)}" placeholder="pattern (regex, flags g)" spellcheck="false">`+
+      `<input type="text" class="rp" value="${esc(r.replace)}" placeholder="replacement ($1…)" spellcheck="false">`+
+      `<span class="hits" id="mh_${i}">${r._hits!=null?r._hits:''}</span>`+
+      `<button class="aa${r.ci===true?' on':''}" title="${r.ci===true?'case-insensitive (click for case-sensitive)':'case-sensitive (click for case-insensitive)'}">Aa</button>`+
+      `<button class="x up" title="move up" ${i===0?'disabled style="opacity:.3"':''}>↑</button>`+
+      `<button class="x dn" title="move down" ${i===S.maskRules.length-1?'disabled style="opacity:.3"':''}>↓</button>`+
+      `<button class="x" title="remove">✕</button>`;
+    const [sw,nm,pt,rp] = d.querySelectorAll('input');
+    sw.onchange = ()=>{ r.enabled=sw.checked; saveProfile(); pv(); };
+    nm.oninput = ()=>{ r.name=nm.value; saveProfile(); };
+    pt.oninput = ()=>{ r.pattern=pt.value; pt.style.borderColor=validRe(pt.value)?'':'var(--red)'; saveProfile(); pv(); };
+    rp.oninput = ()=>{ r.replace=rp.value; saveProfile(); pv(); };
+    d.querySelector('.aa').onclick = ()=>{ r.ci = (r.ci===true) ? false : true; renderMaskRules(); saveProfile(); pv(); };
+    d.querySelectorAll('.x.up,.x.dn').forEach(b=>{
+      b.onclick = ()=>{
+        const j = b.classList.contains('up') ? i-1 : i+1;
+        if (j<0 || j>=S.maskRules.length) return;
+        [S.maskRules[i],S.maskRules[j]] = [S.maskRules[j],S.maskRules[i]];
+        renderMaskRules(); saveProfile(); pv();
+      };
+    });
+    d.querySelector('.x:not(.up):not(.dn)').onclick = ()=>{ S.maskRules.splice(i,1); renderMaskRules(); saveProfile(); pv(); };
+    box.appendChild(d);
+  });
+  updateReady();
+}
+
+// ---------- levels ----------
+const LV = ['V','D','I','W','E','F'];
+function renderLvls(){
+  const box=$('lvlChips'); box.innerHTML='';
+  LV.forEach(l=>{
+    const c=document.createElement('span'); c.className='chip'+(S.levels.has(l)?' on':'');
+    c.textContent='level '+l;
+    c.onclick=()=>{ S.levels.has(l)?S.levels.delete(l):S.levels.add(l); renderLvls(); saveProfile(); };
+    box.appendChild(c);
+  });
+  $('lvlWarn').style.display = S.levels.size ? 'none' : '';
+}
+
+// extraction rule presets
+const EXTRACT_PRESETS = {
+  crash: [{name:'fatal exceptions', pattern:'FATAL EXCEPTION|beginning of crash', kind:'include', enabled:true},
+          {name:'ANR', pattern:'ANR in ', kind:'include', enabled:true},
+          {name:'process deaths', pattern:'has died|am_proc_died|tombstone|Signal \\d+', kind:'include', enabled:true},
+          {name:'drop known-noisy app', pattern:'com\\.example\\.verboseapp', kind:'exclude', enabled:true}],
+  conn:  [{name:'connectivity core', pattern:'ConnectivityService|NetworkMonitor|NetworkPolicy', kind:'include', enabled:true},
+          {name:'data/telephony', pattern:'DATA_DISCONNECTED|DATA_CONNECTED|DataNetworkController|deactivateDataCall', kind:'include', enabled:true},
+          {name:'wifi', pattern:'WifiService|SoftApManager|dnsmasq', kind:'include', enabled:true},
+          {name:'drop quota chatter', pattern:'JobScheduler\\.Quota|WM-ConstraintTracker', kind:'exclude', enabled:true}],
+  auth:  [{name:'auth failures', pattern:'auth|login|token|credential|session', kind:'include', enabled:true},
+          {name:'drop successful noise', pattern:'token refresh ok|session established', kind:'exclude', enabled:true}],
+};
+$('extPreset').onchange = ()=>{
+  const p = $('extPreset').value;
+  if (!p || !EXTRACT_PRESETS[p]) return;
+  S.extRules = JSON.parse(JSON.stringify(EXTRACT_PRESETS[p]));
+  renderExtRules(); saveProfile();
+  $('extPreset').value = '';
+};
+
+// ---------- preview ----------
+function pv(){
+  const v = $('pvIn').value;
+  if(!v){ $('pvOut').textContent='—'; return; }
+  const compiled = CORE.compile(S.maskRules,'mask').map(c=>c.error?c:{...c, rx:new RegExp(c.rx.source, c.rx.flags)});
+  const {line,hits} = CORE.maskLine(v, compiled);
+  const hlist = Object.entries(hits).map(([k,n])=>`${k}×${n}`).join(', ');
+  $('pvOut').innerHTML = esc(line) + (hlist?`\n<span style="color:#7fb4e8">masked: ${esc(hlist)}</span>`:'');
+}
+$('pvIn').addEventListener('input', pv);
+
+// ---------- files ----------
+const drop=$('drop'), fpick=$('fpick');
+drop.onclick=()=>fpick.click();
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=async e=>{e.preventDefault();drop.classList.remove('over');await handleDrop(e.dataTransfer);};
+fpick.onchange=()=>{addFiles(fpick.files); fpick.value='';};
+$('dpickBtn').onclick=()=>$('dpick').click();
+$('dpick').onchange=()=>{addFiles($('dpick').files); $('dpick').value='';};
+function addFiles(fl){
+  for (const f of fl) if (!S.files.some(x=>x.name===f.name && x.file.size===f.size)) S.files.push({name:f.name, file:f});
+  renderFiles();
+}
+const LOG_EXT=/\.(log|txt|text)$/i;
+function walkEntry(entry, depth, out){
+  return new Promise(res=>{
+    if (!entry || depth>4) return res();
+    if (entry.isFile){
+      entry.file(f=>{ if (LOG_EXT.test(f.name)) out.push(f); res(); }, ()=>res());
+    } else if (entry.isDirectory){
+      const rdr = entry.createReader(), acc=[];
+      const step=()=>rdr.readEntries(async ents=>{
+        if (!ents.length){ for (const e2 of acc) await walkEntry(e2, depth+1, out); res(); }
+        else { acc.push(...ents); step(); }
+      }, ()=>res());
+      step();
+    } else res();
+  });
+}
+async function handleDrop(dt){
+  const out=[]; const jobs=[];
+  for (const it of dt.items){
+    const e = it.webkitGetAsEntry && it.webkitGetAsEntry();
+    if (e && e.isDirectory) jobs.push(walkEntry(e,0,out));
+    else { const f = it.getAsFile && it.getAsFile(); if (f && LOG_EXT.test(f.name)) out.push(f); }
+  }
+  if (jobs.length){ drop.classList.add('over'); await Promise.all(jobs); drop.classList.remove('over'); }
+  if (out.length) addFiles(out); else alert('No .log/.txt files found.');
+}
+function renderFiles(){
+  const box=$('filelist'); box.innerHTML='';
+  S.files.forEach((f,i)=>{
+    const d=document.createElement('div'); d.className='fileitem';
+    d.innerHTML=`<input type="checkbox" checked> <span class="nm" title="${esc(f.name)}">${esc(f.name)}</span> <span class="sz">${(f.file.size/1048576).toFixed(1)} MB</span> <button class="x">✕</button>`;
+    d.querySelector('input').onchange=e=>{ f.use=e.target.checked; updateReady(); sniffFormat(); };
+    d.querySelector('.x').onclick=()=>{ S.files.splice(i,1); renderFiles(); };
+    box.appendChild(d);
+  });
+  updateReady();
+  sniffFormat();
+}
+
+// ---------- timestamp-format sniffing (adapts the time-window inputs) ----------
+const FMT_META = {
+  logcat: { label:'logcat',      ph:'08-24 15:37',          example:'08-24 15:37' },
+  iso:    { label:'ISO 8601',    ph:'2026-08-24 15:37',     example:'2026-08-24 15:37' },
+  syslog: { label:'syslog',      ph:'Aug 24 15:37',         example:'Aug 24 15:37' },
+  clf:    { label:'Apache/CLF',  ph:'24/Aug/2026:15:37',    example:'[24/Aug/2026:15:37]' },
+  mmd:    { label:'MM-DD',       ph:'08-24 15:37',          example:'08-24 15:37' },
+};
+let sniffToken = 0;
+function setTsHint(family){
+  const meta = family && FMT_META[family];
+  if (meta){
+    $('tsFrom').placeholder = meta.ph;
+    $('tsTo').placeholder = meta.ph.replace(/15:37/, '19:22');
+    $('tsFmt').innerHTML = 'detected format: <b>' + esc(meta.label) + '</b> — type the window in that format (or any supported one)';
+  } else {
+    $('tsFrom').placeholder = '08-24 15:37';
+    $('tsTo').placeholder = '08-24 19:22';
+    $('tsFmt').textContent = 'accepts: MM-DD HH:MM · ISO 8601 · syslog · Apache/CLF — auto-detected from your files';
+  }
+}
+async function sniffFormat(){
+  const token = ++sniffToken;
+  const f = S.files.find(x=>x.use!==false);
+  if (!f){ setTsHint(null); return; }
+  try{
+    const reader = f.file.slice(0, 262144).stream().getReader();
+    const dec = new TextDecoder();
+    let b = '', lines = 0; const counts = {};
+    while (lines < 300){
+      const {done, value} = await reader.read();
+      if (done) break;
+      b += dec.decode(value, {stream:true});
+      let i;
+      while ((i = b.indexOf('\n')) >= 0 && lines < 300){
+        const l = b.slice(0, i).replace(/\r$/,''); b = b.slice(i+1); lines++;
+        if (CORE.HDR.test(l)) counts.logcat = (counts.logcat||0) + 1;
+        else { const info = CORE.detectTsInfo(l); if (info) counts[info.family] = (counts[info.family]||0) + 1; }
+      }
+    }
+    try{ await reader.cancel(); }catch(e){}
+    if (token !== sniffToken) return;                 // a newer sniff superseded this one
+    const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+    setTsHint(best ? best[0] : null);
+  }catch(e){ if (token === sniffToken) setTsHint(null); }
+}
+$('btnDemo').onclick=()=>{
+  const f = new File([CORE.DEMO],'demo_sample.log',{type:'text/plain'});
+  S.files=[{name:'demo_sample.log',file:f}]; renderFiles();
+  $('pvIn').value='init params:{vin=YV4DEM0123AB34567, vehicleId=YV4DEM0123AB34567} contact: demo.user@example.com dID SN-abc123def456';
+  pv();
+};
+
+// ---------- run ----------
+$('btnRun').onclick=run;
+$('btnStop').onclick=()=>{ S.aborted=true; };
+async function run(){
+  if (S.running || S.mBusy) return;
+  const files = S.files.filter(f=>f.use!==false);
+  if (!files.length){ alert('Load at least one file (or click “Load demo sample”).'); return; }
+
+  const include = CORE.compile(S.extRules.filter(r=>r.kind==='include'),'extract').filter(c=>!c.error);
+  const exclude = CORE.compile(S.extRules.filter(r=>r.kind==='exclude'),'extract').filter(c=>!c.error);
+  const bad = S.extRules.find(r=>r.enabled!==false && !validRe(r.pattern));
+  if (bad){ alert('Invalid extraction regex: '+bad.pattern); return; }
+
+  S.running=true; S.aborted=false;
+  $('btnRun').disabled=true; $('btnStop').disabled=false; $('mRun').disabled=true;
+  $('runNote').style.display='none';
+  $('prog').style.display='block'; $('progText').style.display='block';
+
+  const maskCompiledRaw = CORE.compile(S.maskRules,'mask');
+  const badMask = maskCompiledRaw.find(c=>c.error);
+  if (badMask){ alert('Invalid mask regex: '+badMask.name); reset(); return; }
+  const maskCompiled = maskCompiledRaw.map(c=>({...c, rx:new RegExp(c.rx.source, c.rx.flags)}));
+
+  const state = CORE.newState();
+  let errishRe = null;
+  if ($('optErrish').checked){
+    const src = $('errishRx').value.trim() || CORE.ERRISH_SOURCE;
+    try { errishRe = new RegExp(src, 'i'); }
+    catch(e){ alert('Invalid error-ish regex: '+e.message); reset(); return; }
+  } else {
+    errishRe = { test: () => false };   // tagging explicitly disabled
+  }
+  const normTs = (v) => v ? CORE.parseUserTs(v) : null;
+  const fromRaw = $('tsFrom').value.trim(), toRaw = $('tsTo').value.trim();
+  const fromTs = normTs(fromRaw), toTs = normTs(toRaw);
+  if ((fromRaw && !fromTs) || (toRaw && !toTs)){
+    alert('Invalid time window — use the detected format (e.g. ' + ($('tsFrom').placeholder || '08-24 15:37') + '), ISO 8601, syslog or Apache/CLF.');
+    reset(); return;
+  }
+  const opts = {
+    include, exclude,
+    levels: new Set(LV.filter(l=>S.levels.has(l))),
+    fromTs, toTs,
+    applyMask: $('optMask').checked,
+    maskCompiled,
+    errishRe,
+    context: Math.max(0, parseInt($('optCtx').value,10)||0),
+    hardCap: Math.max(1000, parseInt($('optCap').value,10)||200000),
+    onMatch: null
+  };
+
+  // direct-to-file sink for very large runs (File System Access API — Chromium)
+  // 1 input file  -> one output file (save picker)
+  // N input files -> user picks an OUTPUT FOLDER; one <name>.extract.log per input file
+  S.sink=null; S.sinkQ=Promise.resolve(); S.sinkBuf=null; S.sinkCount=0; S.t0=performance.now();
+  let sinkDir=null, perFileSink=false; const sinkNames=[];
+  if ($('optDirect').checked){
+    if (window.showSaveFilePicker && window.showDirectoryPicker){
+      try{
+        if (files.length===1){
+          const fh = await window.showSaveFilePicker({suggestedName:'loglens_extract.log'});
+          S.sink = await fh.createWritable();
+          S.sinkBuf = [];
+          sinkNames.push('loglens_extract.log');
+        } else {
+          sinkDir = await window.showDirectoryPicker({mode:'readwrite'});
+          perFileSink = true;
+          S.sinkBuf = [];
+        }
+        const usePrefix = $('optLnnn').checked;
+        opts.onMatch = r => { S.sinkBuf.push((r.ctx && r.ctx!=='match') ? r.masked
+                                    : (usePrefix?`[L${r.lineno}] `:'')+r.masked); };
+      }catch(e){
+        reset();
+        alert('Direct export cancelled — run aborted.');
+        return;
+      }
+    } else {
+      $('optDirect').checked=false;
+      alert('Direct-to-file export needs a Chromium-based browser (File System Access API).\nProceeding with in-memory results (capped at 200k stored matches).');
+    }
+  }
+
+  const t0 = performance.now();
+  try{
+    for (let fi=0; fi<files.length; fi++){
+      const f=files[fi];
+      let nm=null, countBefore=0;
+      if (perFileSink){
+        nm = f.name.replace(/\.(log|txt|text)$/i,'') + '.extract.log';
+        let k = 2;                                   // duplicate basenames must not clobber each other
+        while (sinkNames.includes(nm)) nm = f.name.replace(/\.(log|txt|text)$/i,'') + `_${k++}.extract.log`;
+        S.sink = await sinkDir.getFileHandle(nm,{create:true}).then(h=>h.createWritable());
+        sinkNames.push(nm);
+        countBefore = S.sinkCount;
+      }
+      await processFile(f, state, opts);
+      if (perFileSink && S.sink){
+        await S.sinkQ;
+        try{ await S.sink.close(); }catch(e){}
+        if (S.sinkCount===countBefore){          // no matches -> remove the empty file
+          try{ await sinkDir.removeEntry(nm); }catch(e){}
+          sinkNames.pop();
+        }
+        S.sink = null;
+      }
+      if (S.aborted) break;
+    }
+    if (S.sink){                                  // merged single-output mode
+      await S.sinkQ;
+      try{ await S.sink.close(); }catch(e){}
+      $('progText').textContent += S.aborted ? ' (partial — stopped)' : '';
+    }
+    if (sinkNames.length){
+      $('runNote').style.display='';
+      $('runNote').innerHTML = 'wrote ' + sinkNames.length + ' file(s): <span style="font-family:Consolas">' + sinkNames.map(esc).join(', ') + '</span>' + (S.aborted ? ' <b>(partial — stopped early)</b>' : '');
+    }
+  }catch(e){
+    alert('Processing error: '+e.message);
+    try{ await S.sinkQ; }catch(_){}
+    if (S.sink){ try{ await S.sink.close(); }catch(_){} S.sink=null; }
+  }
+  const ms = performance.now()-t0;
+
+  // fill rule hit badges
+  S.maskRules.forEach((r,i)=>{ r._hits = state.maskHits[r.name]!=null ? state.maskHits[r.name] : 0; });
+  renderMaskRules();
+
+  S.result = { state, opts:{...opts, levels:[...opts.levels]} };
+  renderStats(ms);
+  S.shown=0; $('resFilter').value=''; $('errOnly').checked=false;
+  renderResults(true);
+  $('statsCard').style.display=''; $('resCard').style.display=''; $('expCard').style.display='';
+  reset();
+  if (!S.aborted) $('statsCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function reset(){ S.running=false; $('btnStop').disabled=true; $('mRun').disabled=false;
+  $('prog').style.display='none'; $('progText').style.display='none'; updateReady(); }
+
+async function processFile(f, state, opts){
+  const stream = f.file.stream().getReader();
+  const dec = new TextDecoder();
+  let buf='', lineno=0, read=0, lastYield=0;
+  const o = { ...opts, bucketMin: 1 };   // single pass; buckets merge at render time
+  while(true){
+    if (S.aborted) break;
+    const {done, value} = await stream.read();
+    if (done) break;
+    read += value.byteLength;
+    buf += dec.decode(value,{stream:true});
+    let i;
+    while((i = buf.indexOf('\n')) >= 0){
+      const line = buf.slice(0,i).replace(/\r$/,''); buf = buf.slice(i+1);
+      CORE.processLine(line, ++lineno, f.name, state, o);
+    }
+    if (buf.length > 8*1048576){
+      // newline valve: pathologically long line (would otherwise grow the buffer unbounded)
+      CORE.processLine(buf.replace(/\r$/,''), ++lineno, f.name, state, o);
+      buf = '';
+    }
+    if (S.sink && S.sinkBuf.length){
+      const txt = S.sinkBuf.join('\n') + '\n';
+      S.sinkCount += S.sinkBuf.length; S.sinkBuf.length = 0;
+      S.sinkQ = S.sinkQ.then(()=>S.sink.write(txt));
+    }
+    if (read-lastYield > 8*1048576){
+      lastYield=read;
+      const pct = Math.min(99, 100*read/f.file.size);
+      const el = (performance.now()-S.t0)/1000;
+      const rate = read/1048576/Math.max(el,0.001);
+      const eta = read<f.file.size ? ((f.file.size-read)/1048576/Math.max(rate,0.01)) : 0;
+      $('progBar').style.width = pct+'%';
+      $('progText').textContent = `${f.name} — ${(read/1048576).toFixed(0)}/${(f.file.size/1048576).toFixed(0)} MB · ${rate.toFixed(0)} MB/s · ETA ${eta<1?'<1':eta.toFixed(0)} s · ${state.total.toLocaleString()} lines · ${state.matched.toLocaleString()} matches${S.sink?` · ${S.sinkCount.toLocaleString()} written`:''}`;
+      await new Promise(r=>setTimeout(r));
+    }
+  }
+  if (buf && !S.aborted) CORE.processLine(buf.replace(/\r$/,''), ++lineno, f.name, state, o);
+  if (S.sink && S.sinkBuf.length){
+    const txt = S.sinkBuf.join('\n') + '\n';
+    S.sinkCount += S.sinkBuf.length; S.sinkBuf.length = 0;
+    S.sinkQ = S.sinkQ.then(()=>S.sink.write(txt));
+  }
+  $('progBar').style.width='100%';
+  $('progText').textContent = `${f.name} — done · ${state.total.toLocaleString()} lines · ${state.matched.toLocaleString()} matches${S.sink?` · ${S.sinkCount.toLocaleString()} written to file`:''}`;
+  stream.releaseLock?.();
+}
+
+// ---------- stats ----------
+function renderStats(ms){
+  const st=S.result.state;
+  const cards=[
+    ['lines scanned', st.total.toLocaleString(), ''],
+    ['matched', st.matched.toLocaleString(), 'blue'],
+    ['error-ish', st.errish.toLocaleString(), st.errish?'red':'green'],
+    ['mask hits', Object.values(st.maskHits).reduce((a,b)=>a+b,0).toLocaleString(), 'amber'],
+    ['context lines', st.ctxCount.toLocaleString(), ''],
+    ['run time', (ms/1000).toFixed(1)+' s', ''],
+  ];
+  $('statCards').innerHTML = cards.map(c=>`<div class="stat ${c[2]}"><div class="n">${c[1]}</div><div class="l">${c[0]}</div></div>`).join('');
+
+  // histogram — merge 1-minute buckets at render time so long captures stay readable
+  const bsize = CORE.pickBucketSize(Object.keys(st.buckets).length);
+  const bmap = bsize===1 ? st.buckets : CORE.mergeBuckets(st.buckets, bsize);
+  const buckets = Object.entries(bmap).sort((a,b)=>a[0]<b[0]?-1:1);
+  const W=1150,H=210,padL=40,padB=30,padT=16;
+  const max = Math.max(1,...buckets.map(b=>b[1]));
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:Segoe UI">`;
+  for(let g=0;g<=4;g++){ const y=padT+(H-padT-padB)*(1-g/4);
+    svg+=`<line x1="${padL}" y1="${y}" x2="${W-10}" y2="${y}" stroke="#e3e8ee"/><text x="${padL-6}" y="${y+4}" text-anchor="end" font-size="10" fill="#5b6b7b">${Math.round(max*g/4)}</text>`; }
+  const bw = buckets.length? (W-padL-10)/buckets.length : 0;
+  buckets.forEach((b,i)=>{ const h=(H-padT-padB)*b[1]/max, x=padL+i*bw+bw*0.12, w=Math.max(1,bw*0.76);
+    const from = b[0]+':00';
+    const endD = new Date(2001, parseInt(b[0].substr(0,2),10)-1, parseInt(b[0].substr(3,2),10), parseInt(b[0].substr(6,2),10), parseInt(b[0].substr(9,2),10) + bsize - 1);
+    const p2 = n => String(n).padStart(2,'0');
+    const to = p2(endD.getMonth()+1)+'-'+p2(endD.getDate())+' '+p2(endD.getHours())+':'+p2(endD.getMinutes())+':59';
+    svg+=`<rect x="${x}" y="${padT+(H-padT-padB)-h}" width="${w}" height="${h}" rx="2" fill="#0f62fe" opacity="0.85" style="cursor:pointer" data-from="${esc(from)}" data-to="${esc(to)}"><title>${esc(b[0])} — ${b[1]} lines — click to filter this window</title></rect>`;
+    if (buckets.length<=40 || i%Math.ceil(buckets.length/20)===0)
+      svg+=`<text x="${x+w/2}" y="${H-10}" text-anchor="middle" font-size="9" fill="#5b6b7b">${esc(b[0].substr(6))}</text>`; });
+  svg+='</svg>';
+  $('histBox').innerHTML = `<div style="font-size:12px;color:var(--mut);margin-bottom:6px">Matched lines per ${bsize}-minute bucket${st.firstTs?` — ${esc(st.firstTs)} → ${esc(st.lastTs)}`:''} — <b>click a bar to time-filter</b></div>`+svg;
+  $('histBox').querySelectorAll('rect[data-from]').forEach(r=>{
+    r.addEventListener('click',()=>{
+      $('tsFrom').value = r.dataset.from;
+      $('tsTo').value   = r.dataset.to;
+      saveProfile();
+      if (!S.running) run();          // files are still loaded — re-scan with the new window
+    });
+  });
+
+  // truncation warning
+  const tn=$('truncNote');
+  if (st.truncated){
+    tn.style.display='';
+    tn.innerHTML = `⚠ <b>Result table capped at ${S.result.opts.hardCap.toLocaleString()} stored matches</b> — ${st.matched.toLocaleString()} lines matched in total (stats &amp; histogram cover them all). Use <b>direct-to-file export</b> for the complete extract, or narrow the rules.`;
+  } else tn.style.display='none';
+
+  // top tags
+  const tags = Object.entries(st.byTag).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  $('tagTable').innerHTML = '<tr><th>tag</th><th>count</th></tr>'+tags.map(t=>`<tr><td class="mono">${esc(t[0])}</td><td>${t[1].toLocaleString()}</td></tr>`).join('');
+
+  // mask table
+  $('maskTable').innerHTML = '<tr><th>rule</th><th>hits</th></tr>'+
+    S.maskRules.map(r=>`<tr><td>${esc(r.name)}</td><td>${r._hits?r._hits.toLocaleString():0}</td></tr>`).join('');
+
+  // per-file breakdown
+  const bf = Object.entries(st.byFile).sort((a,b)=>b[1].matched-a[1].matched);
+  $('fileTable').innerHTML = '<tr><th>file</th><th>lines</th><th>matched</th><th>err-ish</th><th>span</th></tr>'+
+    bf.map(([f,v])=>`<tr><td class="mono" title="${esc(f)}">${esc(f.length>42?'…'+f.slice(-41):f)}</td><td>${v.lines.toLocaleString()}</td><td>${v.matched.toLocaleString()}</td><td>${v.errish.toLocaleString()}</td><td class="mono" style="font-size:10.5px">${v.firstTs?esc(v.firstTs.substr(6,8))+' → '+esc(v.lastTs.substr(6,8)):'—'}</td></tr>`).join('');
+}
+
+// ---------- results ----------
+function visibleRows(){
+  if(!S.result) return [];
+  let rows = S.result.state.matches;
+  const q = $('resFilter').value.trim();
+  if (q){ let rx; try{ rx=new RegExp(q,'i'); }catch(e){ return rows; }
+    rows = rows.filter(r=>rx.test(r.tag+' '+r.masked)); }
+  if ($('errOnly').checked) rows = rows.filter(r=>r.err);
+  return rows;
+}
+let allFiltered=[];
+const RES_HEAD = '<thead><tr><th style="width:86px">time</th><th style="width:36px">lvl</th><th style="width:110px">tag</th><th>message (masked)</th><th style="width:70px">line</th></tr></thead>';
+function rowHTML(r,i){
+  const isCtx = r.ctx && r.ctx!=='match';
+  const lv = isCtx ? `<span class="badge gray" title="${esc(r.ctx)}-context line">~${esc(r.ctx[0])}</span>`
+                   : (r.lvl?`<span class="lv lv${r.lvl}">${r.lvl}</span>`:'');
+  const msg = esc((r.masked||'').substr(0,400));
+  return `<tr data-i="${i}" class="${r.err?'errrow':''}${isCtx?' ctxrow':''}"><td class="mono">${esc(r.ts?r.ts.substr(6,11):'')}</td><td>${lv}</td><td class="mono">${esc(r.tag)}</td><td class="mono" title="${esc(r.file)} · L${r.lineno}${isCtx?' ('+r.ctx+'-context)':''} — ${esc(r.masked||'')} — click row to copy">${msg}</td><td class="mono">${r.lineno}</td></tr>`;
+}
+function renderResults(reset){
+  allFiltered = visibleRows();
+  if (reset || S.shown===0){
+    S.shown = 0;
+    $('resTable').innerHTML = RES_HEAD + '<tbody id="resBody"></tbody>';
+    const rw=$('resWrap'); if (rw) rw.scrollTop=0;
+  }
+  const N = Math.min(S.shown+500, allFiltered.length);
+  const frag = [];
+  for (let i=S.shown;i<N;i++) frag.push(rowHTML(allFiltered[i], i));
+  if (frag.length) $('resBody').insertAdjacentHTML('beforeend', frag.join(''));
+  S.shown = N;
+  $('moreBtn').style.display = N<allFiltered.length ? '' : 'none';
+  $('moreBtn').textContent = `Show more rows (${N.toLocaleString()} / ${allFiltered.length.toLocaleString()})`;
+  renderFilterChips();
+}
+$('resFilter').addEventListener('input',()=>renderResults(true));
+$('errOnly').addEventListener('change',()=>renderResults(true));
+$('moreBtn').onclick=()=>renderResults(false);
+
+// ---------- exports ----------
+function canGz(){ return typeof CompressionStream !== 'undefined'; }
+async function gzFromChunks(chunks){                 // chunks: array of strings -> gzip Blob
+  const cs = new CompressionStream('gzip');
+  const blobP = new Response(cs.readable).blob();    // start draining early
+  const w = cs.writable.getWriter();
+  const enc = new TextEncoder();
+  for (const c of chunks) await w.write(enc.encode(c));
+  await w.close();
+  return await blobP;
+}
+function dl(name, text, type){
+  const b=new Blob([text],{type:type||'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+function dlBlob(name, blob){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+function extractBody(){
+  const rows=visibleRows();
+  const pre=$('optLnnn').checked;
+  const st=S.result.state;
+  let head='';
+  if (st.truncated) head += `# NOTE: in-memory extract truncated at ${S.result.opts.hardCap.toLocaleString()} of ${st.matched.toLocaleString()} matches — use direct-to-file export for the complete set\n`;
+  if (st.ctxCount) head += `# includes ${st.ctxCount.toLocaleString()} context lines (plain, unmarked)\n`;
+  const runFiles=[...new Set(st.matches.map(r=>r.file))];
+  if (runFiles.length>1) head += `# files: ${runFiles.join(', ')} — [Lnnn] line numbers are per-file\n`;
+  const body = rows.map(r=>(r.ctx && r.ctx!=='match') ? r.masked
+    : (pre?`[L${r.lineno}] `:'')+r.masked).join('\n');
+  return head + body;
+}
+$('dlExtract').onclick=()=>dl('loglens_extract.log', extractBody());
+$('cpExtract').onclick=()=>{
+  (navigator.clipboard?navigator.clipboard.writeText(extractBody()):Promise.reject())
+    .then(()=>toast('extract copied ✓'), ()=>toast('clipboard blocked — use the download button'));
+};
+$('dlGz').onclick=async()=>{
+  if (!canGz()){ alert('CompressionStream not supported in this browser.'); return; }
+  dlBlob('loglens_extract.log.gz', await gzFromChunks([extractBody()]));
+};
+$('dlStats').onclick=()=>{
+  const st=S.result.state;
+  dl('loglens_stats.json', JSON.stringify({
+    generated:new Date().toISOString(),
+    files:S.files.filter(f=>f.use!==false).map(f=>({name:f.name,size:f.file.size})),
+    totals:{lines:st.total,matched:st.matched,errish:st.errish,firstTs:st.firstTs,lastTs:st.lastTs},
+    byLevel:st.byLevel, topTags:Object.entries(st.byTag).sort((a,b)=>b[1]-a[1]).slice(0,40),
+    maskHits:st.maskHits, buckets:st.buckets,
+    profile:{extract:S.extRules,mask:S.maskRules}
+  },null,2),'application/json');
+};
+$('dlCsv').onclick=()=>{
+  const rows=visibleRows();
+  const q = v => '"' + String(v==null?'':v).substr(0,1000).replace(/"/g,'""') + '"';
+  const csv=['file,lineno,time,level,tag,errish,kind,message',
+    ...rows.map(r=>[q(r.file),r.lineno,q(r.ts),q(r.lvl),q(r.tag),r.err?1:0,q(r.ctx||'match'),q(r.masked||'')].join(','))].join('\n');
+  dl('loglens_results.csv', csv, 'text/csv');
+};
+$('expProfile').onclick=()=>dl('loglens_profile.json', JSON.stringify({extract:S.extRules,mask:S.maskRules},null,2),'application/json');
+$('impProfile').onclick=()=>$('profPick').click();
+$('profPick').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const p=JSON.parse(await f.text());
+    const v=CORE.validateProfile({extract:Array.isArray(p.extract)?p.extract:[], mask:Array.isArray(p.mask)?p.mask:[]});
+    if (v.errors.length) alert('Profile issues (those rules were skipped):\n'+v.errors.join('\n'));
+    S.extRules=v.extract; S.maskRules=v.mask;
+    renderExtRules(); renderMaskRules(); pv(); saveProfile();
+  }catch(err){ alert('Bad profile: '+err.message); }
+  e.target.value='';
+};
+
+// ---------- font + logcat theme ----------
+const FONTS=[
+  {name:'Consolas (default)',  stack:"Consolas, 'Cascadia Mono', Menlo, monospace"},
+  {name:'JetBrains Mono',      stack:"'JetBrains Mono', Consolas, monospace",                wf:'JetBrains+Mono'},
+  {name:'Fira Code',           stack:"'Fira Code', 'Fira Mono', Consolas, monospace",        wf:'Fira+Code'},
+  {name:'Cascadia Code',       stack:"'Cascadia Code', 'Cascadia Mono', Consolas, monospace"},
+  {name:'IBM Plex Mono',       stack:"'IBM Plex Mono', Consolas, monospace",                 wf:'IBM+Plex+Mono'},
+  {name:'Source Code Pro',     stack:"'Source Code Pro', Consolas, monospace",               wf:'Source+Code+Pro'},
+  {name:'Roboto Mono',         stack:"'Roboto Mono', Consolas, monospace",                   wf:'Roboto+Mono'},
+  {name:'Menlo / SF Mono',     stack:"Menlo, 'SF Mono', Consolas, monospace"},
+  {name:'DejaVu Sans Mono',    stack:"'DejaVu Sans Mono', Consolas, monospace"},
+  {name:'Courier New',         stack:"'Courier New', Courier, monospace"},
+  {name:'System mono',         stack:"ui-monospace, Consolas, monospace"},
+];
+const fSel=$('fontSel');
+FONTS.forEach((f,i)=>{ const o=document.createElement('option'); o.value=String(i); o.textContent=f.name; fSel.appendChild(o); });
+function loadWF(f){
+  if (!f.wf || !$('fontWf').checked) return;
+  const id='wf_'+f.wf.replace(/[^A-Za-z]/g,'');
+  if (document.getElementById(id)) return;
+  const l=document.createElement('link'); l.id=id; l.rel='stylesheet';
+  l.href='https://fonts.googleapis.com/css2?family='+f.wf+':wght@400;700&display=swap';
+  document.head.appendChild(l);
+}
+function applyFont(i){
+  const f=FONTS[i]||FONTS[0];
+  document.body.style.setProperty('--mono', f.stack);
+  loadWF(f);
+  try{ localStorage.setItem('loglens.font', String(i)); }catch(e){}
+}
+fSel.onchange=()=>{
+  applyFont(+fSel.value);
+  const f=FONTS[+fSel.value];
+  if (f && f.wf && !$('fontWf').checked) toast(f.name+" isn't installed locally — tick 'webfonts (online)' to fetch it");
+};
+$('fontWf').onchange=()=>{
+  try{ localStorage.setItem('loglens.fontwf', $('fontWf').checked?'1':'0'); }catch(e){}
+  const f=FONTS[+fSel.value]; if (f) loadWF(f);
+};
+$('logThemeSel').onchange=()=>{
+  const v=$('logThemeSel').value;
+  if (v==='default') delete document.body.dataset.logTheme; else document.body.dataset.logTheme=v;
+  try{ localStorage.setItem('loglens.logtheme', v); }catch(e){}
+};
+(function(){
+  try{
+    const fi=localStorage.getItem('loglens.font');
+    if (fi!=null){ fSel.value=fi; applyFont(+fi); }
+    if (localStorage.getItem('loglens.fontwf')==='1'){ $('fontWf').checked=true; const f=FONTS[+fSel.value]; if (f) loadWF(f); }
+    const lt=localStorage.getItem('loglens.logtheme');
+    if (lt && lt!=='default'){ $('logThemeSel').value=lt; document.body.dataset.logTheme=lt; }
+  }catch(e){}
+})();
+
+// ---------- toast / readiness / theme / nav ----------
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function updateReady(){
+  const files = S.files.filter(f=>f.use!==false).length;
+  const inc = S.extRules.filter(r=>r.kind==='include' && r.enabled!==false).length;
+  const exc = S.extRules.filter(r=>r.kind==='exclude' && r.enabled!==false).length;
+  const mk  = S.maskRules.filter(r=>r.enabled!==false).length;
+  const r = CORE.readiness(files, inc, exc, mk);
+  const el = $('readyInfo'); if (el) el.textContent = r.text;
+  const b = $('btnRun');
+  b.disabled = S.running || S.mBusy || !r.ok;
+  b.title = r.ok ? '' : 'load at least one file in section 1 first';
+}
+function applyTheme(t){
+  document.body.setAttribute('data-theme', t);
+  $('btnTheme').textContent = t==='dark' ? '☀️' : '🌙';
+  try{ localStorage.setItem('loglens.theme', t); }catch(e){}
+}
+$('btnTheme').onclick = ()=>applyTheme(document.body.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
+(function(){
+  let t=null; try{ t=localStorage.getItem('loglens.theme'); }catch(e){}
+  if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t='dark';
+  if (t) applyTheme(t);
+})();
+(function(){
+  const nav=[['secFiles','1 Files'],['secExtract','2 Extract rules'],['secMask','3 Mask rules'],['secMaskOnly','3b Sanitize copy'],
+             ['runCard','▶ Run'],['statsCard','4 Stats'],['resCard','5 Results'],['expCard','6 Export'],['wizCard','7 AI wizard']];
+  const box=$('navChips');
+  nav.forEach(([id,label])=>{
+    const c=document.createElement('span'); c.className='chip'; c.textContent=label;
+    c.onclick=()=>{ const el=$(id); if (el) el.scrollIntoView({behavior:'smooth', block:'start'}); };
+    box.appendChild(c);
+  });
+})();
+
+// ---------- filter chips ----------
+function renderFilterChips(){
+  const box=$('filterChips'); if(!box) return; box.innerHTML='';
+  const chips=[];
+  const from=$('tsFrom').value.trim(), to=$('tsTo').value.trim();
+  if (from||to) chips.push({t:'⏱ '+(from||'…')+' → '+(to||'…'), tip:'scan-time window — clearing re-runs the scan',
+    clear:()=>{ $('tsFrom').value=''; $('tsTo').value=''; saveProfile(); if(!S.running&&!S.mBusy&&S.files.length) run(); }});
+  if ($('errOnly').checked) chips.push({t:'err-ish only', clear:()=>{ $('errOnly').checked=false; renderResults(true); }});
+  const q=$('resFilter').value.trim();
+  if (q) chips.push({t:'search: '+q, clear:()=>{ $('resFilter').value=''; renderResults(true); }});
+  const ctxN=parseInt($('optCtx').value,10)||0;
+  if (S.result && S.result.state.ctxCount>0) chips.push({t:'context ±'+ctxN, tip:'scan-time — clearing re-runs the scan',
+    clear:()=>{ $('optCtx').value=0; saveProfile(); if(!S.running&&!S.mBusy&&S.files.length) run(); }});
+  chips.forEach(c=>{
+    const s=document.createElement('span'); s.className='chip on';
+    s.title=c.tip||'click to remove'; s.textContent=c.t+'  ✕'; s.onclick=c.clear;
+    box.appendChild(s);
+  });
+  box.style.display = chips.length ? 'flex' : 'none';
+}
+
+// ---------- extraction sample tester ----------
+$('extTest').onclick=()=>{
+  const s=$('extSample').value.trim(); const out=$('extSampleOut'); const pvp=$('extSamplePreview');
+  if (!s){ out.textContent='paste some sample lines first.'; pvp.style.display='none'; return; }
+  const inc=CORE.compile(S.extRules.filter(r=>r.kind==='include' && r.enabled!==false),'extract').filter(c=>!c.error);
+  const exc=CORE.compile(S.extRules.filter(r=>r.kind==='exclude' && r.enabled!==false),'extract').filter(c=>!c.error);
+  const lines=s.split('\n'); const perRule={}; let kept=0, excn=0; const keptLines=[];
+  for (const l of lines){
+    let ex=false; for (const r of exc){ if (r.rx.test(l)){ ex=true; break; } }
+    if (ex){ excn++; continue; }
+    let hit=false;
+    for (const r of inc){ if (r.rx.test(l)){ hit=true; perRule[r.name]=(perRule[r.name]||0)+1; break; } }
+    if (hit){ kept++; keptLines.push(l); }
+  }
+  const parts=Object.entries(perRule).map(([k,v])=>esc(k)+' ×'+v).join(', ')||'none';
+  out.innerHTML='kept <b>'+kept+'/'+lines.length+'</b> lines · rule hits: '+parts+(excn?(' · excluded '+excn):'');
+  pvp.style.display='';
+  pvp.textContent = keptLines.length ? ('kept lines:\n'+keptLines.map(l=>'  '+l).join('\n')) : 'no lines kept';
+};
+$('extSampleFill').onclick=async()=>{
+  const f=S.files.find(x=>x.use!==false); if(!f){ alert('Load a file first (section 1).'); return; }
+  const r=f.file.slice(0,65536).stream().getReader(); const d=new TextDecoder();
+  let b='';
+  while(true){ const {done,value}=await r.read(); if(done) break; b+=d.decode(value,{stream:true}); if (b.length>131072) break; }
+  try{ r.cancel(); }catch(e){}
+  $('extSample').value=b.split('\n').slice(0,20).join('\n');
+};
+$('addInclude').onclick=()=>{ S.extRules.push({name:'new include',pattern:'keyword',kind:'include',enabled:true}); renderExtRules(); };
+$('addExclude').onclick=()=>{ S.extRules.push({name:'new exclude',pattern:'noise',kind:'exclude',enabled:true}); renderExtRules(); };
+$('addMask').onclick=()=>{ S.maskRules.push({name:'custom',pattern:'pattern',replace:'[redacted]',flags:'g',enabled:true}); renderMaskRules(); };
+$('restoreMask').onclick=()=>{ S.maskRules=JSON.parse(JSON.stringify(CORE.DEFAULT_MASK)); renderMaskRules(); pv(); saveProfile(); };
+
+function saveProfile(){ store.save({extract:S.extRules, mask:S.maskRules, levels:[...S.levels], from:$('tsFrom').value, to:$('tsTo').value, lnnn:$('optLnnn').checked,
+  cap:$('optCap').value, ctx:$('optCtx').value, errishOn:$('optErrish').checked, errishRx:$('errishRx').value}); }
+['tsFrom','tsTo'].forEach(id=>$(id).addEventListener('input',e=>{
+  const ok = CORE.validUserTs(e.target.value);
+  e.target.style.borderColor = ok ? '' : 'var(--red)';
+  e.target.title = ok ? '' : 'expected a supported timestamp form — see hint below';
+  saveProfile();
+}));
+['optCtx','optCap'].forEach(id=>$(id).addEventListener('input',saveProfile));
+$('errishRx').addEventListener('input',saveProfile);
+function syncErrish(){ $('errishRx').disabled = !$('optErrish').checked; }
+$('optErrish').addEventListener('change',()=>{ syncErrish(); saveProfile(); });
+window.addEventListener('beforeunload',e=>{ if (S.running || S.mBusy){ e.preventDefault(); e.returnValue=''; } });
+
+// click a row -> copy the full masked line
+$('resTable').addEventListener('click',e=>{
+  const tr=e.target.closest('tr'); if(!tr || tr.dataset.i===undefined) return;
+  const rec=allFiltered[+tr.dataset.i]; if(!rec) return;
+  (navigator.clipboard?navigator.clipboard.writeText(rec.masked||''):Promise.reject())
+    .then(()=>toast('copied L'+rec.lineno+' ✓'), ()=>toast('clipboard blocked — select the text manually'));
+});
+
+// ---------- AI wizard ----------
+const AI_EXAMPLES = [
+  ['crash/ANR hunting', 'Extract crash and ANR evidence: FATAL EXCEPTION traces, "ANR in", "has died", tombstones and signal lines. No extra masking needed.'],
+  ['errors minus noise', 'Extract all ERROR/WARN level evidence and lines containing failure keywords, but exclude periodic heartbeat/status lines and job-scheduler chatter.'],
+  ['phone/IMEI masking', 'In addition to the built-in presets, mask international phone numbers (+45…, +1…) and 15-digit IMEI numbers.'],
+  ['Wi-Fi issues', 'Extract Wi-Fi disconnect/deauth/dhcp failure events; also mask BSSID MACs and SSID names in the output.'],
+];
+const AIZ = {
+  cfg(){ return { base:($('aiBase').value.trim()||'https://api.openai.com/v1').replace(/\/+$/,''),
+                  key:$('aiKey').value.trim(), model:$('aiModel').value.trim(), remember:$('aiRemember').checked }; },
+  save(){ const c=this.cfg(); try{ localStorage.setItem('loglens.ai', JSON.stringify({base:c.base, model:c.model, remember:c.remember, key:c.remember?c.key:''})); }catch(e){} },
+  load(){ try{ const c=JSON.parse(localStorage.getItem('loglens.ai')||'{}');
+      if(c.base) $('aiBase').value=c.base; if(c.model) $('aiModel').value=c.model;
+      $('aiRemember').checked=!!c.remember; if(c.remember&&c.key) $('aiKey').value=c.key; }catch(e){} },
+  async chat(messages){
+    const c=this.cfg();
+    if(!c.model) throw new Error('set a model name first');
+    const headers={'Content-Type':'application/json'}; if(c.key) headers.Authorization='Bearer '+c.key;
+    const res=await fetch(c.base+'/chat/completions',{method:'POST',headers,
+      body:JSON.stringify({model:c.model,messages,temperature:0.2})});
+    if(!res.ok) throw new Error('HTTP '+res.status+' — '+(await res.text()).slice(0,200));
+    const d=await res.json();
+    const t=d&&d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
+    if(!t) throw new Error('model returned no content');
+    return t;
+  }
+};
+$('aiTest').onclick=async()=>{
+  const c=AIZ.cfg(); const out=$('aiTestOut');
+  out.innerHTML='<span style="color:var(--mut)">testing…</span>'; AIZ.save();
+  try{
+    const headers={}; if(c.key) headers.Authorization='Bearer '+c.key;
+    const res=await fetch(c.base+'/models',{headers});
+    out.innerHTML = res.ok ? '<span class="ok">✓ reachable ('+res.status+')</span>'
+      : (res.status===401||res.status===403) ? '<span class="bad">reachable but key rejected ('+res.status+')</span>'
+      : '<span style="color:var(--amber)">reached, status '+res.status+' — endpoint may still work for chat</span>';
+  }catch(e){
+    out.innerHTML='<span class="bad">✗ '+esc(e.message)+'</span> — check base URL / CORS note';
+  }
+};
+['aiBase','aiModel'].forEach(id=>$(id).addEventListener('input',()=>AIZ.save()));
+$('aiRemember').addEventListener('change',()=>AIZ.save());
+(function renderExChips(){
+  const box=$('aiExChips'); box.innerHTML='';
+  AI_EXAMPLES.forEach(([label,req])=>{
+    const c=document.createElement('span'); c.className='chip'; c.textContent=label;
+    c.onclick=()=>{ $('aiReq').value=req; };
+    box.appendChild(c);
+  });
+})();
+function renderAIPreview(v){
+  const rows = (arr,kind)=>arr.map(r=>
+    `<tr><td>${esc(r.name)}</td><td><span class="badge ${kind==='include'?'blue':kind==='exclude'?'red':'gray'}">${kind}</span></td><td class="mono">${esc(r.pattern)}</td><td class="mono">${esc(r.replace!=null?r.replace:'')}</td></tr>`).join('');
+  let html='';
+  if(v.extract.length){
+    const inc=rows(v.extract.filter(r=>r.kind==='include'),'include');
+    const exc=rows(v.extract.filter(r=>r.kind==='exclude'),'exclude');
+    html+='<table><tr><th>rule</th><th>kind</th><th>pattern</th><th>repl</th></tr>'+inc+exc+'</table>';
+  }
+  if(v.mask.length) html+='<table style="margin-top:8px"><tr><th>mask rule</th><th>kind</th><th>pattern</th><th>repl</th></tr>'+rows(v.mask,'mask')+'</table>';
+  $('aiPreview').innerHTML = html || '<i style="color:var(--mut)">no rules</i>';
+}
+$('aiReq').addEventListener('keydown',e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter') $('aiGen').click(); });
+$('aiGen').onclick=async()=>{
+  const req=$('aiReq').value.trim();
+  if(!req){ alert('Describe your requirement first.'); return; }
+  AIZ.save();
+  let userMsg = req;
+  const samples = $('aiSamples').value.trim();
+  if (samples) userMsg += '\n\nSample log lines for format reference:\n' + samples.split('\n').slice(0,20).join('\n');
+  if ($('aiIncRules').checked)
+    userMsg += '\n\nCurrent rules to improve/extend (keep what still applies, change what the request asks for):\n' + JSON.stringify({extract:S.extRules, mask:S.maskRules});
+  $('aiStatus').textContent='contacting model…'; $('aiResult').style.display='none';
+  try{
+    const txt=await AIZ.chat([{role:'system',content:CORE.SYSTEM_PROMPT},{role:'user',content:userMsg}]);
+    const prof=JSON.parse(CORE.extractJSON(txt));
+    const v=CORE.validateProfile(prof);
+    S.aiProfile=v;
+    $('aiResult').style.display='';
+    $('aiRaw').textContent=JSON.stringify(prof,null,2);
+    renderAIPreview(v);
+    $('aiErrors').style.display=v.errors.length?'':'none';
+    $('aiErrors').innerHTML=v.errors.length
+      ? ('<b>'+v.errors.length+' issue(s) — those rules were skipped:</b><ul style="margin:4px 0 0 16px">'+v.errors.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>')
+      : '';
+    $('aiStatus').textContent=(v.extract.length||v.mask.length)
+      ? 'ok — '+v.extract.length+' extract + '+v.mask.length+' mask rules' : 'no valid rules generated';
+  }catch(e){
+    $('aiStatus').innerHTML='<span class="bad">failed: '+esc(e.message)+'</span>';
+    if(/Failed to fetch|NetworkError|load failed/i.test(e.message))
+      $('aiStatus').innerHTML+='<br><span style="font-size:11px">likely CORS or wrong base URL — see the note under Connection</span>';
+  }
+};
+$('aiApply').onclick=()=>{
+  const v=S.aiProfile; if(!v){ alert('Generate a profile first.'); return; }
+  if(v.extract.length) S.extRules=v.extract;
+  if(v.mask.length)    S.maskRules=v.mask;
+  renderExtRules(); renderMaskRules(); pv(); saveProfile();
+  $('aiStatus').textContent='applied ✓ (fields with content were replaced)';
+};
+$('aiAppend').onclick=()=>{
+  const v=S.aiProfile; if(!v){ alert('Generate a profile first.'); return; }
+  S.extRules.push(...v.extract); S.maskRules.push(...v.mask);
+  renderExtRules(); renderMaskRules(); pv(); saveProfile();
+  $('aiStatus').textContent='appended ✓';
+};
+$('aiCopy').onclick=()=>{
+  if(!S.aiProfile){ alert('Generate a profile first.'); return; }
+  const raw=$('aiRaw').textContent;
+  (navigator.clipboard?navigator.clipboard.writeText(raw):Promise.reject()).then(
+    ()=>$('aiStatus').textContent='JSON copied ✓',
+    ()=>$('aiStatus').textContent='copy blocked — select the raw JSON manually');
+};
+$('aiDl').onclick=()=>{
+  if(!S.aiProfile){ alert('Generate a profile first.'); return; }
+  dl('loglens_ai_profile.json', $('aiRaw').textContent, 'application/json');
+};
+
+// ---------- mask-only mode (full masked copy) ----------
+$('mRun').onclick = maskOnlyRun;
+$('mStop').onclick = () => { S.mAbort = true; };
+function mOutName(n){ return n.replace(/\.(log|txt|text)$/i,'') + '.masked.log'; }
+async function maskOnlyRun(){
+  const files = S.files.filter(f=>f.use!==false);
+  if (!files.length){ alert('Load at least one file first (section 1).'); return; }
+  const compiled = CORE.compile(S.maskRules,'mask').map(c=>c.error?c:{...c, rx:new RegExp(c.rx.source, c.rx.flags)});
+  if (compiled.some(c=>c.error)){ alert('Fix invalid mask rules first (red border in section 3).'); return; }
+  const wantGz = $('mGz').checked && canGz();
+  const useFS = !!(window.showSaveFilePicker && window.showDirectoryPicker);
+  if (!useFS && files.length>1){
+    alert('In-memory fallback supports one file at a time. Use a Chromium browser for multi-file masking.');
+    return;
+  }
+  if (!useFS && wantGz){ alert('Gzip output requires the disk-streaming path (Chromium browser).'); return; }
+  if (S.running || S.mBusy) return;
+  S.mBusy=true; $('btnRun').disabled=true;
+  S.mAbort=false; $('mRun').disabled=true; $('mStop').disabled=false;
+  $('mProg').style.display='block'; $('mProgText').style.display='block'; $('mSummary').style.display='none';
+
+  const t0=performance.now();
+  let totalLines=0, totalHits=0; const hitAgg={};
+  let targets=null;   // [{name, writable}] when streaming to disk
+  const memParts=[];  // fallback: chunk strings for a single Blob
+  const outNames=[];
+  try{
+    if (useFS){
+      if (files.length===1){
+        const fh = await window.showSaveFilePicker({suggestedName:mOutName(files[0].name)+(wantGz?'.gz':'')});
+        targets=[{name:files[0].name, writable:await fh.createWritable()}];
+        outNames.push(fh.name||mOutName(files[0].name));
+      } else {
+        const dh = await window.showDirectoryPicker({mode:'readwrite'});
+        targets=[];
+        for (const f of files){
+          const base = mOutName(f.name)+(wantGz?'.gz':'');
+          const fh = await dh.getFileHandle(base, {create:true});
+          targets.push({name:f.name, writable:await fh.createWritable()});
+          outNames.push(base);
+        }
+      }
+    } else {
+      outNames.push(mOutName(files[0].name));
+    }
+
+    for (let fi=0; fi<files.length; fi++){
+      if (S.mAbort) break;
+      const f=files[fi];
+      const stream=f.file.stream().getReader();
+      const dec=new TextDecoder();
+      let buf='', read=0, lastYield=0, out=[];
+      let wq=Promise.resolve();
+      const w = targets ? targets[fi].writable : null;
+      let gzW=null, gzPipe=null;
+      const enc = new TextEncoder();
+      if (w && wantGz){                              // gzip is only wired for the disk-streaming path
+        const cs = new CompressionStream('gzip');
+        gzPipe = cs.readable.pipeTo(w);
+        gzW = cs.writable.getWriter();
+        if (targets) targets[fi].gzW = gzW, targets[fi].gzPipe = gzPipe;
+      }
+      const flush = () => {
+        if (!out.length) return;
+        const txt = out.join('\n') + '\n';
+        out.length = 0;
+        if (w) wq = wq.then(()=> (gzW ? gzW.write(enc.encode(txt)) : w.write(txt)));
+        else { memParts.push(txt); if (memParts.reduce((a,s)=>a+s.length,0) > 1.2e9) throw new Error('in-memory fallback limit (~1 GB) reached — use a Chromium browser for disk streaming'); }
+      };
+      while(true){
+        if (S.mAbort) break;
+        const {done,value}=await stream.read();
+        if (done) break;
+        read += value.byteLength;
+        buf += dec.decode(value,{stream:true});
+        let i;
+        while((i=buf.indexOf('\n'))>=0){
+          const line0 = buf.slice(0,i).replace(/\r$/,''); buf = buf.slice(i+1);
+          const {line,hits} = CORE.maskLine(line0, compiled);
+          for (const k in hits){ hitAgg[k]=(hitAgg[k]||0)+hits[k]; totalHits+=hits[k]; }
+          out.push(line); totalLines++;
+        }
+        flush();
+        if (read-lastYield > 8*1048576){
+          lastYield=read;
+          const pct=Math.min(99,100*read/f.file.size);
+          const el=(performance.now()-t0)/1000, rate=read/1048576/Math.max(el,0.001);
+          const eta=read<f.file.size?((f.file.size-read)/1048576/Math.max(rate,0.01)):0;
+          $('mProgBar').style.width=pct+'%';
+          $('mProgText').textContent=`${f.name} — ${(read/1048576).toFixed(0)}/${(f.file.size/1048576).toFixed(0)} MB · ${rate.toFixed(0)} MB/s · ETA ${eta<1?'<1':eta.toFixed(0)} s · ${totalLines.toLocaleString()} lines · ${totalHits.toLocaleString()} replacements`;
+          await new Promise(r=>setTimeout(r));
+        }
+      }
+      if (buf && !S.mAbort){
+        const {line,hits} = CORE.maskLine(buf.replace(/\r$/,''), compiled);
+        for (const k in hits){ hitAgg[k]=(hitAgg[k]||0)+hits[k]; totalHits+=hits[k]; }
+        out.push(line); totalLines++; flush();
+      }
+      await wq;
+      if (gzW){ try{ await gzW.close(); }catch(e){} try{ await gzPipe; }catch(e){} }
+      else if (w){ try{ await w.close(); }catch(e){} }
+      stream.releaseLock?.();
+      $('mProgBar').style.width='100%';
+    }
+
+    if (!targets && memParts.length){
+      const blob = new Blob(memParts, {type:'text/plain'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=outNames[0]; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    }
+    const secs=((performance.now()-t0)/1000).toFixed(1);
+    const top = Object.entries(hitAgg).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${esc(k)} ×${v.toLocaleString()}`).join(' · ');
+    $('mSummary').style.display='';
+    $('mSummary').innerHTML =
+      `${S.mAbort?'⚠ stopped early — partial copy written':'✓ done'} — ${totalLines.toLocaleString()} lines masked, ${totalHits.toLocaleString()} replacements in ${secs}s.<br>`+
+      (outNames.length?`output: <span style="font-family:Consolas">${outNames.map(esc).join(', ')}</span>`:'')+
+      (top?`<br>masking coverage: ${top}`:'<br>no PII matches — copy is identical to input');
+  }catch(e){
+    $('mSummary').style.display='';
+    $('mSummary').innerHTML = `<span class="bad">failed: ${esc(e.message)}</span>`;
+    if (targets) for (const t of targets){
+      if (t.gzW){ try{ await t.gzW.abort(); }catch(_){} }
+      try{ await t.gzPipe; }catch(_){}
+      try{ await t.writable.close(); }catch(_){}
+    }
+  }finally{
+    S.mAbort=false; S.mBusy=false; $('mRun').disabled=false; $('mStop').disabled=true; $('btnRun').disabled=false;
+    $('mProg').style.display='none'; $('mProgText').style.display='none';
+  }
+}
+
+// ---------- init ----------
+(function init(){
+  const p = store.load();
+  if (p){
+    if(Array.isArray(p.extract)) S.extRules=p.extract;
+    if(Array.isArray(p.mask)) S.maskRules=p.mask;
+    if(Array.isArray(p.levels)) S.levels=new Set(p.levels);
+    if(p.from) $('tsFrom').value=p.from;
+    if(p.to) $('tsTo').value=p.to;
+    if(p.lnnn===false) $('optLnnn').checked=false;
+    if(p.cap) $('optCap').value=p.cap;
+    if(p.ctx!=null) $('optCtx').value=p.ctx;
+    if(p.errishOn===false) $('optErrish').checked=false;
+    if(p.errishRx) $('errishRx').value=p.errishRx;
+  }
+  $('optLnnn').addEventListener('change',saveProfile);
+  syncErrish();
+  AIZ.load();
+  renderExtRules(); renderMaskRules(); renderLvls(); pv(); updateReady();
+})();
+})();
+</script>
+</body>
+</html>
