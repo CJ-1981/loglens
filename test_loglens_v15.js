@@ -248,7 +248,7 @@ const st0 = CORE.newState();
 check('newState: ctxCount/truncated added', st0.ctxCount === 0 && st0.truncated === false);
 check('newState: byFile starts empty', !!st0.byFile && typeof st0.byFile === 'object' && Object.keys(st0.byFile).length === 0);
 check('newState: legacy fields intact', st0.total === 0 && st0.matched === 0 && st0.errish === 0 && Array.isArray(st0.matches));
-check('DEFAULT_MASK 15 generic rules', Array.isArray(CORE.DEFAULT_MASK) && CORE.DEFAULT_MASK.length === 15);
+check('DEFAULT_MASK 16 generic rules', Array.isArray(CORE.DEFAULT_MASK) && CORE.DEFAULT_MASK.length === 16);
 check('DEFAULT_EXTRACT present (empty = match all)', Array.isArray(CORE.DEFAULT_EXTRACT));
 check('DEMO sample intact', typeof CORE.DEMO === 'string' && CORE.DEMO.indexOf('YV4DEM0123AB34567') >= 0);
 check('SYSTEM_PROMPT mentions schema', CORE.SYSTEM_PROMPT.indexOf('"extract"') >= 0 && CORE.SYSTEM_PROMPT.indexOf('"mask"') >= 0);

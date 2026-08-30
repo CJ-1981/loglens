@@ -70,7 +70,7 @@ const opts = {
   applyMask: true, maskCompiled: cm, hardCap: 100000, bucketMin: 1
 };
 CORE.processText(CORE.DEMO, 'demo.log', opts, st);
-check('total lines counted', st.total === 12);
+check('total lines counted', st.total === 13);
 // include-pattern ('myapp', case-insensitive) matches demo lines 1-5 (the MyApp-tagged ones); lines 6-12 have other tags.
 // #7 gms.subscribedfeeds/com.google/someone@example.com - no match.
 // #8 netd - no. #9 dnsmasq - no. #10 NetworkPolicy - no. #11 CarProjectionService - no. #12 CctTransportBackend - no.
@@ -95,7 +95,7 @@ CORE.processText(CORE.DEMO, 'demo.log', { ...opts, exclude: CORE.compile([{ name
 check('exclude rule', st4.matched === 4);
 const st5 = CORE.newState();
 CORE.processText(CORE.DEMO, 'demo.log', { ...opts, include: [] }, st5);
-check('empty include = mask-all/match-all mode', st5.matched === st5.total && st5.total === 12);
+check('empty include = mask-all/match-all mode', st5.matched === st5.total && st5.total === 13);
 
 console.log('== auto bucket ==');
 check('short span -> 1m', CORE.autoBucket('08-24 12:00:00.000', '08-24 13:00:00.000') === 1);
@@ -186,7 +186,7 @@ console.log('== v1.5: per-file stats + byFile ==');
 const stP = CORE.newState();
 CORE.processText(CORE.DEMO, 'p1.log', { ...opts }, stP);
 CORE.processText('08-24 20:00:00.000  9  9 E Z: other myapp', 'p2.log', { ...opts }, stP);
-check('byFile tracked', stP.byFile['p1.log'] && stP.byFile['p1.log'].lines === 12 && stP.byFile['p2.log'].matched === 1);
+check('byFile tracked', stP.byFile['p1.log'] && stP.byFile['p1.log'].lines === 13 && stP.byFile['p2.log'].matched === 1);
 check('DEFAULT_ERRISH_SOURCE exposed', typeof CORE.ERRISH_SOURCE === 'string' && CORE.ERRISH_SOURCE.includes('exception'));
 
 console.log('== v1.6: readiness + ts validation ==');
@@ -337,9 +337,6 @@ const missing = [...ids].filter(id => !dyn.has(id) && !html.includes('id="' + id
 check('every $("id") exists in markup (' + ids.size + ' ids checked)', missing.length === 0);
 if (missing.length) console.log('   missing:', missing.join(', '));
 
-console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
-process.exit(fail ? 1 : 0);
-
 console.log('== multi-GB safeguards ==');
 // hardCap truncation + onMatch sees every match
 const stT = CORE.newState();
@@ -356,6 +353,16 @@ check('merge 5min', m5['08-24 12:00'] === 2 && m5['08-24 12:05'] === 1 && m5['08
 const m10 = CORE.mergeBuckets(bm, 10);
 check('merge 10min', m10['08-24 12:00'] === 3 && m10['08-24 12:50'] === 4);
 check('no raw duplication in records', !('raw' in stT.matches[0]));
+
+console.log('== v1.13: GNSS coordinates ==');
+check('GNSS in DEFAULT_MASK', CORE.DEFAULT_MASK.some(r => r.name === 'GNSS coordinates'));
+check('GNSS detector in catalog', CORE.PII_DETECTORS.some(d => d.name === 'GNSS coordinates'));
+const gnssLine = '08-24 17:45:12.000   900  2100 I GNSS: fix 48.858400, 2.294500 sats=9';
+const gnssMask = CORE.compile(CORE.DEFAULT_MASK.filter(r => r.name === 'GNSS coordinates'), 'mask');
+const gnssOut = CORE.maskLine('GNSS fix 48.858400, 2.294500 ok', gnssMask).line;
+check('mask rule masks pair', gnssOut === 'GNSS fix [coords] ok');
+check('GNSS detected in scan', CORE.scanLinePII(gnssLine, dets).some(x => x.name === 'GNSS coordinates'));
+check('plain decimals without pair not flagged', CORE.scanLinePII('ratio 48.858400 measured', dets).every(x => x.name !== 'GNSS coordinates'));
 
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
