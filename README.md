@@ -4,7 +4,7 @@
 
 - **File**: `loglens.html` (~95 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.9 · engine covered by 197 automated assertions (`test_loglens.js` + `test_loglens_v15.js`)
+- **Current version**: v1.10 · engine covered by 210 automated assertions (`test_loglens.js` + `test_loglens_v15.js`) · mobile-responsive
 
 ---
 
@@ -84,18 +84,27 @@ Ordered list of `name / pattern / replacement` rules applied to every kept line 
 - **Hits** column shows per-rule match counts after each run.
 - **Live mask preview**: paste any line, watch it get masked instantly — before touching real data.
 
-**Default PII presets** (restore anytime via the button):
+**Default PII presets** (15 rules, restore anytime via the button) — ordered, specific-first:
 
 | Rule | Pattern → Replacement |
 |---|---|
 | VIN (17 chars) | any 17-char VIN-charset token → first 3 + `**********` + last 4 |
+| IBAN | keeps country/check digits → `DE89**********` |
+| credit card | 16 digits in 4-groups → `[card]` |
+| SSN | `123-**-****` |
+| phone (intl +) | keeps country code → `+45 ***` |
+| phone (US paren) | `(555) ***-****` |
+| IMEI (15 digits) | `[IMEI]` |
 | email | `x***@***` |
 | device serial | `SN-…` → `SN-***` |
 | MAC (keeps OUI) | `aa:bb:cc:**:**:**` |
 | private IPv4 | last octet → `.x` |
+| IPv4 (any) | public addresses → last two octets `.x.x` |
 | IPv6 link-local / ULA | → `IPv6-masked` |
 | subscriberId | → `***` |
 | hotspot SSID | `AndroidShare_****` |
+
+Guarded against false positives: logcat timestamps (`08-24 15:37:01.123`), epoch-millis values (13 digits), timezone offsets (`+0200`) and 3-part version numbers are all left intact (regression-tested).
 
 ## 3b · Mask-only mode
 
@@ -245,6 +254,7 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 ## Changelog
 
+- **v1.10** — default PII presets expanded 8 → 15 rules (IBAN, credit card, SSN, international + US phone, IMEI, public IPv4) with false-positive guards for timestamps/epoch-milli/timezone offsets; mobile-responsive layout (≤640 px: wrapped rule editors, 2-column stats, non-sticky run bar)
 - **v1.9** — minimal professional UI revamp: dense flat design (single accent, tabular numerals, tighter tables/rules), section headers reduced to micro-labels, verbose descriptions moved into tooltips, emoji stripped from controls — zero functional changes
 - **v1.8** — adaptive time-window inputs: format sniffed from the loaded files (placeholder + hint), accepts logcat/ISO/syslog/CLF forms interchangeably, normalized internally
 - **v1.7** — timestamp auto-detection (ISO 8601/SQL, RFC3164 syslog, Apache/CLF, bare MM-DD → normalized `MM-DD HH:MM:SS.mmm`); default profile now match-all; all built-in examples/presets genericized (no project-specific content)
