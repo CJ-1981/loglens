@@ -4,7 +4,7 @@
 
 - **File**: `loglens.html` (~95 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.11 · engine covered by 223 automated assertions (`test_loglens.js` + `test_loglens_v15.js`) · mobile-responsive
+- **Current version**: v1.11 · engine covered by 226 automated assertions (`test_loglens.js` + `test_loglens_v15.js`) · mobile-responsive
 
 ---
 
@@ -221,6 +221,9 @@ For **any other text format** (JSON lines, CSV, custom app logs), extraction and
 | `Ctrl/⌘+Enter` (AI box) | generate rules |
 | `Aa` on any rule | toggle case sensitivity |
 | Kind badge (include/exclude) | click to flip |
+| **viewer**: `PgUp`/`PgDn`, `↑`/`↓`, `Home`/`End` | window / line / file edges |
+| **viewer**: `/`, `Enter`/`n`, `Shift+Enter`/`N` | focus search, next / previous match |
+| **viewer**: drag left rail | jump by byte position |
 
 ## Viewer tab (browse the full log)
 
@@ -229,8 +232,9 @@ A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 - **Virtualized streaming**: any file size, constant memory. The view is a ~900-line window read straight from disk via byte ranges; the left rail is a byte-fraction scrollbar (drag to jump), like klogg.
 - **High-contrast by default** (near-black surface, near-white text) with the shared logcat theme presets in the toolbar.
 - **Columns** when lines parse (≈line · timestamp · level · tag · message), raw monospace otherwise; PII masking applied on display by default (toggle in the toolbar).
-- **Search-jump**: type a regex, `Enter`/`n` streams forward to the next match (highlights it in view), `Shift+Enter`/`N` scans backward.
-- **Keys**: `PgUp`/`PgDn` window · `↑`/`↓` line · `Home`/`End` file · `/` search. Touch: drag body to pan, drag the rail to jump.
+- **Demo button** in the toolbar loads the same synthetic sample as the workbench (shared loader — your loaded files are never replaced).
+- **Search-jump**: type a regex, `Enter`/`n` streams forward to the next match (highlights it in view), `Shift+Enter`/`N` scans backward. Search is independent of rendering — it reads raw bytes from disk, so nothing needs to be loaded or scrolled first. Each press scans up to **512 MB** (keeps the UI responsive); if nothing is found, a continue-cursor remembers the position and the next `Enter` resumes from there, so multi-GB files are fully searchable across a few presses. Reaching true EOF reports "no matches to end of file".
+- **Keys**: `PgUp`/`PgDn` window · `↑`/`↓` line · `Home`/`End` file · `/` search · `n`/`N` match. Touch: drag body to pan, drag the rail to jump.
 - Line numbers are **estimates** (`fileSize / sampled average line length`) — timestamps are the reliable anchor.
 
 ## Relationship to scripted pipelines
@@ -261,11 +265,13 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 **Time window rejected my input** — check the hint under the inputs. Any of these forms works: `MM-DD HH:MM[:SS]`, ISO 8601 (`2026-08-24[T ]15:37[:01]`, trailing `Z`/offset ignored), syslog (`Aug 24 15:37`, single-digit days ok), Apache/CLF (`[24/Aug/2026:15:37]`). Years and timezone offsets are dropped during normalization (the model is year-less).
 
+**Viewer search stopped and said "continue from NN%"** — each `Enter` scans up to 512 MB to keep the UI responsive; the position is remembered, so just press `Enter` again to resume. Reaching the end of file resets the cursor.
+
 **Clipboard copy does nothing** — clipboard API blocked (file:// contexts in some browsers); select the text manually or use downloads.
 
 ## Changelog
 
-- **v1.11** — viewer tab: virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting, keyboard + touch navigation, masking on display
+- **v1.11** — viewer tab: virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, toolbar demo button
 - **v1.10** — default PII presets expanded 8 → 15 rules (IBAN, credit card, SSN, international + US phone, IMEI, public IPv4) with false-positive guards for timestamps/epoch-milli/timezone offsets; mobile-responsive layout (≤640 px: wrapped rule editors, 2-column stats, non-sticky run bar)
 - **v1.9** — minimal professional UI revamp: dense flat design (single accent, tabular numerals, tighter tables/rules), section headers reduced to micro-labels, verbose descriptions moved into tooltips, emoji stripped from controls — zero functional changes
 - **v1.8** — adaptive time-window inputs: format sniffed from the loaded files (placeholder + hint), accepts logcat/ISO/syslog/CLF forms interchangeably, normalized internally
