@@ -1,14 +1,10 @@
 # LogLens — Log Extraction & PII Masking Dashboard
 
-[![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
-[![Pages](https://img.shields.io/badge/live-demo-GitHub%20Pages-0f62fe)](https://cj-1981.github.io/loglens/)
-
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
-- **Try it live**: https://cj-1981.github.io/loglens/ (the whole tool is one HTML file)
 - **File**: `loglens.html` (~95 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.8 · engine covered by 197 automated assertions (`test_loglens.js` + `test_loglens_v15.js`)
+- **Current version**: v1.9 · engine covered by 197 automated assertions (`test_loglens.js` + `test_loglens_v15.js`)
 
 ---
 
@@ -249,6 +245,7 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 ## Changelog
 
+- **v1.9** — minimal professional UI revamp: dense flat design (single accent, tabular numerals, tighter tables/rules), section headers reduced to micro-labels, verbose descriptions moved into tooltips, emoji stripped from controls — zero functional changes
 - **v1.8** — adaptive time-window inputs: format sniffed from the loaded files (placeholder + hint), accepts logcat/ISO/syslog/CLF forms interchangeably, normalized internally
 - **v1.7** — timestamp auto-detection (ISO 8601/SQL, RFC3164 syslog, Apache/CLF, bare MM-DD → normalized `MM-DD HH:MM:SS.mmm`); default profile now match-all; all built-in examples/presets genericized (no project-specific content)
 - **v1.6** — font selector (11 stacks, optional webfonts), logcat color themes (6 presets), display polish

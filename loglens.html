@@ -6,78 +6,80 @@
 <title>LogLens — Log Extraction &amp; PII Masking Dashboard</title>
 <style>
 :root{
-  --bg:#f4f6f9;--card:#fff;--ink:#1c2733;--mut:#5b6b7b;--line:#e3e8ee;
-  --accent:#0f62fe;--red:#d13438;--amber:#b26a00;--green:#107c41;--dark:#0b1f3a;
+  --bg:#f6f7f9;--card:#fff;--ink:#1a2330;--mut:#6b7a89;--line:#e4e8ee;
+  --accent:#2563eb;--red:#c93b3f;--amber:#a06b00;--green:#188a4c;--dark:#101726;
   --code:#0e1720;--codeink:#d8e4f0;
   --mono:Consolas,'Cascadia Mono',Menlo,monospace;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 "Segoe UI",system-ui,Arial,sans-serif}
-.wrap{max-width:1280px;margin:0 auto;padding:18px 20px 80px}
-header.top{display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,#0b1f3a,#123a6b 70%,#0f62fe 160%);color:#fff;border-radius:12px;padding:16px 20px;margin-bottom:16px}
-header.top h1{margin:0;font-size:20px}
-header.top p{margin:2px 0 0;opacity:.85;font-size:12.5px}
-.logo{width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:19px}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 "Segoe UI",system-ui,Arial,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:14px 16px 64px}
+header.top{display:flex;align-items:center;gap:10px;background:var(--dark);color:#fff;border-radius:7px;padding:9px 14px;margin-bottom:10px}
+header.top h1{margin:0;font-size:14px;font-weight:600;letter-spacing:.2px}
+header.top p{display:none}
+.ver{font-size:10px;font-weight:600;letter-spacing:.5px;border:1px solid rgba(255,255,255,.28);border-radius:4px;padding:1px 6px;color:#cbd6e4}
 .spacer{flex:1}
-.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13.5px;font-weight:600;cursor:pointer}
-.btn:hover{filter:brightness(1.08)}
-.btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn{background:var(--accent);color:#fff;border:1px solid transparent;border-radius:5px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;line-height:1.3}
+.btn:hover{filter:brightness(1.07)}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .btn.warn{background:var(--red)}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-.card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 18px;margin-bottom:16px}
-.card h2{margin:0 0 4px;font-size:15.5px}
-.card .sub{color:var(--mut);font-size:12.5px;margin-bottom:12px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:12px 14px;margin-bottom:12px}
+.card h2{margin:0 0 8px;font-size:10.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--mut)}
+.card .sub{color:var(--mut);font-size:11px;margin:-2px 0 8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:980px){.grid2{grid-template-columns:1fr}}
-.drop{border:2px dashed #b9c6d4;border-radius:10px;padding:22px;text-align:center;color:var(--mut);cursor:pointer;transition:.15s}
-.drop.over{border-color:var(--accent);background:#eef5ff;color:var(--accent)}
-.filelist{margin-top:10px}
-.fileitem{display:flex;align-items:center;gap:10px;background:#f2f6fa;border:1px solid var(--line);border-radius:8px;padding:7px 12px;margin-top:6px;font-size:13px}
-.fileitem .nm{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.fileitem .sz{color:var(--mut);white-space:nowrap}
-.rule{display:flex;gap:8px;align-items:center;margin-bottom:7px;background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
-.rule input[type=text]{flex:1;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px}
-.rule input[type=text].nm{flex:0 0 130px}
-.rule input[type=text].rp{flex:0 0 150px}
-.rule .sw{width:15px;height:15px;flex:0 0 15px}
-.rule .x{border:none;background:none;color:var(--mut);cursor:pointer;font-size:15px;padding:0 2px}
+.drop{border:1.5px dashed #b9c6d4;border-radius:6px;padding:14px;text-align:center;color:var(--mut);cursor:pointer;font-size:12px;transition:.15s}
+.drop.over{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.04)}
+.filelist{margin-top:8px}
+.fileitem{display:flex;align-items:center;gap:8px;background:#f6f8fb;border:1px solid var(--line);border-radius:5px;padding:4px 9px;margin-top:4px;font-size:12px}
+.fileitem .nm{font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.fileitem .sz{color:var(--mut);white-space:nowrap;font-size:11px}
+.rule{display:flex;gap:6px;align-items:center;margin-bottom:4px;background:#fafbfc;border:1px solid var(--line);border-radius:5px;padding:3px 7px}
+.rule input[type=text]{flex:1;border:1px solid var(--line);border-radius:4px;padding:3px 7px;font-family:var(--mono);font-size:11px;min-width:0}
+.rule input[type=text].nm{flex:0 0 118px}
+.rule input[type=text].rp{flex:0 0 122px}
+.rule .sw{width:13px;height:13px;flex:0 0 13px}
+.rule .x{border:none;background:none;color:var(--mut);cursor:pointer;font-size:13px;padding:0 2px}
 .rule .x:hover{color:var(--red)}
-.rule .aa{border:1px solid var(--line);background:#fff;border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer;color:var(--mut);white-space:nowrap}
-.rule .aa.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.rule .hits{font-size:11px;color:var(--amber);white-space:nowrap;min-width:52px;text-align:right}
-.badge{display:inline-block;background:#e8eef7;color:#274970;border-radius:5px;padding:0 8px;font-size:11.5px}
-.badge.blue{background:#e4f0ff;color:#0b5ed7}.badge.red{background:#fde3e3;color:#b3261e}.badge.gray{background:#eceff3;color:#556}.badge.green{background:#eefaf1;color:#107c41}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
-.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:2px 12px;font-size:12px;cursor:pointer;user-select:none}
-.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
-label.tgl{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);cursor:pointer;margin-right:14px}
+.rule .aa{border:1px solid var(--line);background:#fff;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;color:var(--mut);white-space:nowrap}
+.rule .aa.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.rule .hits{font-size:10px;color:var(--amber);white-space:nowrap;min-width:44px;text-align:right}
+.badge{display:inline-block;background:#eef1f5;color:#42536a;border-radius:4px;padding:0 6px;font-size:10px;font-weight:600;letter-spacing:.3px;vertical-align:1px}
+.badge.blue{background:#e8effc;color:#1d4fd7}.badge.red{background:#fcebec;color:#b3261e}.badge.gray{background:#eceff3;color:#556}.badge.green{background:#e9f6ee;color:#107c41}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin:4px 0 8px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:4px;padding:1px 9px;font-size:11px;cursor:pointer;user-select:none;color:var(--mut)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+label.tgl{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--mut);cursor:pointer;margin-right:10px;white-space:nowrap}
 label.tgl input{accent-color:var(--accent)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
-.stat{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 14px}
-.stat .n{font-size:21px;font-weight:700}
-.stat .l{font-size:11.5px;color:var(--mut)}
+input[type=text],input[type=number],input[type=password],select{border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:11.5px;font-family:inherit;color:var(--ink);background:#fff}
+textarea{border:1px solid var(--line);border-radius:5px;padding:6px 9px;font-size:12px;font-family:var(--mono);resize:vertical;color:var(--ink);background:#fff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;margin-bottom:10px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:6px;padding:7px 11px}
+.stat .n{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .l{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
 .stat.red .n{color:var(--red)}.stat.blue .n{color:var(--accent)}.stat.amber .n{color:var(--amber)}.stat.green .n{color:var(--green)}
-table{border-collapse:collapse;width:100%;font-size:12.5px}
-th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
-th{background:#eef2f7;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#3a4a5a;position:sticky;top:0}
-td.mono,th.mono{font-family:var(--mono);font-size:11.5px}
-.reswrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:9px;background:#fff}
-.lv{display:inline-block;border-radius:4px;padding:0 6px;font-weight:700;font-size:10.5px}
+table{border-collapse:collapse;width:100%;font-size:11.5px}
+th,td{border-bottom:1px solid var(--line);padding:4px 7px;text-align:left;vertical-align:top}
+th{background:#f2f5f9;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3a4a5a;position:sticky;top:0}
+td.mono,th.mono{font-family:var(--mono);font-size:11px}
+.reswrap{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff}
+.lv{display:inline-block;border-radius:3px;padding:0 5px;font-weight:700;font-size:9.5px}
 .lvV{background:#f0f0f4;color:#666}.lvD{background:#eceff3;color:#556}.lvI{background:#e4f0ff;color:#0b5ed7}
 .lvW{background:#fff3d6;color:#9a6b00}.lvE{background:#fde3e3;color:#b3261e}.lvF{background:#b3261e;color:#fff}
-.errrow td{background:#fff8f8}
-.ctxrow td{background:#fafbfd;color:#5b6b7b;font-style:italic}
-.search{width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:8px;font-family:var(--mono)}
-.progress{height:8px;background:#e6ecf3;border-radius:99px;overflow:hidden;margin:10px 0 4px;display:none}
-.progress .bar{height:100%;width:0;background:linear-gradient(90deg,#0f62fe,#4d8bff);transition:width .2s}
-.ptext{font-size:12px;color:var(--mut);display:none}
-.hbox{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:16px}
-.preview{font-family:var(--mono);font-size:12px;background:var(--code);color:var(--codeink);border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-all}
+.errrow td{background:#fdf7f7}
+.ctxrow td{background:#fafbfd;color:var(--mut);font-style:italic}
+.search{width:100%;border:1px solid var(--line);border-radius:5px;padding:5px 9px;font-size:12px;margin-bottom:6px;font-family:var(--mono);color:var(--ink);background:#fff}
+.progress{height:4px;background:#e8edf3;border-radius:99px;overflow:hidden;margin:8px 0 3px;display:none}
+.progress .bar{height:100%;width:0;background:var(--accent);transition:width .2s}
+.ptext{font-size:11px;color:var(--mut);display:none}
+.hbox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:10px}
+.preview{font-family:var(--mono);font-size:11px;background:var(--code);color:var(--codeink);border-radius:5px;padding:8px 10px;white-space:pre-wrap;word-break:break-all}
 .ok{color:var(--green);font-weight:600}.bad{color:var(--red);font-weight:600}
-.note{background:#eef5ff;border:1px solid #c9defc;border-left:4px solid var(--accent);border-radius:8px;padding:9px 13px;font-size:12.5px;margin-top:10px}
-h3.mini{margin:14px 0 6px;font-size:13px;color:#3a4a5a;text-transform:uppercase;letter-spacing:.5px}
-.footer{margin-top:30px;color:var(--mut);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
-.toast{position:fixed;right:18px;bottom:18px;background:var(--dark);color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+.note{background:#f5f8fd;border:1px solid #d7e3f4;border-left:3px solid var(--accent);border-radius:4px;padding:6px 10px;font-size:11px;margin-top:8px;color:var(--mut)}
+h3.mini{margin:10px 0 4px;font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;font-weight:700}
+.footer{margin-top:18px;color:var(--mut);font-size:10.5px;border-top:1px solid var(--line);padding-top:8px}
+.toast{position:fixed;right:14px;bottom:14px;background:var(--dark);color:#fff;padding:6px 11px;border-radius:5px;font-size:11.5px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
 .toast.show{opacity:.96}
 .reswrap tr[data-i]{cursor:copy}
 input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
@@ -165,34 +167,28 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
 <body>
 <div class="wrap">
 
-<header class="top">
-  <div class="logo">🔍</div>
-  <div>
-    <h1>LogLens — Log Extraction &amp; PII Masking Dashboard</h1>
-    <p>Load logcat/log files → filter with flexible extract rules → auto-mask personal data → analyze &amp; export. 100% client-side; files never leave this machine.</p>
-  </div>
+<header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
+  <h1>LogLens</h1><span class="ver">v1.9</span>
   <div class="spacer"></div>
-  <button class="btn sec" id="btnDemo">Load demo sample</button>
-  <button class="btn sec" id="btnTheme" title="toggle dark mode">🌙</button>
+  <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
+  <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
 </header>
-<div class="chips" id="navChips" style="margin:0 0 14px"></div>
+<div class="chips" id="navChips" style="margin:0 0 12px"></div>
 
 <!-- FILES -->
 <div class="card" id="secFiles">
-  <h2>1 · Input files</h2>
-  <div class="sub">Drag &amp; drop one or more log files (tested up to ~450 MB), or click to browse. Files are streamed line-by-line, so very large logs are fine. Common log types (logcat, syslog, ISO-8601, Apache/CLF) are timestamp auto-detected.</div>
-  <div class="drop" id="drop">⬇ Drop .log / .txt files (or whole folders) here, or click to choose</div>
+  <h2 title="streamed line-by-line, any size · timestamps auto-detected (logcat / syslog / ISO / CLF)">input</h2>
+  <div class="drop" id="drop" title="drop files or folders · or click to browse">drop files or folders · or click to browse</div>
   <input type="file" id="fpick" multiple accept=".log,.txt,.text" style="display:none">
   <input type="file" id="dpick" webkitdirectory multiple style="display:none">
-  <div style="margin-top:6px"><button class="btn sec" id="dpickBtn">＋ add folder (recursive)</button></div>
+  <div style="margin-top:4px"><button class="btn sec" id="dpickBtn" title="add a folder recursively">add folder</button></div>
   <div class="filelist" id="filelist"></div>
 </div>
 
 <div class="grid2">
   <!-- EXTRACT RULES -->
   <div class="card" id="secExtract">
-    <h2>2 · Extraction rules</h2>
-    <div class="sub">A line is kept when it matches any <b>include</b> rule and no <b>exclude</b> rule. Regex, case-insensitive by default. With no include rules at all, every line is kept.</div>
+    <h2 title="a line is kept when it matches any include rule and no exclude rule · empty include list = match all">extract rules</h2>
     <div class="chips" id="lvlChips"></div>
     <div id="lvlWarn" style="display:none;color:var(--red);font-size:12px;margin:-2px 0 8px">no levels selected — nothing will ever match</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
@@ -204,79 +200,76 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
           <option value="auth">Auth / session issues</option>
         </select>
       </label>
-      <label class="tgl" title="keep N lines before/after each match (stack traces!) — costs performance when > 0">context ± <input type="number" id="optCtx" min="0" max="50" value="0" style="width:60px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"> lines</label>
-      <label class="tgl" title="max matches kept in memory for the results table / CSV (direct-to-file export is uncapped)">result cap <input type="number" id="optCap" min="1000" step="10000" value="200000" style="width:96px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"></label>
+      <label class="tgl" title="keep N lines before/after each match (stack traces!) — costs performance when > 0">context ± <input type="number" id="optCtx" min="0" max="50" value="0" style="width:52px"></label>
+      <label class="tgl" title="max matches kept in memory for the results table / CSV (direct-to-file export is uncapped)">cap <input type="number" id="optCap" min="1000" step="10000" value="200000" style="width:88px"></label>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-      <label class="tgl"><input type="checkbox" id="optErrish" checked> tag error-ish lines</label>
-      <input type="text" id="errishRx" spellcheck="false" style="flex:1;min-width:240px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:11.5px" title="a kept line is error-ish if this regex matches, or its level is E/W/F">
-      <label class="tgl"><input type="checkbox" id="optMask" checked> apply masking to results</label>
+      <label class="tgl" title="a kept line is error-ish if this regex matches, or its level is E/W/F"><input type="checkbox" id="optErrish" checked> err-ish</label>
+      <input type="text" id="errishRx" spellcheck="false" style="flex:1;min-width:200px" title="error-ish keyword regex">
+      <label class="tgl"><input type="checkbox" id="optMask" checked> mask results</label>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:2px;flex-wrap:wrap">
-      <label class="tgl">time from <input type="text" id="tsFrom" placeholder="08-24 15:37" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-family:var(--mono);font-size:11.5px"></label>
-      <label class="tgl">to <input type="text" id="tsTo" placeholder="08-24 19:22" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-family:var(--mono);font-size:11.5px"></label>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <label class="tgl">from <input type="text" id="tsFrom" placeholder="08-24 15:37" style="width:104px"></label>
+      <label class="tgl">to <input type="text" id="tsTo" placeholder="08-24 19:22" style="width:104px"></label>
     </div>
     <div id="tsFmt" style="font-size:11px;color:var(--mut);margin:0 0 8px"></div>
     <div id="extRules"></div>
-    <button class="btn sec" id="addInclude" style="margin-right:6px">+ include rule</button>
-    <button class="btn sec" id="addExclude">+ exclude rule</button>
-    <h3 class="mini">Test rules against sample</h3>
-    <textarea id="extSample" rows="3" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:var(--mono);resize:vertical" placeholder="paste a few lines, then Test — shows which include rules match and what gets kept"></textarea>
+    <button class="btn sec" id="addInclude">+ include</button>
+    <button class="btn sec" id="addExclude">+ exclude</button>
+    <h3 class="mini">test</h3>
+    <textarea id="extSample" rows="3" placeholder="paste sample lines to test the rules"></textarea>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
-      <button class="btn sec" id="extTest">Test rules</button>
-      <button class="btn sec" id="extSampleFill" title="fills the sample with the first lines of the first loaded file">use first lines of file 1</button>
-      <span id="extSampleOut" style="font-size:12px;color:var(--mut)"></span>
+      <button class="btn sec" id="extTest">test</button>
+      <button class="btn sec" id="extSampleFill" title="fills the sample with the first lines of the first loaded file">from file 1</button>
+      <span id="extSampleOut" style="font-size:11px;color:var(--mut)"></span>
     </div>
     <div class="preview" id="extSamplePreview" style="display:none;max-height:180px;overflow:auto"></div>
   </div>
 
   <!-- MASK RULES -->
   <div class="card" id="secMask">
-    <h2>3 · Masking rules <span class="badge blue">PII</span></h2>
-    <div class="sub">Ordered rules; each match is replaced (supports $1 group refs). Hit counts appear after a run. Defaults cover common vehicle/embedded-log PII.</div>
-    <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn sec" id="restoreMask">Restore default PII presets</button>
+    <h2 title="ordered rules · each match replaced ($1 group refs) · hit counts appear after a run">mask rules <span class="badge blue">pii</span></h2>
+    <div style="margin-bottom:6px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn sec" id="restoreMask">reset presets</button>
     </div>
     <div class="rule" style="background:#eef2f7;font-weight:600;font-size:11px;color:#3a4a5a">
       <span style="width:15px"></span><span class="nm" style="width:130px;flex:0 0 130px">name</span>
       <span style="flex:1">pattern (regex)</span><span class="rp" style="width:150px;flex:0 0 150px">replacement</span><span class="hits">hits</span><span style="width:22px"></span>
     </div>
     <div id="maskRules"></div>
-    <button class="btn sec" id="addMask">+ mask rule</button>
-    <h3 class="mini">Live mask preview</h3>
-    <input class="search" id="pvIn" placeholder="paste a sample log line to preview masking…">
+    <button class="btn sec" id="addMask">+ rule</button>
+    <h3 class="mini">preview</h3>
+    <input class="search" id="pvIn" placeholder="paste a line to preview masking">
     <div class="preview" id="pvOut">—</div>
   </div>
 </div>
 
 <!-- MASK-ONLY MODE -->
 <div class="card" id="secMaskOnly">
-  <h2>3b · Mask-only mode — full masked copy <span class="badge green">no extraction</span></h2>
-  <div class="sub">Run the mask rules from section&nbsp;3 over <b>every line</b> of the file(s) from section&nbsp;1 and write a complete masked copy straight to disk. No include/exclude rules, no match cap, no line-number prefixes — the &ldquo;sanitize this log before sharing&rdquo; path. Output name: <span style="font-family:Consolas">&lt;original&gt;.masked.log</span>.</div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <button class="btn" id="mRun">🛡 Mask file(s) to disk</button>
-    <button class="btn sec" id="mStop" disabled>Stop</button>
-    <label class="tgl" title="gzip the output (Chromium; single-file only)"><input type="checkbox" id="mGz"> write .gz</label>
-    <span style="font-size:12px;color:var(--mut)">uses current mask rules — edit them in section 3, watch the live preview</span>
+  <h2 title="run the mask rules over every line of the checked files and write complete &lt;original&gt;.masked.log copies — no rules, no cap, no prefixes">sanitize copy <span class="badge green">full file</span></h2>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="btn" id="mRun">mask to disk</button>
+    <button class="btn sec" id="mStop" disabled>stop</button>
+    <label class="tgl" title="gzip the output (Chromium; single-file only)"><input type="checkbox" id="mGz"> .gz</label>
   </div>
   <div class="progress" id="mProg"><div class="bar" id="mProgBar"></div></div>
   <div class="ptext" id="mProgText"></div>
   <div id="mSummary" class="note" style="display:none"></div>
-  <div class="note" style="background:#fffbe8;border-color:#f2ddb0;border-left-color:var(--amber)">Chromium browsers (Edge/Chrome) stream the output directly to disk — any file size, constant memory. Other browsers fall back to an in-memory download (single file, practical up to ~1&nbsp;GB).</div>
+  <div class="note" style="border-left-color:var(--amber)">disk streaming: Chromium · fallback: in-memory download, single file ≤ ~1 GB</div>
 </div>
 
 <!-- RUN -->
-<div class="card" id="runCard" style="position:sticky;top:8px;z-index:40;box-shadow:0 4px 14px rgba(20,40,70,.08)">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <button class="btn" id="btnRun">▶ Run extraction</button>
-    <button class="btn sec" id="btnStop" disabled>Stop</button>
-    <span id="readyInfo" style="font-size:12px;color:var(--mut)"></span>
+<div class="card" id="runCard" style="position:sticky;top:8px;z-index:40;box-shadow:0 2px 10px rgba(20,40,70,.10)">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button class="btn" id="btnRun">run</button>
+    <button class="btn sec" id="btnStop" disabled>stop</button>
+    <span id="readyInfo" style="font-size:11px;color:var(--mut)"></span>
     <div class="spacer" style="flex:1"></div>
-    <label class="tgl" title="Stream every matched line straight to a file while scanning — recommended for multi-GB logs (Chromium browsers). One input file → single output file; multiple input files → pick an output folder and get one <name>.extract.log per input.">
-      <input type="checkbox" id="optDirect"> direct-to-file export (multi-GB / batch)
+    <label class="tgl" title="Stream every matched line straight to a file while scanning — recommended for multi-GB logs (Chromium). One input file → single output file; multiple inputs → pick an output folder, one <name>.extract.log per input.">
+      <input type="checkbox" id="optDirect"> direct-to-file
     </label>
-    <button class="btn sec" id="expProfile">Export profile</button>
-    <button class="btn sec" id="impProfile">Import profile</button>
+    <button class="btn sec" id="expProfile">export</button>
+    <button class="btn sec" id="impProfile">import</button>
     <input type="file" id="profPick" accept=".json" style="display:none">
   </div>
   <div class="progress" id="prog"><div class="bar" id="progBar"></div></div>
@@ -286,27 +279,27 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
 
 <!-- STATS -->
 <div class="card" id="statsCard" style="display:none">
-  <h2>4 · Results overview</h2>
+  <h2 title="click a histogram bar to time-filter the scan">overview</h2>
   <div class="stats" id="statCards"></div>
   <div id="truncNote" class="note" style="display:none;background:#fff4f2;border-color:#f3c1bd;border-left-color:var(--red)"></div>
   <div class="hbox"><div id="histBox"></div></div>
   <div class="grid2">
-    <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">Top tags</h3><div style="max-height:260px;overflow:auto"><table id="tagTable"></table></div></div>
-    <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">Masking coverage (hits per rule)</h3><div style="max-height:260px;overflow:auto"><table id="maskTable"></table></div></div>
+    <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">tags</h3><div style="max-height:260px;overflow:auto"><table id="tagTable"></table></div></div>
+    <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">mask hits</h3><div style="max-height:260px;overflow:auto"><table id="maskTable"></table></div></div>
   </div>
-    <div class="hbox" style="margin-top:16px"><h3 class="mini" style="margin-top:0">Per-file breakdown</h3><div style="max-height:220px;overflow:auto"><table id="fileTable"></table></div></div>
+    <div class="hbox" style="margin-top:10px"><h3 class="mini" style="margin-top:0">files</h3><div style="max-height:220px;overflow:auto"><table id="fileTable"></table></div></div>
 </div>
 
 <!-- RESULTS -->
 <div class="card" id="resCard" style="display:none">
-  <h2>5 · Matched lines</h2>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+  <h2 title="click a row to copy the full masked line">matches</h2>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <label class="tgl">font
-      <select id="fontSel" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px"></select>
+      <select id="fontSel"></select>
     </label>
-    <label class="tgl" title="fetch the selected font from Google Fonts when it is not installed locally (needs internet)"><input type="checkbox" id="fontWf"> webfonts (online)</label>
-    <label class="tgl">logcat theme
-      <select id="logThemeSel" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px">
+    <label class="tgl" title="fetch the selected font from Google Fonts when it is not installed locally (needs internet)"><input type="checkbox" id="fontWf"> webfonts</label>
+    <label class="tgl">theme
+      <select id="logThemeSel">
         <option value="default">LogLens default</option>
         <option value="as">Android Studio</option>
         <option value="vscode">VS Code Dark+</option>
@@ -317,76 +310,73 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
     </label>
   </div>
   <div class="chips" id="filterChips" style="margin:0 0 6px"></div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-    <input class="search" id="resFilter" placeholder="filter results (regex over tag+message)…" style="flex:1;margin:0">
-    <label class="tgl"><input type="checkbox" id="errOnly"> error-ish only</label>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+    <input class="search" id="resFilter" placeholder="filter (regex over tag+message)" style="flex:1;margin:0">
+    <label class="tgl"><input type="checkbox" id="errOnly"> err only</label>
   </div>
   <div class="reswrap" id="resWrap"><table id="resTable"></table></div>
-  <button class="btn sec" id="moreBtn" style="margin-top:10px">Show more rows</button>
+  <button class="btn sec" id="moreBtn" style="margin-top:8px">Show more rows</button>
 </div>
 
 <!-- EXPORT -->
 <div class="card" id="expCard" style="display:none">
-  <h2>6 · Export</h2>
-  <div class="sub">Extracts default to the pipeline format <span style="font-family:Consolas">[L&lt;line&gt;] &lt;masked line&gt;</span> — the prefix is optional (timestamps usually suffice). Raw lines are never stored in memory, so an unmasked export is impossible by design.</div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <button class="btn" id="dlExtract">⬇ Extract (.log, masked)</button>
-    <button class="btn sec" id="cpExtract" title="copy the masked extract to the clipboard">⧉ Copy</button>
-    <button class="btn sec" id="dlGz" title="same extract, gzip-compressed (Chromium)">⬇ Extract (.gz)</button>
-    <button class="btn sec" id="dlStats">⬇ Stats (.json)</button>
-    <button class="btn sec" id="dlCsv" title="message column is capped at 1000 characters per row">⬇ Results (.csv)</button>
-    <label class="tgl" style="margin-left:12px"><input type="checkbox" id="optLnnn" checked> [Lnnn] line-number prefix</label>
+  <h2 title="extracts are masked by default — raw lines are never stored in memory, so an unmasked export is impossible by design">export</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn" id="dlExtract">extract .log</button>
+    <button class="btn sec" id="cpExtract" title="copy the masked extract to the clipboard">copy</button>
+    <button class="btn sec" id="dlGz" title="same extract, gzip-compressed (Chromium)">extract .gz</button>
+    <button class="btn sec" id="dlStats">stats .json</button>
+    <button class="btn sec" id="dlCsv" title="message column is capped at 1000 characters per row">results .csv</button>
+    <label class="tgl" style="margin-left:8px" title="per-file line numbers in the extract"><input type="checkbox" id="optLnnn" checked> [Lnnn]</label>
   </div>
 </div>
 
 <!-- AI WIZARD -->
 <div class="card" id="wizCard">
-  <h2>7 · AI rule wizard <span class="badge gray">beta</span></h2>
-  <div class="sub">Describe your requirement in plain language — an AI agent returns a ready-to-apply rule JSON. Works with any <b>OpenAI-compatible chat API</b> (OpenAI, GLM, Azure, Ollama, LM Studio, local proxies…). Requests go directly from your browser to the endpoint you configure; nothing is sent anywhere else.</div>
+  <h2 title="describe the requirement in plain language — a validated rule JSON comes back. Any OpenAI-compatible endpoint (OpenAI, GLM, Azure, Ollama, LM Studio…); requests go directly from your browser to the endpoint you configure.">ai wizard <span class="badge gray">beta</span></h2>
   <div class="grid2">
     <div>
-      <h3 class="mini" style="margin-top:0">Connection</h3>
-      <input class="search" id="aiBase" placeholder="API base URL — e.g. https://api.openai.com/v1" style="margin-bottom:6px">
-      <input class="search" id="aiKey" type="password" placeholder="API key (optional for local models)" style="margin-bottom:6px">
-      <input class="search" id="aiModel" placeholder="model — e.g. gpt-4o-mini / glm-4.7 / llama3.2" style="margin-bottom:8px">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn sec" id="aiTest">Test connection</button>
-        <label class="tgl"><input type="checkbox" id="aiRemember"> remember key in this browser</label>
+      <h3 class="mini" style="margin-top:0">endpoint</h3>
+      <input class="search" id="aiBase" placeholder="API base URL — e.g. https://api.openai.com/v1" style="margin-bottom:5px">
+      <input class="search" id="aiKey" type="password" placeholder="API key (optional for local models)" style="margin-bottom:5px">
+      <input class="search" id="aiModel" placeholder="model — e.g. gpt-4o-mini / glm-4.7 / llama3.2" style="margin-bottom:6px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn sec" id="aiTest">test</button>
+        <label class="tgl"><input type="checkbox" id="aiRemember"> remember key</label>
       </div>
-      <div id="aiTestOut" style="font-size:12px;margin-top:4px"></div>
-      <div class="note">CORS note: browsers can only call endpoints that allow cross-origin requests. Most cloud APIs and LM Studio do; for Ollama start it with <span style="font-family:Consolas">OLLAMA_ORIGINS=*</span>.</div>
+      <div id="aiTestOut" style="font-size:11px;margin-top:3px"></div>
+      <div class="note">CORS: Ollama needs <span style="font-family:var(--mono)">OLLAMA_ORIGINS=*</span> · most cloud APIs work</div>
     </div>
     <div>
-      <h3 class="mini" style="margin-top:0">Your requirement</h3>
-      <textarea id="aiReq" rows="7" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:var(--mono);resize:vertical" placeholder="e.g. Extract all Bluetooth pairing failures and connection drops; additionally mask phone numbers and IMEIs; exclude verbose HCI packet dump lines."></textarea>
+      <h3 class="mini" style="margin-top:0">prompt</h3>
+      <textarea id="aiReq" rows="7" placeholder="e.g. Extract Bluetooth pairing failures and connection drops; mask phone numbers and IMEIs; exclude verbose HCI dump lines."></textarea>
       <div class="chips" id="aiExChips"></div>
-      <textarea id="aiSamples" rows="3" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:var(--mono);resize:vertical;margin-bottom:6px" placeholder="optional: paste 3–10 real sample log lines so the model sees your exact format (strongly improves regex quality)"></textarea>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn" id="aiGen">✨ Generate rules</button>
-        <label class="tgl" title="send your current extract+mask rules to the model as context — good for extending/improving them"><input type="checkbox" id="aiIncRules"> include current rules as context</label>
-        <span id="aiStatus" style="font-size:12px;color:var(--mut)"></span>
+      <textarea id="aiSamples" rows="3" style="margin-bottom:5px" placeholder="optional: 3–10 real sample lines strongly improve regex quality"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="aiGen">generate</button>
+        <label class="tgl" title="send your current extract+mask rules to the model as context"><input type="checkbox" id="aiIncRules"> send current rules</label>
+        <span id="aiStatus" style="font-size:11px;color:var(--mut)"></span>
       </div>
     </div>
   </div>
-  <div id="aiResult" style="display:none;margin-top:14px">
-    <h3 class="mini">Generated profile — preview</h3>
+  <div id="aiResult" style="display:none;margin-top:10px">
+    <h3 class="mini">generated rules</h3>
     <div class="hbox" id="aiPreview"></div>
     <div id="aiErrors" class="note" style="display:none"></div>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn" id="aiApply">✔ Apply (replace rules)</button>
-      <button class="btn sec" id="aiAppend">Append to rules</button>
-      <button class="btn sec" id="aiCopy">Copy JSON</button>
-      <button class="btn sec" id="aiDl">Download .json</button>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn" id="aiApply">apply</button>
+      <button class="btn sec" id="aiAppend">append</button>
+      <button class="btn sec" id="aiCopy">copy json</button>
+      <button class="btn sec" id="aiDl">download .json</button>
     </div>
-    <h3 class="mini">Raw model output (parsed)</h3>
+    <h3 class="mini">raw json</h3>
     <div class="preview" id="aiRaw"></div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.8 · single-file tool, no server, works offline · profiles auto-save in this browser (localStorage) ·
-  default PII presets cover common vehicle/embedded-log identifiers ·
+  LogLens v1.9 · single-file · no server · offline · profiles auto-save in this browser · default PII presets cover common vehicle/embedded-log identifiers · optional [Lnnn] prefix · AI wizard (bring your own endpoint)
   optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
@@ -1412,7 +1402,7 @@ function updateReady(){
 }
 function applyTheme(t){
   document.body.setAttribute('data-theme', t);
-  $('btnTheme').textContent = t==='dark' ? '☀️' : '🌙';
+  $('btnTheme').textContent = t==='dark' ? '◑' : '◐';
   try{ localStorage.setItem('loglens.theme', t); }catch(e){}
 }
 $('btnTheme').onclick = ()=>applyTheme(document.body.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
@@ -1422,8 +1412,8 @@ $('btnTheme').onclick = ()=>applyTheme(document.body.getAttribute('data-theme')=
   if (t) applyTheme(t);
 })();
 (function(){
-  const nav=[['secFiles','1 Files'],['secExtract','2 Extract rules'],['secMask','3 Mask rules'],['secMaskOnly','3b Sanitize copy'],
-             ['runCard','▶ Run'],['statsCard','4 Stats'],['resCard','5 Results'],['expCard','6 Export'],['wizCard','7 AI wizard']];
+  const nav=[['secFiles','input'],['secExtract','rules'],['secMask','mask'],['secMaskOnly','sanitize'],
+             ['runCard','run'],['statsCard','overview'],['resCard','matches'],['expCard','export'],['wizCard','ai']];
   const box=$('navChips');
   nav.forEach(([id,label])=>{
     const c=document.createElement('span'); c.className='chip'; c.textContent=label;
