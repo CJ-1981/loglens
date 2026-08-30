@@ -239,6 +239,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="tabs" id="mainTabs">
   <button class="tab on" id="tabBtnWork" title="rules, scans, exports">workbench</button>
   <button class="tab" id="tabBtnView" title="browse the full log — virtualized, any size">viewer</button>
+  <button class="tab" id="tabBtnPii" title="find unmasked PII in the loaded files">pii scan</button>
 </div>
 <div id="tabWork">
 <div class="chips" id="navChips" style="margin:0 0 12px"></div>
@@ -471,6 +472,29 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 </div>
 <div class="note" style="margin-top:8px">keys: PgUp/PgDn window · Home/End file · / search · n/N match · ↑/↓ line · drag the left rail or touch-scroll to pan</div>
 </div><!-- /tabView -->
+
+</div><!-- /tabWork -->
+
+<!-- PII SCAN TAB -->
+<div id="tabPii" style="display:none">
+<div class="card">
+  <h2 title="find potentially personal / identifying data in the loaded logs and turn findings into mask rules">pii scan</h2>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <button class="btn" id="piiRun">scan checked files</button>
+    <button class="btn sec" id="piiStop" disabled>stop</button>
+    <span id="piiStatus" style="font-size:11px;color:var(--mut)"></span>
+  </div>
+  <div class="progress" id="piiProg"><div class="bar" id="piiProgBar"></div></div>
+  <div class="ptext" id="piiProgText"></div>
+  <div id="piiFindings" style="display:none;margin-top:10px"></div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+    <button class="btn sec" id="piiApply">→ apply as mask rules</button>
+    <button class="btn sec" id="piiToAi">→ send to AI wizard</button>
+    <button class="btn sec" id="piiDl">download findings .json</button>
+  </div>
+  <div class="note" style="margin-top:10px">Findings are <b>potential</b> identifiers — review before adding rules. Unique values are sampled (shape only, e.g. <span style="font-family:var(--mono)">YV4…4371</span>); raw values never leave this page.</div>
+</div>
+</div><!-- /tabPii -->
 
 <div class="toast" id="toast"></div>
 <div class="footer">
@@ -864,11 +888,62 @@ const CORE = (function(){
     return Math.max(n, Math.round(fileSize / Math.max(avg, 1)));
   }
 
+  // ---------- PII scanner (detector catalog + streaming scan) ----------
+  // Each detector: {name, desc, rx (global), sample(fn or string replacement), enabled}
+  // sample() builds a human-readable "shape" of the match so values never leak into the report.
+  function luhnOK(digits){ let sum = 0, alt = false;
+    for (let i = digits.length - 1; i >= 0; i--){ let d = +digits[i]; if (alt){ d *= 2; if (d > 9) d -= 9; } sum += d; alt = !alt; }
+    return sum % 10 === 0; }
+  const PII_DETECTORS = [
+    { name:'VIN (17 chars)', desc:'17-char VIN-alphabet token (any maker)', rx:/\b[A-HJ-NPR-Z0-9]{17}\b/g,
+      sample: m => m[0].slice(0,3) + '…' + m[0].slice(-4), enabled:true },
+    { name:'IMEI (15 digits)', desc:'15-digit device identifier (Luhn-checked)', rx:/\b\d{15}\b/g,
+      sample: m => luhnOK(m[0]) ? 'IMEI ✓' + m[0].slice(-2) : '15-digit (no Luhn)', enabled:true },
+    { name:'email', desc:'email addresses', rx:/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+      sample: m => { const [a,b] = m[0].split('@'); return a.slice(0,2) + '***@' + b; }, enabled:true },
+    { name:'phone (intl +)', desc:'phone numbers with leading +', rx:/\+\d{1,3}[\s.-]?(?:\(?\d{1,4}\)?[\s.-]?)?\d{2,4}(?:[\s.-]?\d{2,4}){1,3}/g,
+      sample: m => m[0].slice(0,3) + '…' + m[0].slice(-2), enabled:true },
+    { name:'credit card (Luhn)', desc:'13–19 digit card numbers (Luhn-checked)', rx:/\b\d{13,19}\b/g,
+      sample: m => luhnOK(m[0]) ? 'CARD ✓' + m[0].slice(-4) : null, enabled:true },
+    { name:'SSN', desc:'US social security numbers', rx:/\b\d{3}-\d{2}-\d{4}\b/g,
+      sample: m => m[0].slice(0,3) + '-**-****', enabled:true },
+    { name:'IPv4 (any)', desc:'dotted-quad IPs', rx:/\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+      sample: m => m[0].split('.').slice(0,2).join('.') + '.x.x', enabled:true },
+    { name:'IPv6', desc:'IPv6 addresses (link-local, ULA, global)', rx:/\b(?:fe80::|fd[0-9A-Fa-f]{2}::|[0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}::?)[0-9A-Fa-f:]{0,19}/g,
+      sample: m => m[0].split(':').slice(0,2).join(':') + '::***', enabled:true },
+    { name:'MAC', desc:'colon-separated MAC addresses', rx:/\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b/g,
+      sample: m => m[0].slice(0,8) + ':**:**:**', enabled:true },
+    { name:'device serial SN-', desc:'SN-prefixed serials', rx:/\bSN-[0-9A-Fa-f]{6,}\b/g,
+      sample: m => 'SN-***', enabled:true },
+    { name:'subscriberId', desc:'subscriber numeric ids', rx:/\bsubscriberId[=:]\s*\d{6,}/g,
+      sample: () => 'subscriberId=***', enabled:true },
+    { name:'Java package (com.*)', desc:'com.xxx.yyy package references (may identify vendor/apps)', rx:/\bcom\.[a-z0-9_]+(?:\.[a-z0-9_]+){1,4}\b/gi,
+      sample: m => m[0], enabled:false },
+    { name:'hex token (16+)', desc:'long hex strings (session keys, tokens, hashes)', rx:/\b[0-9a-f]{16,}\b/gi,
+      sample: m => m[0].slice(0,4) + '…' + m[0].slice(-4), enabled:false },
+  ];
+
+  // scan a single line: returns [{name, pattern, value, shape}] for every detector hit
+  function scanLinePII(line, detectors){
+    const out = [];
+    for (const d of detectors){
+      d.rx.lastIndex = 0;
+      let m;
+      while ((m = d.rx.exec(line)) !== null){
+        if (m[0].length === 0){ d.rx.lastIndex++; continue; }
+        const s = d.sample ? d.sample(m) : m[0];
+        if (s != null) out.push({ name: d.name, pattern: d.pattern || d.rx.source, value: m[0], shape: s });
+      }
+    }
+    return out;
+  }
+
   return { HDR, ERRISH, ERRISH_SOURCE, DEFAULT_ERRISH_SOURCE: ERRISH_SOURCE, parseHeader, detectTs, detectTsInfo, TS_FAMILIES,
            parseUserTs, validUserTs,
            compile, maskLine, processLine, processText, newState,
            autoBucket, mergeBuckets, pickBucketSize, readiness, validTs,
            windowFromBuffer, estimateLineCount,
+           PII_DETECTORS, scanLinePII, luhnOK,
            DEFAULT_MASK, DEFAULT_EXTRACT, DEMO, SYSTEM_PROMPT, extractJSON, validateProfile };
 })();
 if (typeof window!=='undefined') window.CORE = CORE;
@@ -1652,17 +1727,20 @@ function loadDemoFile(){
 
 // ---------- tabs ----------
 function setTab(t){
-  $('tabWork').style.display = t==='work' ? '' : 'none';
-  $('tabView').style.display = t==='view' ? '' : 'none';
-  $('tabBtnWork').classList.toggle('on', t==='work');
-  $('tabBtnView').classList.toggle('on', t==='view');
+  const map = { work:['tabWork','tabBtnWork'], view:['tabView','tabBtnView'], pii:['tabPii','tabBtnPii'] };
+  for (const k in map){
+    $(map[k][0]).style.display = (k===t) ? '' : 'none';
+    $(map[k][1]).classList.toggle('on', k===t);
+  }
   $('navChips').style.display = t==='work' ? '' : 'none';
   try{ localStorage.setItem('loglens.tab', t); }catch(e){}
   if (t==='view') viewerEnsure();
+  if (t==='pii') piiRefreshFiles();
 }
 $('tabBtnWork').onclick = ()=>setTab('work');
 $('tabBtnView').onclick = ()=>setTab('view');
-(function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} if (t==='view') setTab('view'); })();
+$('tabBtnPii').onclick = ()=>setTab('pii');
+(function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} setTab(t==='view'||t==='pii' ? t : 'work'); })();
 
 // ---------- viewer (virtualized log browser) ----------
 const V = { file:null, anchor:0, lines:[], winStart:0, winEnd:0, total:0, est:0, maskCm:null,
@@ -1906,6 +1984,124 @@ $('vSearch').addEventListener('keydown', e=>{
 });
 $('vNext').onclick = ()=>vFind(1);
 $('vPrev').onclick = ()=>vFind(-1);
+
+// ---------- PII scan tab ----------
+const P = { running:false, abort:false, findings:null };
+
+function piiRefreshFiles(){
+  const n = S.files.filter(f=>f.use!==false).length;
+  const el = $('piiStatus');
+  if (el) el.textContent = n ? n + ' file(s) will be scanned' : 'no files loaded — add logs in the workbench first';
+}
+function piiSetBusy(b){
+  P.running = b; P.abort = b ? false : P.abort;
+  $('piiRun').disabled = b || S.running || S.mBusy;
+  $('piiStop').disabled = !b;
+  $('btnRun').disabled = b || S.running; $('mRun').disabled = b || S.mBusy;
+  $('piiProg').style.display = b ? 'block' : 'none';
+}
+$('piiStop').onclick = ()=>{ P.abort = true; };
+$('piiRun').onclick = async ()=>{
+  if (P.running) return;
+  const files = S.files.filter(f=>f.use!==false);
+  if (!files.length){ alert('Load at least one file first (section 1).'); return; }
+  const dets = CORE.PII_DETECTORS.filter(d=>d.enabled);
+  if (!dets.length){ alert('No detectors enabled.'); return; }
+  const detectors = dets.map(d=>({ name:d.name, rx:new RegExp(d.rx.source, d.rx.flags), sample:d.sample, pattern:d.rx.source }));
+  piiSetBusy(true);
+  $('piiFindings').style.display='none';
+  $('piiProg').style.display='block'; $('piiProgText').style.display='block';
+  const agg = new Map();   // key = name + '\u0000' + shape → {name, shape, count, pattern, example}
+  let lines=0, hits=0;
+  const t0 = performance.now();
+  try{
+    for (const f of files){
+      if (P.abort) break;
+      const reader = f.file.stream().getReader();
+      const dec = new TextDecoder();
+      let buf='', read=0, lastYield=0;
+      while (true){
+        if (P.abort) break;
+        const {done, value} = await reader.read();
+        if (done) break;
+        read += value.byteLength;
+        buf += dec.decode(value,{stream:true});
+        let i;
+        while ((i = buf.indexOf('\n')) >= 0){
+          const line = buf.slice(0,i).replace(/\r$/,''); buf = buf.slice(i+1);
+          lines++;
+          for (const hit of CORE.scanLinePII(line, detectors)){
+            hits++;
+            const key = hit.name + '\u0000' + hit.shape;
+            const e = agg.get(key) || (agg.set(key, {name:hit.name, shape:hit.shape, count:0, example:hit.value, pattern:hit.pattern}), agg.get(key));
+            e.count++;
+          }
+        }
+        if (read-lastYield > 8*1048576){
+          lastYield = read;
+          const pct = Math.min(99, 100*read/f.file.size);
+          const el = (performance.now()-t0)/1000, rate = read/1048576/Math.max(el,0.001);
+          const eta = read<f.file.size ? ((f.file.size-read)/1048576/Math.max(rate,0.01)) : 0;
+          $('piiProgBar').style.width = pct+'%';
+          $('piiProgText').textContent = `${f.name} — ${(read/1048576).toFixed(0)}/${(f.file.size/1048576).toFixed(0)} MB · ${rate.toFixed(0)} MB/s · ETA ${eta<1?'<1':eta.toFixed(0)} s · ${lines.toLocaleString()} lines · ${hits.toLocaleString()} findings`;
+          await new Promise(r=>setTimeout(r));
+        }
+      }
+      try{ await reader.cancel(); }catch(e){}
+    }
+  }catch(e){ alert('Scan error: '+e.message); }
+  piiSetBusy(false);
+  $('piiProg').style.display='none'; $('piiProgText').style.display='none';
+  P.findings = { scannedLines: lines, hits, detectors: [...agg.values()].sort((a,b)=>b.count-a.count),
+                 files: files.map(f=>f.name), stopped: P.abort, when: new Date().toISOString() };
+  piiRenderFindings();
+};
+
+function piiRenderFindings(){
+  const F = P.findings; if (!F) return;
+  const box = $('piiFindings'); box.style.display='';
+  if (!F.detectors.length){
+    box.innerHTML = '<b>✓ no potential PII found</b> in ' + F.scannedLines.toLocaleString() + ' lines across ' + F.files.length + ' file(s).' + (F.stopped ? ' <i>(scan was stopped early)</i>' : '');
+    return;
+  }
+  box.innerHTML =
+    '<h3 class="mini" style="margin-top:0">findings — ' + F.hits.toLocaleString() + ' hits, ' + F.detectors.length + ' distinct shapes' + (F.stopped?' <i>(stopped early)</i>':'') + '</h3>' +
+    '<table><tr><th>detector</th><th>shape (samples)</th><th>count</th><th>mask</th></tr>' +
+    F.detectors.map((d,i)=>
+      '<tr><td class="mono">'+esc(d.name)+'</td>'+
+      '<td class="mono">'+esc(d.shape)+(d.count>1?' <span style="color:var(--mut)">×'+d.count.toLocaleString()+'</span>':'')+'</td>'+
+      '<td>'+d.count.toLocaleString()+'</td>'+
+      '<td><input type="checkbox" class="piiPick" data-i="'+i+'" checked></td></tr>').join('') +
+    '</table>' +
+    '<div style="font-size:11px;color:var(--mut);margin-top:6px">tick only the detectors you want turned into mask rules</div>';
+}
+$('piiApply').onclick = ()=>{
+  const F = P.findings; if (!F || !F.detectors.length){ alert('Run a scan first.'); return; }
+  const picked = [...document.querySelectorAll('.piiPick:checked')].map(cb=>+cb.dataset.i);
+  if (!picked.length){ alert('Tick at least one detector row first.'); return; }
+  const newRules = picked.map(i=>{
+    const d = F.detectors[i];
+    return { name:'PII: ' + d.name, pattern: d.pattern || ('[pattern for ' + d.name + ']'), replace:'[redacted: ' + d.name + ']', flags:'g', enabled:true };
+  }).filter(r=>validRe(r.pattern));
+  S.maskRules.push(...newRules);
+  renderMaskRules(); pv(); saveProfile();
+  toast(newRules.length + ' mask rule(s) appended ✓');
+};
+$('piiDl').onclick = ()=>{
+  const F = P.findings; if (!F){ alert('Run a scan first.'); return; }
+  dl('loglens_pii_findings.json', JSON.stringify(F, null, 2), 'application/json');
+};
+$('piiToAi').onclick = ()=>{
+  const F = P.findings; if (!F || !F.detectors.length){ alert('Run a scan first.'); return; }
+  setTab('work');
+  const summary = F.detectors.map(d=>'- ' + d.name + ': ' + d.count.toLocaleString() + ' hit(s)').join('\n');
+  $('aiReq').value = 'A PII scan found these potential identifiers in my logs:\n' + summary +
+    '\n\nWrite mask rules that reliably cover each of them (order: specific before generic). Consider false positives (timestamps, version numbers, epoch millis).';
+  $('aiSamples').value = F.detectors.slice(0,8).map(d=>d.shape).join('\n');
+  $('aiIncRules').checked = true;
+  $('wizCard').scrollIntoView({behavior:'smooth', block:'start'});
+  toast('context prepared in the AI wizard ✓');
+};
 
 // ---------- AI wizard ----------
 const AI_EXAMPLES = [

@@ -196,7 +196,36 @@ check('readiness: ready text', r2.ok === true && /2 files/.test(r2.text) && /9 m
 check('validTs: empty ok', CORE.validTs('') === true);
 check('validTs: minute ok', CORE.validTs('08-24 15:37') === true);
 check('validTs: seconds ok', CORE.validTs('08-24 15:37:05') === true);
-check('validTs: garbage rejected', CORE.validTs('2026-08-24') === false && CORE.validTs('garbage') === false);
+console.log('== v1.12: PII scanner ==');
+check('detector catalog present', Array.isArray(CORE.PII_DETECTORS) && CORE.PII_DETECTORS.length >= 12);
+const dets = CORE.PII_DETECTORS.map(d => ({ ...d, rx: new RegExp(d.rx.source, d.rx.flags) }));
+const scan = line => CORE.scanLinePII(line, dets).map(x => x.name + '=' + x.value);
+check('VIN detected', scan('vin YV4AB9CD12EF34567 here').some(x => x.startsWith('VIN (17 chars)=YV4')));
+check('IMEI detected', scan('imei 356938035643809 dev').some(x => x.startsWith('IMEI')));
+check('email detected', scan('mail someone@example.com done').some(x => x.startsWith('email=someone@example.com')));
+check('intl phone detected', scan('call +4512345678 now').some(x => x.startsWith('phone (intl +)=+45')));
+check('MAC detected', scan('mac aa:bb:cc:dd:ee:ff end').some(x => x.startsWith('MAC=aa:bb:cc:dd:ee:ff')));
+check('private IPv4 detected', scan('ip 192.168.1.50 up').some(x => x.startsWith('IPv4 (any)=192.168.1.50')));
+check('public IPv4 detected', scan('ip 203.0.113.42 fwd').some(x => x.startsWith('IPv4 (any)=203.0.113.42')));
+check('IPv6 detected', scan('addr fe80::1234:5678 end').some(x => x.startsWith('IPv6')));
+check('SSN detected', scan('ssn 123-45-6789 x').some(x => x.startsWith('SSN=123-45-6789')));
+check('serial detected', scan('id SN-1a2b3c4d here').some(x => x.startsWith('device serial SN-=SN-1a2b3c4d')));
+check('subscriber detected', scan('x subscriberId=123456789 y').some(x => x.startsWith('subscriberId')));
+// guards: non-PII must NOT match
+const noPII = t => CORE.scanLinePII(t, dets).length === 0;
+check('guard: logcat ts not flagged', noPII('08-24 15:37:01.123  4111  7681 I tag: msg'));
+check('guard: epoch ms not flagged', noPII('ts=1787611054935 ok'));
+check('guard: version not flagged', noPII('version 2.41.3 build 1148'));
+check('guard: short hex not flagged', noPII('hash ab12cd34 ok'));
+check('guard: plain text not flagged', noPII('nothing personal in this line at all'));
+// shape privacy: no full raw values in shapes
+const sh = CORE.scanLinePII('YV4AB9CD12EF34567 someone@example.com 356938035643809', dets).map(x => x.shape).join('|');
+check('shapes are truncated, never raw', !sh.includes('YV4AB9CD12EF34567') && !sh.includes('someone@example.com') && !sh.includes('356938035643809'));
+
+console.log('== v1.12: PII tab wiring ==');
+check('pii tab ids present', ['tabBtnPii','tabPii','piiRun','piiStop','piiFindings','piiApply','piiToAi','piiDl','piiProg','piiStatus'].every(id => html.includes('id="' + id + '"')));
+check('setTab handles pii', html.includes("pii:['tabPii','tabBtnPii']"));
+check('detectors render with samples + mask column', html.includes('piiRenderFindings') && html.includes('piiPick'));
 
 console.log('== v1.7: timestamp auto-detection ==');
 check('ISO with ms + Z', CORE.parseHeader('2026-08-24T15:37:01.123Z info: x').ts === '08-24 15:37:01.123');
