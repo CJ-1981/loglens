@@ -252,6 +252,30 @@ check('preset palettes cover all levels', ['V','D','I','W','E','F'].every(l =>
 check('theme options present', ['Android Studio','VS Code Dark+','Dracula','Solarized Dark','High Contrast'].every(n => html.includes(n)));
 check('header buttons readable on dark bar (light text + transparent bg)', html.includes('header.top .btn.sec,body header.top .btn.sec{color:#e7edf5'));
 
+console.log('== v1.11: viewer tab ==');
+check('tabs present + persisted', html.includes('id="tabBtnWork"') && html.includes('id="tabBtnView"') && html.includes("localStorage.setItem('loglens.tab'"));
+check('viewer core ids present', ['vFile','vSearch','vPrev','vNext','vMask','vTheme','vStatus','vScroll','vThumb','vBody','vFoot'].every(id => html.includes('id="'+id+'"')));
+check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
+check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
+// windowFromBuffer — forward
+const wf = CORE.windowFromBuffer('l1\nl2\nl3\nl4\npar', 'forward', 3);
+check('forward: maxLines complete lines', JSON.stringify(wf.lines) === JSON.stringify(['l1','l2','l3']));
+check('forward: partial tail kept as residue', wf.residue === 'l4\npar');
+const wf2 = CORE.windowFromBuffer('only', 'forward', 5);
+check('forward: single partial, no lines', wf2.lines.length === 0 && wf2.residue === 'only');
+const wf3 = CORE.windowFromBuffer('a\nb', 'forward', 5);
+check('forward: tail without newline is residue (viewer appends at EOF)', JSON.stringify(wf3.lines) === JSON.stringify(['a']) && wf3.residue === 'b');
+// windowFromBuffer — backward
+const wb = CORE.windowFromBuffer('partial-head\nl1\nl2\nl3\n', 'backward', 2);
+check('backward: last N complete lines', JSON.stringify(wb) === JSON.stringify(['l2','l3']));
+const wb2 = CORE.windowFromBuffer('only-line', 'backward', 3);
+check('backward: whole buffer when few lines', JSON.stringify(wb2) === JSON.stringify(['only-line']));
+const wb3 = CORE.windowFromBuffer('x\ny\n', 'backward', 5);
+check('backward: no trailing-newline ghost line', JSON.stringify(wb3) === JSON.stringify(['x','y']));
+// estimateLineCount
+check('estimate from sample', CORE.estimateLineCount('a'.repeat(50)+'\n'.repeat(10), 1000) >= 10);
+check('estimate fallback for empty sample', CORE.estimateLineCount('', 8000) === 100);
+
 console.log('== v1.5.1: per-rule case sensitivity ==');
 check('extract default insensitive', CORE.compile([{name:'x',pattern:'demo'}],'extract')[0].rx.test('DEMO'));
 check('extract ci:false -> sensitive', !(CORE.compile([{name:'x',pattern:'demo',ci:false}],'extract')[0].rx.test('DEMO')));

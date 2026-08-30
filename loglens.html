@@ -85,6 +85,37 @@ h3.mini{margin:10px 0 4px;font-size:9.5px;color:var(--mut);text-transform:upperc
 .toast.show{opacity:.96}
 .reswrap tr[data-i]{cursor:copy}
 input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
+/* ---- tabs ---- */
+.tabs{display:flex;gap:4px;margin-bottom:10px}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--mut);border-radius:5px;padding:4px 16px;font-size:11.5px;font-weight:600;letter-spacing:.4px;cursor:pointer}
+.tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+/* ---- viewer ---- */
+.vtoolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line)}
+.vtoolbar select{max-width:220px}
+.vsearch{flex:1;min-width:160px;border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:11.5px;font-family:var(--mono);color:var(--ink);background:#fff}
+#viewCard{display:flex;flex-direction:column}
+.vscroll{width:10px;background:#eceff3;cursor:grab;position:relative;flex:0 0 10px;min-height:40px}
+.vthumb{position:absolute;left:0;top:0;width:100%;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
+.vthumb:hover{background:var(--accent)}
+.vrow{display:flex;flex:0 0 auto}
+.vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0}
+.vmain{display:flex;flex:1;min-height:0}
+.vrow .ln{flex:0 0 8ch;text-align:right;padding:0 8px 0 10px;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;line-height:1.9}
+.vrow .cols{flex:1;display:grid;grid-template-columns:14ch 3ch 20ch 1fr;gap:0 10px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
+.vrow .raw{flex:1;white-space:pre-wrap;word-break:break-all;padding-right:10px}
+.vrow .ts{color:var(--mut)}
+.vrow .tg{color:var(--ink);font-weight:600}
+.vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
+.vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
+.vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
+/* viewer dark / theme surfaces — hc default look */
+#vBody.hc{background:#000;color:#fff}
+#vBody.hc .ts{color:#9aa7b4}
+#vBody.hc .ln{color:#6f7d8c}
+#vBody.hc mark{background:#ffe066;color:#000}
+body[data-theme=dark] .vbody{background:var(--card)}
+body[data-theme=dark] .vsearch{background:#0d141b;color:var(--ink);border-color:var(--line)}
+body[data-theme=dark] .vscroll{background:#1a2330}
 /* mobile */
 @media(max-width:640px){
   .wrap{padding:10px 10px 56px}
@@ -99,6 +130,8 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
   .reswrap{max-height:420px}
   #runCard{position:static}
   table{font-size:11px}
+  .vtoolbar select{max-width:130px}
+  .vrow .cols{grid-template-columns:11ch 3ch 14ch 1fr;gap:0 6px}
 }
 /* dark theme (toggle in header; persisted) */
 body[data-theme=dark]{--bg:#0d1218;--card:#151c24;--ink:#d7e3ee;--mut:#8ba1b5;--line:#263140;
@@ -185,11 +218,16 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.10</span>
+  <h1>LogLens</h1><span class="ver">v1.11</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
 </header>
+<div class="tabs" id="mainTabs">
+  <button class="tab on" id="tabBtnWork" title="rules, scans, exports">workbench</button>
+  <button class="tab" id="tabBtnView" title="browse the full log — virtualized, any size">viewer</button>
+</div>
+<div id="tabWork">
 <div class="chips" id="navChips" style="margin:0 0 12px"></div>
 
 <!-- FILES -->
@@ -390,6 +428,34 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
     <div class="preview" id="aiRaw"></div>
   </div>
 </div>
+
+</div><!-- /tabWork -->
+
+<!-- VIEWER TAB -->
+<div id="tabView" style="display:none">
+<div class="card" id="viewCard" style="padding:0;overflow:hidden">
+  <div class="vtoolbar">
+    <select id="vFile" title="file to browse"></select>
+    <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
+    <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
+    <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
+    <label class="tgl" title="display lines through the mask rules"><input type="checkbox" id="vMask" checked> mask</label>
+    <select id="vTheme" title="logcat color theme">
+      <option value="hc">High Contrast</option>
+      <option value="default">LogLens default</option>
+      <option value="as">Android Studio</option>
+      <option value="vscode">VS Code Dark+</option>
+      <option value="dracula">Dracula</option>
+      <option value="solarized">Solarized Dark</option>
+    </select>
+    <span id="vStatus" class="vstatus"></span>
+  </div>
+  <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
+  <div class="vbody" id="vBody" tabindex="0"></div>
+  <div class="vfoot" id="vFoot"></div>
+</div>
+<div class="note" style="margin-top:8px">keys: PgUp/PgDn window · Home/End file · / search · n/N match · ↑/↓ line · drag the left rail or touch-scroll to pan</div>
+</div><!-- /tabView -->
 
 <div class="toast" id="toast"></div>
 <div class="footer">
@@ -748,10 +814,46 @@ const CORE = (function(){
   }
   function validTs(s){ return s==='' || /^(\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?)$/.test(s); }
 
+  // ---------- viewer helpers (virtual window engine) ----------
+  // Split a decoded buffer into complete lines for a window.
+  // forward:  keep the first maxLines complete lines; drop a trailing partial (caller carries it)
+  // backward: keep the LAST maxLines complete lines; drop a leading partial
+  function windowFromBuffer(buf, dir, maxLines){
+    const out = [];
+    if (dir === 'backward'){
+      let end = buf.length, start;
+      while (out.length < maxLines){
+        const i = buf.lastIndexOf('\n', end - 1);
+        if (i < 0){ if (end > 0) out.unshift(buf.slice(0, end)); break; }
+        start = i + 1;
+        if (start < end) out.unshift(buf.slice(start, end));
+        end = i;
+        if (end <= 0) break;
+      }
+      return out;
+    }
+    let pos = 0;
+    while (out.length < maxLines){
+      const i = buf.indexOf('\n', pos);
+      if (i < 0) break;                       // trailing partial stays in buf (caller keeps residue)
+      out.push(buf.slice(pos, i));
+      pos = i + 1;
+    }
+    return { lines: out, residue: buf.slice(pos) };
+  }
+  function estimateLineCount(sampleText, fileSize){
+    const s = sampleText.slice(0, 65536);
+    const n = s.split('\n').length;
+    if (n < 2) return Math.max(1, Math.round(fileSize / 80));
+    const avg = s.length / n;
+    return Math.max(n, Math.round(fileSize / Math.max(avg, 1)));
+  }
+
   return { HDR, ERRISH, ERRISH_SOURCE, DEFAULT_ERRISH_SOURCE: ERRISH_SOURCE, parseHeader, detectTs, detectTsInfo, TS_FAMILIES,
            parseUserTs, validUserTs,
            compile, maskLine, processLine, processText, newState,
            autoBucket, mergeBuckets, pickBucketSize, readiness, validTs,
+           windowFromBuffer, estimateLineCount,
            DEFAULT_MASK, DEFAULT_EXTRACT, DEMO, SYSTEM_PROMPT, extractJSON, validateProfile };
 })();
 if (typeof window!=='undefined') window.CORE = CORE;
@@ -1522,6 +1624,251 @@ $('resTable').addEventListener('click',e=>{
   (navigator.clipboard?navigator.clipboard.writeText(rec.masked||''):Promise.reject())
     .then(()=>toast('copied L'+rec.lineno+' ✓'), ()=>toast('clipboard blocked — select the text manually'));
 });
+
+// ---------- tabs ----------
+function setTab(t){
+  $('tabWork').style.display = t==='work' ? '' : 'none';
+  $('tabView').style.display = t==='view' ? '' : 'none';
+  $('tabBtnWork').classList.toggle('on', t==='work');
+  $('tabBtnView').classList.toggle('on', t==='view');
+  $('navChips').style.display = t==='work' ? '' : 'none';
+  try{ localStorage.setItem('loglens.tab', t); }catch(e){}
+  if (t==='view') viewerEnsure();
+}
+$('tabBtnWork').onclick = ()=>setTab('work');
+$('tabBtnView').onclick = ()=>setTab('view');
+(function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} if (t==='view') setTab('view'); })();
+
+// ---------- viewer (virtualized log browser) ----------
+const V = { file:null, anchor:0, lines:[], winStart:0, winEnd:0, total:0, est:0, maskCm:null,
+            loading:false, lastHit:null, avgLen:80 };
+const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900;
+
+async function vReadText(from, to){
+  const blob = V.file.slice(Math.max(0,from), Math.max(0,to));
+  const buf = await blob.arrayBuffer();
+  return new TextDecoder().decode(buf);
+}
+function vCompiledMask(){
+  const cm = CORE.compile(S.maskRules,'mask').map(c=>c.error?c:{...c, rx:new RegExp(c.rx.source, c.rx.flags)});
+  return cm;
+}
+function vApplyMask(line){
+  if (!$('vMask').checked) return line;
+  if (!V.maskCm) V.maskCm = vCompiledMask();
+  return CORE.maskLine(line, V.maskCm).line;
+}
+function viewerEnsure(){
+  const files = S.files.filter(f=>f.use!==false);
+  const sel = $('vFile');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  files.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; sel.appendChild(o); });
+  if (!files.length){ $('vBody').innerHTML=''; $('vFoot').textContent='no files loaded — add logs in the workbench input section'; V.file=null; return; }
+  sel.value = files.some(f=>f.name===cur) ? cur : files[0].name;
+  vOpen(files.find(f=>f.name===sel.value));
+}
+$('vFile').onchange = ()=>vOpen(S.files.find(f=>f.name===$('vFile').value && f.use!==false));
+$('vTheme').onchange = ()=>{ vApplyTheme(); try{ localStorage.setItem('loglens.vtheme', $('vTheme').value); }catch(e){} };
+function vApplyTheme(){
+  const t = $('vTheme').value;
+  $('vBody').className = 'vbody' + (t==='hc' ? ' hc' : '');
+  if (t==='default') delete document.body.dataset.logTheme; else document.body.dataset.logTheme = t;
+}
+async function vOpen(f){
+  if (!f) return;
+  V.file = f.file; V.total = V.file.size; V.anchor = 0; V.maskCm = null; V.lastHit = null;
+  // sample head for line estimate + theme restore
+  const head = await vReadText(0, 65536);
+  V.est = CORE.estimateLineCount(head, V.total);
+  V.avgLen = Math.max(20, V.total / V.est);
+  try{ const t = localStorage.getItem('loglens.vtheme'); if (t){ $('vTheme').value = t; } }catch(e){}
+  vApplyTheme();
+  await vWindow(0, 'forward');
+}
+async function vWindow(anchor, dir){
+  if (!V.file || V.loading) return;
+  V.loading = true; $('vStatus').textContent = 'reading…';
+  try{
+    if (dir === 'backward'){
+      const start = Math.max(0, anchor - V_BACK);
+      const text = await vReadText(start, anchor + 1);
+      const lines = CORE.windowFromBuffer(text, 'backward', V_WIN);
+      V.lines = lines;
+      V.winStart = anchor - lines.reduce((a,l)=>a+l.length+1, 0);
+      V.winEnd = V.winStart + lines.reduce((a,l)=>a+l.length+1, 0);
+      V.anchor = V.winStart;
+    } else {
+      let text = await vReadText(anchor, anchor + V_CHUNK);
+      let w = CORE.windowFromBuffer(text, 'forward', V_WIN);
+      let lines = w.lines;
+      // grow if the chunk yielded too few complete lines (very long lines)
+      while (lines.length < 100 && anchor + V_CHUNK < V.total){
+        text = await vReadText(anchor, anchor + V_CHUNK*4);
+        w = CORE.windowFromBuffer(text, 'forward', V_WIN);
+        lines = w.lines;
+        if (lines.length >= V_WIN) break;
+      }
+      V.lines = lines;
+      V.winStart = anchor;
+      V.winEnd = anchor + lines.reduce((a,l)=>a+l.length+1, 0);
+      if (w.residue && anchor + V_CHUNK >= V.total){    // EOF: the tail is the final line
+        V.lines.push(w.residue);
+        V.winEnd = V.total;
+      }
+      V.anchor = anchor;
+    }
+    vRender();
+  } finally { V.loading = false; }
+}
+function vRender(){
+  const body = $('vBody');
+  const frag = [];
+  const firstEst = Math.round(V.winStart / V.avgLen);
+  V.lines.forEach((raw, i)=>{
+    const h = CORE.parseHeader(raw);
+    const masked = vApplyMask(raw);
+    if (h && h.ts){
+      const msg = esc(masked.includes(h.tag) ? masked.slice(masked.indexOf(h.tag)+h.tag.length).replace(/^:\s*/,'') : masked);
+      frag.push(`<div class="vrow"><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`);
+    } else {
+      frag.push(`<div class="vrow"><span class="ln">${firstEst+i}</span><span class="raw">${esc(masked)}</span></div>`);
+    }
+  });
+  body.innerHTML = frag.join('') || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
+  body.scrollTop = 0;
+  vStatus();
+  vThumb();
+}
+function vStatus(){
+  const pct = V.total ? (100*V.winStart/V.total).toFixed(1) : 0;
+  const mb = n => (n/1048576).toFixed(2) + ' MB';
+  $('vFoot').textContent = `${pct}% · ${mb(V.winStart)} / ${mb(V.total)} · ≈${V.est.toLocaleString()} lines · window ${V.lines.length} lines · ${$('vMask').checked?'masked':'raw'}`;
+}
+function vThumb(){
+  const rail = $('vScroll'), th = $('vThumb');
+  const frac = V.total ? V.winStart / V.total : 0;
+  const h = Math.max(24, rail.clientHeight * Math.min(1, (V.lines.length * V.avgLen) / V.total));
+  th.style.height = h + 'px';
+  th.style.top = (frac * Math.max(0, rail.clientHeight - h)) + 'px';
+}
+function vShift(nLines, dir){
+  if (!V.file) return;
+  const by = Math.max(1, Math.min(nLines, V.lines.length || 1)) * V.avgLen;
+  if (dir > 0) vWindow(Math.min(V.total-1, V.winEnd), 'forward');
+  else vWindow(Math.max(0, V.winStart - by), 'backward');
+}
+// scrollbar drag = byte-fraction jump
+(function(){
+  const rail = $('vScroll'), th = $('vThumb');
+  let drag = false;
+  const jump = e => {
+    const r = rail.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    vWindow(Math.round(frac * V.total), 'forward');
+  };
+  th.addEventListener('mousedown', e=>{ drag=true; e.preventDefault(); });
+  rail.addEventListener('mousedown', e=>{ if (e.target===rail){ drag=true; jump(e); } });
+  window.addEventListener('mousemove', e=>{ if (drag) jump(e); });
+  window.addEventListener('mouseup', ()=>drag=false);
+  th.addEventListener('touchstart', e=>{ drag=true; }, {passive:true});
+  th.addEventListener('touchmove', e=>{ if (drag) jump(e.touches[0]); }, {passive:true});
+  window.addEventListener('touchend', ()=>drag=false);
+})();
+// keyboard
+$('vBody').addEventListener('keydown', e=>{
+  if (!V.file) return;
+  if (e.key==='PageDown' || e.key===' '){ e.preventDefault(); vShift(0, 1); }
+  else if (e.key==='PageUp'){ e.preventDefault(); vShift(0, -1); }
+  else if (e.key==='ArrowDown'){ e.preventDefault(); vWindow(Math.min(V.total-1, V.winStart + V.avgLen), 'forward'); }
+  else if (e.key==='ArrowUp'){ e.preventDefault(); vWindow(Math.max(0, V.winStart - V.avgLen), 'backward'); }
+  else if (e.key==='Home'){ e.preventDefault(); vWindow(0,'forward'); }
+  else if (e.key==='End'){ e.preventDefault(); vWindow(Math.max(0,V.total-V_CHUNK),'forward'); }
+  else if (e.key==='/'){ e.preventDefault(); $('vSearch').focus(); }
+  else if ((e.key==='n'||e.key==='N') && document.activeElement!==$('vSearch')){ e.preventDefault(); e.key==='n' ? vFind(1) : vFind(-1); }
+});
+// touch pan on body
+(function(){
+  let lastY = null;
+  const b = $('vBody');
+  b.addEventListener('touchstart', e=>{ lastY = e.touches[0].clientY; }, {passive:true});
+  b.addEventListener('touchmove', e=>{
+    const y = e.touches[0].clientY;
+    if (lastY!=null){
+      const dy = lastY - y;
+      if (Math.abs(dy) > 30){ vShift(0, dy>0 ? 1 : -1); lastY = y; }
+    }
+  }, {passive:true});
+})();
+$('vMask').onchange = ()=>vRender();
+// search-jump: stream from current offset with the include-regex engine
+async function vFind(dir){
+  if (!V.file || V.loading) return;
+  const q = $('vSearch').value.trim();
+  if (!q){ toast('type a search pattern first'); return; }
+  let rx; try{ rx = new RegExp(q,'i'); }catch(e){ toast('bad regex: '+e.message); return; }
+  $('vStatus').textContent = 'searching…'; V.loading = true;
+  try{
+    if (dir > 0){
+      let from = V.winEnd, read = 0;
+      while (from < V.total && read < 512*1048576){
+        const text = await vReadText(from, from + V_CHUNK);
+        let pos = from > 0 ? text.indexOf('\n')+1 : 0;   // skip partial first line
+        while (pos < text.length){
+          const nl = text.indexOf('\n', pos);
+          const line = text.slice(pos, nl<0?text.length:nl);
+          if (rx.test(line)){
+            await vWindow(from + pos, 'forward');
+            vHighlight(rx);
+            $('vStatus').textContent = '';
+            return;
+          }
+          if (nl < 0) break;
+          pos = nl + 1;
+        }
+        from += V_CHUNK; read += V_CHUNK;
+        if (from < V.total){ /* continue */ }
+      }
+      toast('no more matches forward');
+    } else {
+      let from = Math.max(0, V.winStart - V_BACK);
+      while (from >= 0){
+        const end = from + V_BACK;
+        const text = await vReadText(from, Math.min(end, V.winStart));
+        const lines = CORE.windowFromBuffer(text, 'backward', 400);
+        for (let i = lines.length-1; i >= 0; i--){
+          if (rx.test(lines[i])){
+            const abs = from + lines.slice(0,i).reduce((a,l)=>a+l.length+1,0);
+            await vWindow(abs, 'forward');
+            vHighlight(rx);
+            $('vStatus').textContent = '';
+            return;
+          }
+        }
+        if (from === 0) break;
+        from = Math.max(0, from - V_BACK);
+      }
+      toast('no matches backward');
+    }
+  } finally { V.loading = false; $('vStatus').textContent=''; }
+}
+function vHighlight(rx){
+  // highlight occurrences of the search text (literal-safe) in the current view
+  const lit = $('vSearch').value.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  let hrx; try{ hrx = new RegExp('('+lit+')','g' + (rx.flags.includes('i')?'i':'')); }catch(e){ return; }
+  let n = 0;
+  $('vBody').querySelectorAll('.cols span:last-child, .raw').forEach(el=>{
+    if (!hrx.test(el.textContent)) return;
+    el.innerHTML = el.textContent.replace(hrx, '<mark>$1</mark>');
+    n++;
+  });
+  if (n) $('vFoot').textContent += ` · ${n} highlighted in view`;
+}
+$('vSearch').addEventListener('keydown', e=>{
+  if (e.key==='Enter'){ e.preventDefault(); vFind(e.shiftKey ? -1 : 1); }
+});
+$('vNext').onclick = ()=>vFind(1);
+$('vPrev').onclick = ()=>vFind(-1);
 
 // ---------- AI wizard ----------
 const AI_EXAMPLES = [
