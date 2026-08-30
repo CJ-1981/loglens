@@ -70,7 +70,7 @@ const opts = {
   applyMask: true, maskCompiled: cm, hardCap: 100000, bucketMin: 1
 };
 CORE.processText(CORE.DEMO, 'demo.log', opts, st);
-check('total lines counted', st.total === 13);
+check('total lines counted', st.total === 15);
 // include-pattern ('myapp', case-insensitive) matches demo lines 1-5 (the MyApp-tagged ones); lines 6-12 have other tags.
 // #7 gms.subscribedfeeds/com.google/someone@example.com - no match.
 // #8 netd - no. #9 dnsmasq - no. #10 NetworkPolicy - no. #11 CarProjectionService - no. #12 CctTransportBackend - no.
@@ -95,7 +95,7 @@ CORE.processText(CORE.DEMO, 'demo.log', { ...opts, exclude: CORE.compile([{ name
 check('exclude rule', st4.matched === 4);
 const st5 = CORE.newState();
 CORE.processText(CORE.DEMO, 'demo.log', { ...opts, include: [] }, st5);
-check('empty include = mask-all/match-all mode', st5.matched === st5.total && st5.total === 13);
+check('empty include = mask-all/match-all mode', st5.matched === st5.total && st5.total === 15);
 
 console.log('== auto bucket ==');
 check('short span -> 1m', CORE.autoBucket('08-24 12:00:00.000', '08-24 13:00:00.000') === 1);
@@ -186,7 +186,7 @@ console.log('== v1.5: per-file stats + byFile ==');
 const stP = CORE.newState();
 CORE.processText(CORE.DEMO, 'p1.log', { ...opts }, stP);
 CORE.processText('08-24 20:00:00.000  9  9 E Z: other myapp', 'p2.log', { ...opts }, stP);
-check('byFile tracked', stP.byFile['p1.log'] && stP.byFile['p1.log'].lines === 13 && stP.byFile['p2.log'].matched === 1);
+check('byFile tracked', stP.byFile['p1.log'] && stP.byFile['p1.log'].lines === 15 && stP.byFile['p2.log'].matched === 1);
 check('DEFAULT_ERRISH_SOURCE exposed', typeof CORE.ERRISH_SOURCE === 'string' && CORE.ERRISH_SOURCE.includes('exception'));
 
 console.log('== v1.6: readiness + ts validation ==');
@@ -283,13 +283,14 @@ check('viewer surfaces themed for every non-hc preset', ['as','vscode','dracula'
 check('single shared theme applier syncs both selectors', html.includes('function applyLogTheme') &&
   html.includes("$('vTheme').onchange = ()=>applyLogTheme") && html.includes("$('logThemeSel').onchange=()=>applyLogTheme"));
 check('theme options present', ['Android Studio','VS Code Dark+','Dracula','Solarized Dark','High Contrast'].every(n => html.includes(n)));
+check('logcat CSS attribute matches JS applier (data-logtheme)', html.includes('data-logtheme=') && html.includes("setAttribute('data-logtheme'"));
 check('header buttons readable on dark bar (light text + transparent bg)', html.includes('header.top .btn.sec,body header.top .btn.sec{color:#e7edf5'));
 
 console.log('== v1.11: viewer tab ==');
 check('tabs present + persisted', html.includes('id="tabBtnWork"') && html.includes('id="tabBtnView"') && html.includes("localStorage.setItem('loglens.tab'"));
 check('viewer core ids present', ['vFile','vSearch','vPrev','vNext','vMask','vTheme','vStatus','vScroll','vThumb','vBody','vFoot'].every(id => html.includes('id="'+id+'"')));
-check('no separate viewer demo button (header one is shared)', !html.includes('id="vDemo"'));
-check('header demo is viewer-aware', html.includes('function loadDemoFile()') && html.includes("$('btnDemo').onclick") && html.includes("tabView').style.display !== 'none'"));
+check('no separate viewer demo button (header one is shared)', !html.includes('id="vDemo"') && !html.includes('id="piiDemo"'));
+check('header demo is tab-aware (viewer + pii)', html.includes('function loadDemoFile()') && html.includes("$('btnDemo').onclick") && html.includes("tabView').style.display !== 'none'") && html.includes("tabPii').style.display !== 'none'"));
 check('viewer rail/body wrapped in .vmain flex row', html.includes('<div class="vmain">'));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
@@ -362,6 +363,11 @@ const gnssMask = CORE.compile(CORE.DEFAULT_MASK.filter(r => r.name === 'GNSS coo
 const gnssOut = CORE.maskLine('GNSS fix 48.858400, 2.294500 ok', gnssMask).line;
 check('mask rule masks pair', gnssOut === 'GNSS fix [coords] ok');
 check('GNSS detected in scan', CORE.scanLinePII(gnssLine, dets).some(x => x.name === 'GNSS coordinates'));
+check('GNSS hemisphere + ISO form detected', (() => {
+  const l = '2026-08-24T17:46:00.000Z gnssd: position 48.858412°N, 2.294511°E sats=11';
+  return CORE.scanLinePII(l, dets).some(x => x.name === 'GNSS coordinates');
+})());
+check('GNSS space-separated detected', CORE.scanLinePII('GNSS: position 48.858400 2.294500', dets).some(x => x.name === 'GNSS coordinates'));
 check('plain decimals without pair not flagged', CORE.scanLinePII('ratio 48.858400 measured', dets).every(x => x.name !== 'GNSS coordinates'));
 
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

@@ -241,6 +241,7 @@ A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 
 Find unmasked personal data in loaded logs and turn findings into mask rules.
 
+- **Demo**: press **demo** in the title bar while on this tab — it loads the sample log and auto-starts the scan.
 - **Scan**: streams checked files through a 12-detector catalog (VIN, IBAN, credit card w/ Luhn, SSN, phone, IMEI, email, device serials, MAC, IPv4/IPv6, subscriberId, Java packages, hex tokens). Any size, constant memory, stoppable.
 - **Findings table**: per-detector counts + truncated **shape** samples (`YV4…4371`, `someone@example.com` → never the raw value); tick detectors to convert into mask rules with one click (**→ apply as mask rules**).
 - **→ send to AI wizard**: prepares the requirement prompt with the findings summary + shape samples and pre-checks "send current rules", so the model writes targeted rules for exactly what was found.

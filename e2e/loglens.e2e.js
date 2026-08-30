@@ -48,8 +48,10 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
 
   // ---------- 5. logcat theme switch (viewer toolbar selector) ----------
   await page.locator('#vTheme').selectOption('dracula');
-  const bodyTheme = await page.evaluate(() => document.body.dataset.logTheme);
+  const bodyTheme = await page.evaluate(() => document.body.getAttribute('data-logtheme'));
   check('logcat theme applies (dracula)', bodyTheme === 'dracula');
+  const surf = await page.evaluate(() => getComputedStyle(document.getElementById('vBody')).backgroundColor);
+  check('viewer surface restyled (dracula bg)', surf === 'rgb(40, 42, 54)');
   await page.locator('#vTheme').selectOption('default');
 
   // ---------- 6. [Lnnn] toggle exists ----------

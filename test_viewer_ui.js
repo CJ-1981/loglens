@@ -32,7 +32,7 @@ global.document = {
   getElementById: el,
   createElement: tag => el('create:' + tag + ':' + Math.random()),
   head: { appendChild(){} },
-  body: { setAttribute(){}, dataset: {}, style: { setProperty(){} } },
+  body: (() => { const a = {}; return { setAttribute(n,v){ a[n]=String(v); }, getAttribute(n){ return Object.prototype.hasOwnProperty.call(a,n) ? a[n] : null; }, removeAttribute(n){ delete a[n]; }, dataset: {}, style: { setProperty(){} } }; })(),
 };
 global.window = global;
 global.addEventListener = () => {};
@@ -71,13 +71,13 @@ new Function(uiCode).call(global);
     el('vTheme').onchange();
     check('theme "' + t + '" applies and syncs both selectors',
       el('logThemeSel').value === t &&
-      document.body.dataset.logTheme === (t==='default' ? undefined : t) &&
+      document.body.getAttribute('data-logtheme') === (t==='default' ? null : t) &&
       el('vBody').className === ('vbody' + (t==='hc' ? ' hc' : '')));
   }
   // the workbench selector drives the same applier
   el('logThemeSel').value = 'dracula';
   el('logThemeSel').onchange();
-  check('workbench selector drives the same applier', el('vTheme').value === 'dracula' && document.body.dataset.logTheme === 'dracula');
+  check('workbench selector drives the same applier', el('vTheme').value === 'dracula' && document.body.getAttribute('data-logtheme') === 'dracula');
   // persistence goes to the single shared key
   check('single persisted key', (() => { let k=null; global.localStorage.setItem=(x,v)=>{k=[x,v]}; el('vTheme').onchange(); return !!(k && k[0]==='loglens.logtheme'); })());
 
