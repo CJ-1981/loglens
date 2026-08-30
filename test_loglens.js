@@ -258,6 +258,9 @@ check('viewer core ids present', ['vFile','vSearch','vPrev','vNext','vMask','vTh
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
 check('search continue-cursor survives the 512 MB cap', html.includes('searchFrom') && html.includes('press Enter to continue from'));
+const verHdr = (html.match(/<span class="ver">(v[\d.]+)<\/span>/) || [])[1];
+const verFtr = (html.match(/LogLens (v[\d.]+) ·/g) || []).pop().match(/v[\d.]+/)[0];
+check('header and footer versions match (' + verHdr + ')', verHdr === verFtr);
 // windowFromBuffer — forward
 const wf = CORE.windowFromBuffer('l1\nl2\nl3\nl4\npar', 'forward', 3);
 check('forward: maxLines complete lines', JSON.stringify(wf.lines) === JSON.stringify(['l1','l2','l3']));
