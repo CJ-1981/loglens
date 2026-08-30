@@ -108,6 +108,7 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
+#vCase.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -242,7 +243,6 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   <button class="tab" id="tabBtnPii" title="find unmasked PII in the loaded files">pii scan</button>
 </div>
 <div id="tabWork">
-<div class="chips" id="navChips" style="margin:0 0 12px"></div>
 
 <!-- FILES -->
 <div class="card" id="secFiles">
@@ -450,6 +450,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="card" id="viewCard" style="padding:0;overflow:hidden">
   <div class="vtoolbar">
     <select id="vFile" title="file to browse"></select>
+    <button class="btn sec" id="vCase" title="case-insensitive search (click for case-sensitive)">Aa</button>
     <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
@@ -1642,16 +1643,6 @@ $('btnTheme').onclick = ()=>applyTheme(document.body.getAttribute('data-theme')=
   if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t='dark';
   if (t) applyTheme(t);
 })();
-(function(){
-  const nav=[['secFiles','input'],['secExtract','rules'],['secMask','mask'],['secMaskOnly','sanitize'],
-             ['runCard','run'],['statsCard','overview'],['resCard','matches'],['expCard','export'],['wizCard','ai']];
-  const box=$('navChips');
-  nav.forEach(([id,label])=>{
-    const c=document.createElement('span'); c.className='chip'; c.textContent=label;
-    c.onclick=()=>{ const el=$(id); if (el) el.scrollIntoView({behavior:'smooth', block:'start'}); };
-    box.appendChild(c);
-  });
-})();
 
 // ---------- filter chips ----------
 function renderFilterChips(){
@@ -1743,7 +1734,6 @@ function setTab(t){
     $(map[k][0]).style.display = (k===t) ? '' : 'none';
     $(map[k][1]).classList.toggle('on', k===t);
   }
-  $('navChips').style.display = t==='work' ? '' : 'none';
   try{ localStorage.setItem('loglens.tab', t); }catch(e){}
   if (t==='view') viewerEnsure();
   if (t==='pii') piiRefreshFiles();
@@ -1922,11 +1912,13 @@ $('vBody').addEventListener('keydown', e=>{
 })();
 $('vMask').onchange = ()=>vRender();
 // search-jump: stream from current offset with the include-regex engine
+function vCaseSensitive(){ return !$('vCase').classList.contains('on'); }   // Aa on = insensitive
 async function vFind(dir){
   if (!V.file || V.loading) return;
   const q = $('vSearch').value.trim();
   if (!q){ toast('type a search pattern first'); return; }
-  let rx; try{ rx = new RegExp(q,'i'); }catch(e){ toast('bad regex: '+e.message); return; }
+  const flags = vCaseSensitive() ? '' : 'i';
+  let rx; try{ rx = new RegExp(q, flags); }catch(e){ toast('bad regex: '+e.message); return; }
   $('vStatus').textContent = 'searching…'; V.loading = true;
   try{
     if (dir > 0){
@@ -1939,6 +1931,7 @@ async function vFind(dir){
           const nl = text.indexOf('\n', pos);
           const line = text.slice(pos, nl<0?text.length:nl);
           if (rx.test(line)){
+            V.loading = false;                           // release so vWindow can re-anchor
             await vWindow(from + pos, 'forward');
             vHighlight(rx);
             V.searchFrom = null;
@@ -1960,12 +1953,12 @@ async function vFind(dir){
     } else {
       let from = Math.max(0, V.winStart - V_BACK);
       while (from >= 0){
-        const end = from + V_BACK;
-        const text = await vReadText(from, Math.min(end, V.winStart));
+        const text = await vReadText(from, Math.min(from + V_BACK, V.winStart));
         const lines = CORE.windowFromBuffer(text, 'backward', 400);
         for (let i = lines.length-1; i >= 0; i--){
           if (rx.test(lines[i])){
             const abs = from + lines.slice(0,i).reduce((a,l)=>a+l.length+1,0);
+            V.loading = false;                           // release so vWindow can re-anchor
             await vWindow(abs, 'forward');
             vHighlight(rx);
             $('vStatus').textContent = '';
@@ -1982,7 +1975,7 @@ async function vFind(dir){
 function vHighlight(rx){
   // highlight occurrences of the search text (literal-safe) in the current view
   const lit = $('vSearch').value.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  let hrx; try{ hrx = new RegExp('('+lit+')','g' + (rx.flags.includes('i')?'i':'')); }catch(e){ return; }
+  let hrx; try{ hrx = new RegExp('('+lit+')', 'g' + (rx.flags.includes('i') ? 'i' : '')); }catch(e){ return; }
   let n = 0;
   $('vBody').querySelectorAll('.cols span:last-child, .raw').forEach(el=>{
     if (!hrx.test(el.textContent)) return;
@@ -1996,6 +1989,15 @@ $('vSearch').addEventListener('keydown', e=>{
 });
 $('vNext').onclick = ()=>vFind(1);
 $('vPrev').onclick = ()=>vFind(-1);
+$('vCase').onclick = ()=>{
+  const b = $('vCase');
+  b.classList.toggle('on');
+  b.title = b.classList.contains('on') ? 'case-insensitive search (click for case-sensitive)' : 'case-sensitive search (click for case-insensitive)';
+  try{ localStorage.setItem('loglens.vcase', b.classList.contains('on') ? 'i' : ''); }catch(e){}
+};
+(function(){ let c=null; try{ c=localStorage.getItem('loglens.vcase'); }catch(e){}
+  if (c !== null){ $('vCase').classList.toggle('on', c==='i'); $('vCase').title = c==='i' ? 'case-insensitive search (click for case-sensitive)' : 'case-sensitive search (click for case-insensitive)'; }
+})();
 
 // ---------- PII scan tab ----------
 const P = { running:false, abort:false, findings:null };

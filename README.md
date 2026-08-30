@@ -222,7 +222,7 @@ For **any other text format** (JSON lines, CSV, custom app logs), extraction and
 | `Aa` on any rule | toggle case sensitivity |
 | Kind badge (include/exclude) | click to flip |
 | **viewer**: `PgUp`/`PgDn`, `↑`/`↓`, `Home`/`End` | window / line / file edges |
-| **viewer**: `/`, `Enter`/`n`, `Shift+Enter`/`N` | focus search, next / previous match |
+| **viewer**: `/`, `Enter`/`n`, `Shift+Enter`/`N`, `Aa` | focus search, next / previous match, case toggle |
 | **viewer**: drag left rail | jump by byte position |
 
 ## Viewer tab (browse the full log)
@@ -233,7 +233,7 @@ A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 - **High-contrast by default** (near-black surface, near-white text) with the shared logcat theme presets in the toolbar.
 - **Columns** when lines parse (≈line · timestamp · level · tag · message), raw monospace otherwise; PII masking applied on display by default (toggle in the toolbar).
 - **Demo** (header button) loads the synthetic sample from either tab — in the viewer it refreshes the file list and opens it automatically; loaded files are never replaced.
-- **Search-jump**: type a regex, `Enter`/`n` streams forward to the next match (highlights it in view), `Shift+Enter`/`N` scans backward. Search is independent of rendering — it reads raw bytes from disk, so nothing needs to be loaded or scrolled first. Each press scans up to **512 MB** (keeps the UI responsive); if nothing is found, a continue-cursor remembers the position and the next `Enter` resumes from there, so multi-GB files are fully searchable across a few presses. Reaching true EOF reports "no matches to end of file".
+- **Search-jump**: type a regex, `Enter`/`n` streams forward to the next match (highlights it in view), `Shift+Enter`/`N` scans backward. Search is independent of rendering — it reads raw bytes from disk, so nothing needs to be loaded or scrolled first. Each press scans up to **512 MB** (keeps the UI responsive); if nothing is found, a continue-cursor remembers the position and the next `Enter` resumes from there, so multi-GB files are fully searchable across a few presses. Reaching true EOF reports "no matches to end of file". **Aa** toggles case-sensitive matching.
 - **Keys**: `PgUp`/`PgDn` window · `↑`/`↓` line · `Home`/`End` file · `/` search · `n`/`N` match. Touch: drag body to pan, drag the rail to jump.
 - Line numbers are **estimates** (`fileSize / sampled average line length`) — timestamps are the reliable anchor.
 
@@ -282,6 +282,60 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 **Clipboard copy does nothing** — clipboard API blocked (file:// contexts in some browsers); select the text manually or use downloads.
 
 ## Changelog
+
+- **v1.13 (current)** — pii scan tab: 12-detector catalog (VIN, IMEI w/ Luhn, credit card w/ Luhn, SSN, phone, email, MAC, IPv4/IPv6, serials, subscriberId, packages, hex tokens), streamed multi-file scan with stop button, findings table with shape samples + counts, one-click convert to mask rules, AI wizard handoff (findings + samples as context), findings .json export; GNSS coordinate mask rule + detector; **Aa** case toggle for viewer search; header demo auto-scans the pii tab; GNSS samples in the demo log; version-marker regression test
+- **v1.13-pre / v1.12** — pii scanner groundwork: detector catalog defaults, masking coverage table; viewer tab (v1.11): virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, header demo button works in both tabs
+- **v1.10** — default PII presets expanded 8 → 15 rules (IBAN, credit card, SSN, international + US phone, IMEI, public IPv4) with false-positive guards for timestamps/epoch-milli/timezone offsets; mobile-responsive layout (≤640 px: wrapped rule editors, 2-column stats, non-sticky run bar)
+- **v1.9** — minimal professional UI revamp: dense flat design (single accent, tabular numerals, tighter tables/rules), section headers reduced to micro-labels, verbose descriptions moved into tooltips, emoji stripped from controls — zero functional changes
+- **v1.8** — adaptive time-window inputs: format sniffed from the loaded files (placeholder + hint), accepts logcat/ISO/syslog/CLF forms interchangeably, normalized internally
+- **v1.7** — timestamp auto-detection (ISO 8601/SQL, RFC3164 syslog, Apache/CLF, bare MM-DD → normalized `MM-DD HH:MM:SS.mmm`); default profile now match-all; all built-in examples/presets genericized (no project-specific content)
+- **v1.6** — font selector (11 stacks, optional webfonts), logcat color themes (6 presets), display polish
+- **v1.5.1** — per-rule case toggles; independent security audit fixes (attribute-escaping XSS, flag preservation, sink close-on-error, CSV quoting, import validation); DOM-id regression test
+- **v1.5** — ±N context lines; per-file stats; histogram click-to-filter; auto-scaling buckets; single-pass masker; gzip exports; folder drop; extraction rule tester + presets; editable errish regex; result cap; readiness summary; filter chips; row-copy; dark mode; AI wizard (samples + rules-context); newline valve; batch output folders with dedupe
+- **v1.4** — batch inputs with per-file outputs and output-folder selection; multi-file extract headers
+- **v1.3** — mask-only mode (full sanitized copies to disk)
+- **v1.2** — multi-GB hardening: single-pass scan, truncation warnings, direct-to-file streaming export, ETA
+- **v1.1** — AI rule wizard (bring-your-own endpoint), optional `[Lnnn]` prefix
+- **v1.0** — initial: streaming extraction, mask rules, stats, exports, profiles
+
+## Relationship to scripted pipelines
+
+LogLens is tool-agnostic: its `[Lnnn] <masked line>` extract format and stats JSON are simple enough to feed any scripted pipeline (grep/Python/CI), and rule profiles are plain JSON you can generate or version-control alongside your tooling.
+
+## Development & testing
+
+```
+npm test          # engine + regression + UI harness (224 assertions)
+npm run test:e2e  # real-Chromium end-to-end (Playwright, demo→run→viewer→search→theme)
+npm run perf      # throughput benchmark (~600k lines synthetic)
+```
+
+The E2E drives `loglens.html` in headless Chromium through the full user journey: demo load → run extraction → viewer tab (masked rows) → search-jump with highlight → logcat theme switch — and fails on any console error.
+
+The engine lives in a separate `<script id="core">` block (pure functions, no DOM) so it can be loaded and tested in Node; the UI block guards on `document` and is inert under test. New engine behavior should get assertions in both the spec suite and the regression suite before shipping.
+
+## Troubleshooting / FAQ
+
+**"Run extraction" is disabled** — no files ticked in section 1 (readiness text says so), or a scan/mask job is running.
+
+**Direct-to-file checkbox unticks itself** — non-Chromium browser; in-memory mode used instead.
+
+**Exported extract is shorter than "matched" count** — you hit the result cap; banner + file header say so. Re-run with direct-to-file (uncapped) or a narrower filter.
+
+**Chose a font but nothing changed** — font isn't installed; tick *webfonts (online)* (JetBrains Mono, Fira Code, IBM Plex, Source Code Pro, Roboto Mono are fetched; Consolas/Cascadia/Menlo need no download).
+
+**AI wizard: "failed: Failed to fetch"** — usually CORS or a wrong base URL (must be the API root, e.g. `.../v1`). See the note under Connection.
+
+**Time window rejected my input** — check the hint under the inputs. Any of these forms works: `MM-DD HH:MM[:SS]`, ISO 8601 (`2026-08-24[T ]15:37[:01]`, trailing `Z`/offset ignored), syslog (`Aug 24 15:37`, single-digit days ok), Apache/CLF (`[24/Aug/2026:15:37]`). Years and timezone offsets are dropped during normalization (the model is year-less).
+
+**Viewer search stopped and said "continue from NN%"** — each `Enter` scans up to 512 MB to keep the UI responsive; the position is remembered, so just press `Enter` again to resume. Reaching the end of file resets the cursor.
+
+**Clipboard copy does nothing** — clipboard API blocked (file:// contexts in some browsers); select the text manually or use downloads.
+
+## Changelog
+
+- **v1.13** — pii scan tab (12 detectors, findings-to-rules + AI handoff, demo via header button); GNSS coordinate mask rule + detector; viewer search fixes: re-anchor deadlock resolved, per-search **Aa** case toggle, search-jump regression-tested in real Chromium
+- **v1.12** — pii scanner groundwork: detector catalog defaults, masking coverage table
 
 - **v1.12** — PII scan tab: 12-detector catalog (VIN, IMEI w/ Luhn, credit card w/ Luhn, SSN, phone, email, MAC, IPv4/IPv6, serials, subscriberId, packages, hex tokens), streamed multi-file scan with stop button, findings table with truncated shapes + counts, one-click convert to mask rules, AI wizard handoff, findings .json export
 - **v1.11** — viewer tab: virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, header demo button works in both tabs
