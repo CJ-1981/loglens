@@ -14,7 +14,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 "Segoe UI",system-ui,Arial,sans-serif}
 .wrap{max-width:1240px;margin:0 auto;padding:14px 16px 64px}
-header.top{display:flex;align-items:center;gap:10px;background:var(--dark);color:#fff;border-radius:7px;padding:9px 14px;margin-bottom:10px}
+header.top{display:flex;align-items:center;gap:10px;background:var(--dark);color:#fff;border-radius:7px;padding:9px 14px;margin-bottom:10px;position:sticky;top:0;z-index:50}
 header.top h1{margin:0;font-size:14px;font-weight:600;letter-spacing:.2px}
 header.top p{display:none}
 .ver{font-size:10px;font-weight:600;letter-spacing:.5px;border:1px solid rgba(255,255,255,.28);border-radius:4px;padding:1px 6px;color:#cbd6e4}
@@ -327,7 +327,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 </div>
 
 <!-- RUN -->
-<div class="card" id="runCard" style="position:sticky;top:8px;z-index:40;box-shadow:0 2px 10px rgba(20,40,70,.10)">
+<div class="card" id="runCard" style="position:sticky;top:40px;z-index:40;box-shadow:0 2px 10px rgba(20,40,70,.10)">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <button class="btn" id="btnRun">run</button>
     <button class="btn sec" id="btnStop" disabled>stop</button>
