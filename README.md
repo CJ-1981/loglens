@@ -4,7 +4,7 @@
 
 - **File**: `loglens.html` (~95 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.11 · engine covered by 226 automated assertions (`test_loglens.js` + `test_loglens_v15.js`) · mobile-responsive
+- **Current version**: v1.12 · engine covered by 250 automated assertions (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js`) · mobile-responsive
 
 ---
 
@@ -237,6 +237,15 @@ A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 - **Keys**: `PgUp`/`PgDn` window · `↑`/`↓` line · `Home`/`End` file · `/` search · `n`/`N` match. Touch: drag body to pan, drag the rail to jump.
 - Line numbers are **estimates** (`fileSize / sampled average line length`) — timestamps are the reliable anchor.
 
+## PII scan tab
+
+Find unmasked personal data in loaded logs and turn findings into mask rules.
+
+- **Scan**: streams checked files through a 12-detector catalog (VIN, IBAN, credit card w/ Luhn, SSN, phone, IMEI, email, device serials, MAC, IPv4/IPv6, subscriberId, Java packages, hex tokens). Any size, constant memory, stoppable.
+- **Findings table**: per-detector counts + truncated **shape** samples (`YV4…4371`, `someone@example.com` → never the raw value); tick detectors to convert into mask rules with one click (**→ apply as mask rules**).
+- **→ send to AI wizard**: prepares the requirement prompt with the findings summary + shape samples and pre-checks "send current rules", so the model writes targeted rules for exactly what was found.
+- **Download findings .json** for offline review.
+
 ## Relationship to scripted pipelines
 
 LogLens is tool-agnostic: its `[Lnnn] <masked line>` extract format and stats JSON are simple enough to feed any scripted pipeline (grep/Python/CI), and rule profiles are plain JSON you can generate or version-control alongside your tooling.
@@ -244,10 +253,12 @@ LogLens is tool-agnostic: its `[Lnnn] <masked line>` extract format and stats JS
 ## Development & testing
 
 ```
-node test_loglens.js        # 95 assertions — engine + regression (incl. DOM-id integrity, ts detection)
-node test_loglens_v15.js    # 90 assertions — v1.5 spec (context lines, masker, buckets…)
-node perf_loglens.js        # throughput benchmark (~600k lines synthetic)
+npm test          # engine + regression + UI harness (224 assertions)
+npm run test:e2e  # real-Chromium end-to-end (Playwright, demo→run→viewer→search→theme)
+npm run perf      # throughput benchmark (~600k lines synthetic)
 ```
+
+The E2E drives `loglens.html` in headless Chromium through the full user journey: demo load → run extraction → viewer tab (masked rows) → search-jump with highlight → logcat theme switch — and fails on any console error.
 
 The engine lives in a separate `<script id="core">` block (pure functions, no DOM) so it can be loaded and tested in Node; the UI block guards on `document` and is inert under test. New engine behavior should get assertions in both the spec suite and the regression suite before shipping.
 
@@ -271,6 +282,7 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 ## Changelog
 
+- **v1.12** — PII scan tab: 12-detector catalog (VIN, IMEI w/ Luhn, credit card w/ Luhn, SSN, phone, email, MAC, IPv4/IPv6, serials, subscriberId, packages, hex tokens), streamed multi-file scan with stop button, findings table with truncated shapes + counts, one-click convert to mask rules, AI wizard handoff, findings .json export
 - **v1.11** — viewer tab: virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, header demo button works in both tabs
 - **v1.10** — default PII presets expanded 8 → 15 rules (IBAN, credit card, SSN, international + US phone, IMEI, public IPv4) with false-positive guards for timestamps/epoch-milli/timezone offsets; mobile-responsive layout (≤640 px: wrapped rule editors, 2-column stats, non-sticky run bar)
 - **v1.9** — minimal professional UI revamp: dense flat design (single accent, tabular numerals, tighter tables/rules), section headers reduced to micro-labels, verbose descriptions moved into tooltips, emoji stripped from controls — zero functional changes
