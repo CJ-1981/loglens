@@ -1,10 +1,16 @@
 # LogLens — Log Extraction & PII Masking Dashboard
 
+[![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
+![version](https://img.shields.io/badge/version-v1.13-blue)
+![tests](https://img.shields.io/badge/engine%20assertions-281%20passing-green)
+
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
+- **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~95 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.12 · engine covered by 250 automated assertions (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js`) · mobile-responsive
+- **Current version**: v1.13 · engine covered by 281 automated assertions (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js`) · mobile-responsive
 
 ---
 
