@@ -232,7 +232,7 @@ A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 - **Virtualized streaming**: any file size, constant memory. The view is a ~900-line window read straight from disk via byte ranges; the left rail is a byte-fraction scrollbar (drag to jump), like klogg.
 - **High-contrast by default** (near-black surface, near-white text) with the shared logcat theme presets in the toolbar.
 - **Columns** when lines parse (≈line · timestamp · level · tag · message), raw monospace otherwise; PII masking applied on display by default (toggle in the toolbar).
-- **Demo button** in the toolbar loads the same synthetic sample as the workbench (shared loader — your loaded files are never replaced).
+- **Demo** (header button) loads the synthetic sample from either tab — in the viewer it refreshes the file list and opens it automatically; loaded files are never replaced.
 - **Search-jump**: type a regex, `Enter`/`n` streams forward to the next match (highlights it in view), `Shift+Enter`/`N` scans backward. Search is independent of rendering — it reads raw bytes from disk, so nothing needs to be loaded or scrolled first. Each press scans up to **512 MB** (keeps the UI responsive); if nothing is found, a continue-cursor remembers the position and the next `Enter` resumes from there, so multi-GB files are fully searchable across a few presses. Reaching true EOF reports "no matches to end of file".
 - **Keys**: `PgUp`/`PgDn` window · `↑`/`↓` line · `Home`/`End` file · `/` search · `n`/`N` match. Touch: drag body to pan, drag the rail to jump.
 - Line numbers are **estimates** (`fileSize / sampled average line length`) — timestamps are the reliable anchor.
@@ -271,7 +271,7 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 ## Changelog
 
-- **v1.11** — viewer tab: virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, toolbar demo button
+- **v1.11** — viewer tab: virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, header demo button works in both tabs
 - **v1.10** — default PII presets expanded 8 → 15 rules (IBAN, credit card, SSN, international + US phone, IMEI, public IPv4) with false-positive guards for timestamps/epoch-milli/timezone offsets; mobile-responsive layout (≤640 px: wrapped rule editors, 2-column stats, non-sticky run bar)
 - **v1.9** — minimal professional UI revamp: dense flat design (single accent, tabular numerals, tighter tables/rules), section headers reduced to micro-labels, verbose descriptions moved into tooltips, emoji stripped from controls — zero functional changes
 - **v1.8** — adaptive time-window inputs: format sniffed from the loaded files (placeholder + hint), accepts logcat/ISO/syslog/CLF forms interchangeably, normalized internally

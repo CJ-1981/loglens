@@ -436,7 +436,6 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
 <div class="card" id="viewCard" style="padding:0;overflow:hidden">
   <div class="vtoolbar">
     <select id="vFile" title="file to browse"></select>
-    <button class="btn sec" id="vDemo" title="load the synthetic sample log">demo</button>
     <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
@@ -451,8 +450,10 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
     </select>
     <span id="vStatus" class="vstatus"></span>
   </div>
-  <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
-  <div class="vbody" id="vBody" tabindex="0"></div>
+  <div class="vmain">
+    <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
+    <div class="vbody" id="vBody" tabindex="0"></div>
+  </div>
   <div class="vfoot" id="vFoot"></div>
 </div>
 <div class="note" style="margin-top:8px">keys: PgUp/PgDn window · Home/End file · / search · n/N match · ↑/↓ line · drag the left rail or touch-scroll to pan</div>
@@ -1041,6 +1042,7 @@ function renderFiles(){
   });
   updateReady();
   sniffFormat();
+  if ($('tabView').style.display !== 'none') viewerEnsure();   // keep viewer file list in sync while visible
 }
 
 // ---------- timestamp-format sniffing (adapts the time-window inputs) ----------
@@ -1093,6 +1095,12 @@ $('btnDemo').onclick=()=>{
   loadDemoFile();
   $('pvIn').value='init params:{vin=YV4DEM0123AB34567, vehicleId=YV4DEM0123AB34567} contact: demo.user@example.com dID SN-abc123def456';
   pv();
+  // header demo works from both tabs: refresh + auto-open in the viewer if it is active
+  if ($('tabView').style.display !== 'none'){
+    viewerEnsure();
+    $('vFile').value = 'demo_sample.log';
+    vOpen(S.files.find(f=>f.name==='demo_sample.log' && f.use!==false));
+  }
 };
 
 // ---------- run ----------
@@ -1677,13 +1685,6 @@ function viewerEnsure(){
   vOpen(files.find(f=>f.name===sel.value));
 }
 $('vFile').onchange = ()=>vOpen(S.files.find(f=>f.name===$('vFile').value && f.use!==false));
-$('vDemo').onclick = async ()=>{
-  const entry = loadDemoFile();
-  viewerEnsure();
-  $('vFile').value = 'demo_sample.log';
-  await vOpen(entry);
-  toast('demo loaded — try searching: session');
-};
 $('vTheme').onchange = ()=>{ vApplyTheme(); try{ localStorage.setItem('loglens.vtheme', $('vTheme').value); }catch(e){} };
 function vApplyTheme(){
   const t = $('vTheme').value;
