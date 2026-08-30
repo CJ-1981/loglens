@@ -212,6 +212,19 @@ body[data-logtheme="hc"] .lvE{background:#400;color:#FF3333}
 body[data-logtheme="hc"] .lvF{background:#fff;color:#000}
 body[data-logtheme="hc"] .errrow td{background:#2a0000}
 body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
+/* viewer surfaces for each preset (hc uses #vBody.hc class) */
+body[data-logtheme="as"] .vbody{background:#2B2B2B;color:#A9B7C6}
+body[data-logtheme="as"] .vbody .ts,body[data-logtheme="as"] .vbody .ln{color:#7f8b97}
+body[data-logtheme="as"] .vbody mark{background:#BBB529;color:#2B2B2B}
+body[data-logtheme="vscode"] .vbody{background:#1E1E1E;color:#D4D4D4}
+body[data-logtheme="vscode"] .vbody .ts,body[data-logtheme="vscode"] .vbody .ln{color:#858585}
+body[data-logtheme="vscode"] .vbody mark{background:#DCDCAA;color:#1E1E1E}
+body[data-logtheme="dracula"] .vbody{background:#282A36;color:#F8F8F2}
+body[data-logtheme="dracula"] .vbody .ts,body[data-logtheme="dracula"] .vbody .ln{color:#6272A4}
+body[data-logtheme="dracula"] .vbody mark{background:#FFB86C;color:#282A36}
+body[data-logtheme="solarized"] .vbody{background:#002B36;color:#93A1A1}
+body[data-logtheme="solarized"] .vbody .ts,body[data-logtheme="solarized"] .vbody .ln{color:#586E75}
+body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 </style>
 </head>
 <body>
@@ -1505,18 +1518,14 @@ $('fontWf').onchange=()=>{
   try{ localStorage.setItem('loglens.fontwf', $('fontWf').checked?'1':'0'); }catch(e){}
   const f=FONTS[+fSel.value]; if (f) loadWF(f);
 };
-$('logThemeSel').onchange=()=>{
-  const v=$('logThemeSel').value;
-  if (v==='default') delete document.body.dataset.logTheme; else document.body.dataset.logTheme=v;
-  try{ localStorage.setItem('loglens.logtheme', v); }catch(e){}
-};
+$('logThemeSel').onchange=()=>applyLogTheme($('logThemeSel').value);
 (function(){
   try{
     const fi=localStorage.getItem('loglens.font');
     if (fi!=null){ fSel.value=fi; applyFont(+fi); }
     if (localStorage.getItem('loglens.fontwf')==='1'){ $('fontWf').checked=true; const f=FONTS[+fSel.value]; if (f) loadWF(f); }
     const lt=localStorage.getItem('loglens.logtheme');
-    if (lt && lt!=='default'){ $('logThemeSel').value=lt; document.body.dataset.logTheme=lt; }
+    if (lt && lt!=='default') applyLogTheme(lt);   // syncs both dropdowns + body
   }catch(e){}
 })();
 
@@ -1685,12 +1694,17 @@ function viewerEnsure(){
   vOpen(files.find(f=>f.name===sel.value));
 }
 $('vFile').onchange = ()=>vOpen(S.files.find(f=>f.name===$('vFile').value && f.use!==false));
-$('vTheme').onchange = ()=>{ vApplyTheme(); try{ localStorage.setItem('loglens.vtheme', $('vTheme').value); }catch(e){} };
-function vApplyTheme(){
-  const t = $('vTheme').value;
-  $('vBody').className = 'vbody' + (t==='hc' ? ' hc' : '');
+$('vTheme').onchange = ()=>applyLogTheme($('vTheme').value);
+// one applier for both selectors (viewer + workbench results) — keeps body attr,
+// both dropdowns and the single persisted key in sync
+function applyLogTheme(t){
+  $('vTheme').value = t;
+  $('logThemeSel').value = t;
   if (t==='default') delete document.body.dataset.logTheme; else document.body.dataset.logTheme = t;
+  $('vBody').className = 'vbody' + (t==='hc' ? ' hc' : '');
+  try{ localStorage.setItem('loglens.logtheme', t); }catch(e){}
 }
+function vApplyTheme(){ applyLogTheme($('vTheme').value); }
 async function vOpen(f){
   if (!f) return;
   V.file = f.file; V.total = V.file.size; V.anchor = 0; V.maskCm = null; V.lastHit = null;
@@ -1698,8 +1712,8 @@ async function vOpen(f){
   const head = await vReadText(0, 65536);
   V.est = CORE.estimateLineCount(head, V.total);
   V.avgLen = Math.max(20, V.total / V.est);
-  try{ const t = localStorage.getItem('loglens.vtheme'); if (t){ $('vTheme').value = t; } }catch(e){}
-  vApplyTheme();
+  let t=null; try{ t = localStorage.getItem('loglens.logtheme') || localStorage.getItem('loglens.vtheme'); }catch(e){}
+  applyLogTheme(t || 'hc');   // viewer defaults to high contrast; single shared key
   await vWindow(0, 'forward');
 }
 async function vWindow(anchor, dir){

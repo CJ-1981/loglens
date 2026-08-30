@@ -249,6 +249,10 @@ const themeIds = ['as','vscode','dracula','solarized','hc'];
 check('all 5 logcat preset palettes in CSS', themeIds.every(t => html.includes('data-logtheme="' + t + '"')));
 check('preset palettes cover all levels', ['V','D','I','W','E','F'].every(l =>
   themeIds.every(t => html.includes('data-logtheme="' + t + '"] .lv' + l))));
+check('viewer surfaces themed for every non-hc preset', ['as','vscode','dracula','solarized'].every(t =>
+  html.includes('data-logtheme="' + t + '"] .vbody{background:')));
+check('single shared theme applier syncs both selectors', html.includes('function applyLogTheme') &&
+  html.includes("$('vTheme').onchange = ()=>applyLogTheme") && html.includes("$('logThemeSel').onchange=()=>applyLogTheme"));
 check('theme options present', ['Android Studio','VS Code Dark+','Dracula','Solarized Dark','High Contrast'].every(n => html.includes(n)));
 check('header buttons readable on dark bar (light text + transparent bg)', html.includes('header.top .btn.sec,body header.top .btn.sec{color:#e7edf5'));
 

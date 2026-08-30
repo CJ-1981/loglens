@@ -65,6 +65,22 @@ new Function(uiCode).call(global);
   check('file selector holds the demo', el('vFile').value === 'demo_sample.log');
   check('workbench file list holds the demo too', el('filelist').children.some(c => (c.innerHTML||'').includes('demo_sample.log')));
 
+  // theme switching: every option must update body dataset + vBody class + both selectors
+  for (const t of ['as','vscode','dracula','solarized','default','hc']){
+    el('vTheme').value = t;
+    el('vTheme').onchange();
+    check('theme "' + t + '" applies and syncs both selectors',
+      el('logThemeSel').value === t &&
+      document.body.dataset.logTheme === (t==='default' ? undefined : t) &&
+      el('vBody').className === ('vbody' + (t==='hc' ? ' hc' : '')));
+  }
+  // the workbench selector drives the same applier
+  el('logThemeSel').value = 'dracula';
+  el('logThemeSel').onchange();
+  check('workbench selector drives the same applier', el('vTheme').value === 'dracula' && document.body.dataset.logTheme === 'dracula');
+  // persistence goes to the single shared key
+  check('single persisted key', (() => { let k=null; global.localStorage.setItem=(x,v)=>{k=[x,v]}; el('vTheme').onchange(); return !!(k && k[0]==='loglens.logtheme'); })());
+
   // search wiring smoke: set a pattern and drive the forward find
   el('vSearch').value = 'blocked';
   await new Function('return null')(); // no-op
