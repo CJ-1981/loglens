@@ -436,6 +436,7 @@ body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
 <div class="card" id="viewCard" style="padding:0;overflow:hidden">
   <div class="vtoolbar">
     <select id="vFile" title="file to browse"></select>
+    <button class="btn sec" id="vDemo" title="load the synthetic sample log">demo</button>
     <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
@@ -1089,8 +1090,7 @@ async function sniffFormat(){
   }catch(e){ if (token === sniffToken) setTsHint(null); }
 }
 $('btnDemo').onclick=()=>{
-  const f = new File([CORE.DEMO],'demo_sample.log',{type:'text/plain'});
-  S.files=[{name:'demo_sample.log',file:f}]; renderFiles();
+  loadDemoFile();
   $('pvIn').value='init params:{vin=YV4DEM0123AB34567, vehicleId=YV4DEM0123AB34567} contact: demo.user@example.com dID SN-abc123def456';
   pv();
 };
@@ -1625,6 +1625,14 @@ $('resTable').addEventListener('click',e=>{
     .then(()=>toast('copied L'+rec.lineno+' ✓'), ()=>toast('clipboard blocked — select the text manually'));
 });
 
+// shared demo loader (workbench header + viewer toolbar)
+function loadDemoFile(){
+  const f = new File([CORE.DEMO],'demo_sample.log',{type:'text/plain'});
+  if (!S.files.some(x=>x.name===f.name && x.file.size===f.size)) S.files.push({name:f.name, file:f});
+  renderFiles();
+  return S.files.find(x=>x.name===f.name);
+}
+
 // ---------- tabs ----------
 function setTab(t){
   $('tabWork').style.display = t==='work' ? '' : 'none';
@@ -1664,11 +1672,18 @@ function viewerEnsure(){
   const cur = sel.value;
   sel.innerHTML = '';
   files.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; sel.appendChild(o); });
-  if (!files.length){ $('vBody').innerHTML=''; $('vFoot').textContent='no files loaded — add logs in the workbench input section'; V.file=null; return; }
+  if (!files.length){ $('vBody').innerHTML=''; $('vFoot').textContent='no files loaded — add logs in the workbench input tab, or press demo'; V.file=null; return; }
   sel.value = files.some(f=>f.name===cur) ? cur : files[0].name;
   vOpen(files.find(f=>f.name===sel.value));
 }
 $('vFile').onchange = ()=>vOpen(S.files.find(f=>f.name===$('vFile').value && f.use!==false));
+$('vDemo').onclick = async ()=>{
+  const entry = loadDemoFile();
+  viewerEnsure();
+  $('vFile').value = 'demo_sample.log';
+  await vOpen(entry);
+  toast('demo loaded — try searching: session');
+};
 $('vTheme').onchange = ()=>{ vApplyTheme(); try{ localStorage.setItem('loglens.vtheme', $('vTheme').value); }catch(e){} };
 function vApplyTheme(){
   const t = $('vTheme').value;

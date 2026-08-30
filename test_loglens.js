@@ -254,7 +254,8 @@ check('header buttons readable on dark bar (light text + transparent bg)', html.
 
 console.log('== v1.11: viewer tab ==');
 check('tabs present + persisted', html.includes('id="tabBtnWork"') && html.includes('id="tabBtnView"') && html.includes("localStorage.setItem('loglens.tab'"));
-check('viewer core ids present', ['vFile','vSearch','vPrev','vNext','vMask','vTheme','vStatus','vScroll','vThumb','vBody','vFoot'].every(id => html.includes('id="'+id+'"')));
+check('viewer core ids present', ['vFile','vDemo','vSearch','vPrev','vNext','vMask','vTheme','vStatus','vScroll','vThumb','vBody','vFoot'].every(id => html.includes('id="'+id+'"')));
+check('shared demo loader wired to both tabs', html.includes('function loadDemoFile()') && html.includes("$('vDemo').onclick") && html.includes("$('btnDemo').onclick"));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
 check('search continue-cursor survives the 512 MB cap', html.includes('searchFrom') && html.includes('press Enter to continue from'));
