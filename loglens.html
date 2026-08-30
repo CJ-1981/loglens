@@ -1641,7 +1641,7 @@ $('tabBtnView').onclick = ()=>setTab('view');
 
 // ---------- viewer (virtualized log browser) ----------
 const V = { file:null, anchor:0, lines:[], winStart:0, winEnd:0, total:0, est:0, maskCm:null,
-            loading:false, lastHit:null, avgLen:80 };
+            loading:false, lastHit:null, avgLen:80, searchFrom:null };
 const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900;
 
 async function vReadText(from, to){
@@ -1810,7 +1810,8 @@ async function vFind(dir){
   $('vStatus').textContent = 'searching…'; V.loading = true;
   try{
     if (dir > 0){
-      let from = V.winEnd, read = 0;
+      let from = Math.max(V.winEnd, V.searchFrom || 0);   // continue-cursor: resume past the 512 MB cap
+      let read = 0;
       while (from < V.total && read < 512*1048576){
         const text = await vReadText(from, from + V_CHUNK);
         let pos = from > 0 ? text.indexOf('\n')+1 : 0;   // skip partial first line
@@ -1820,6 +1821,7 @@ async function vFind(dir){
           if (rx.test(line)){
             await vWindow(from + pos, 'forward');
             vHighlight(rx);
+            V.searchFrom = null;
             $('vStatus').textContent = '';
             return;
           }
@@ -1827,9 +1829,14 @@ async function vFind(dir){
           pos = nl + 1;
         }
         from += V_CHUNK; read += V_CHUNK;
-        if (from < V.total){ /* continue */ }
       }
-      toast('no more matches forward');
+      if (from >= V.total){
+        V.searchFrom = null;
+        toast('no matches to end of file');
+      } else {
+        V.searchFrom = from;
+        toast('no match in next 512 MB — press Enter to continue from ' + (100*from/V.total).toFixed(1) + '%');
+      }
     } else {
       let from = Math.max(0, V.winStart - V_BACK);
       while (from >= 0){

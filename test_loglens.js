@@ -257,6 +257,7 @@ check('tabs present + persisted', html.includes('id="tabBtnWork"') && html.inclu
 check('viewer core ids present', ['vFile','vSearch','vPrev','vNext','vMask','vTheme','vStatus','vScroll','vThumb','vBody','vFoot'].every(id => html.includes('id="'+id+'"')));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
+check('search continue-cursor survives the 512 MB cap', html.includes('searchFrom') && html.includes('press Enter to continue from'));
 // windowFromBuffer — forward
 const wf = CORE.windowFromBuffer('l1\nl2\nl3\nl4\npar', 'forward', 3);
 check('forward: maxLines complete lines', JSON.stringify(wf.lines) === JSON.stringify(['l1','l2','l3']));
