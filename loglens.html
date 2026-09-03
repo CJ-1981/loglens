@@ -232,7 +232,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.13</span>
+  <h1>LogLens</h1><span class="ver">v1.13.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -499,7 +499,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.13 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI wizard (bring your own endpoint)
+  LogLens v1.13.1 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI wizard (bring your own endpoint)
   optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
@@ -1747,6 +1747,7 @@ $('tabBtnPii').onclick = ()=>setTab('pii');
 const V = { file:null, anchor:0, lines:[], winStart:0, winEnd:0, total:0, est:0, maskCm:null,
             loading:false, lastHit:null, avgLen:80, searchFrom:null };
 const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900;
+const V_ENC = new TextEncoder();
 
 async function vReadText(from, to){
   const blob = V.file.slice(Math.max(0,from), Math.max(0,to));
@@ -1912,77 +1913,115 @@ $('vBody').addEventListener('keydown', e=>{
 })();
 $('vMask').onchange = ()=>vRender();
 // search-jump: stream from current offset with the include-regex engine
-function vCaseSensitive(){ return !$('vCase').classList.contains('on'); }   // Aa on = insensitive
+function vCaseSensitive(){ return $('vCase').classList.contains('on'); }   // Aa on = case-sensitive
 async function vFind(dir){
   if (!V.file || V.loading) return;
   const q = $('vSearch').value.trim();
   if (!q){ toast('type a search pattern first'); return; }
   const flags = vCaseSensitive() ? '' : 'i';
   let rx; try{ rx = new RegExp(q, flags); }catch(e){ toast('bad regex: '+e.message); return; }
+  V.rx = rx;
   $('vStatus').textContent = 'searching…'; V.loading = true;
+  const b = $('vBody');
   try{
+    // ---- forward from end of current view ----
     if (dir > 0){
-      let from = Math.max(V.winEnd, V.searchFrom || 0);   // continue-cursor: resume past the 512 MB cap
-      let read = 0;
-      while (from < V.total && read < 512*1048576){
+      let from = Math.max(V.winEnd, V.searchFrom || 0);
+      let scanned = 0;
+      while (from < V.total && scanned < 512*1048576){
         const text = await vReadText(from, from + V_CHUNK);
-        let pos = from > 0 ? text.indexOf('\n')+1 : 0;   // skip partial first line
+        let pos = from > 0 ? text.indexOf('\n')+1 : 0;
         while (pos < text.length){
           const nl = text.indexOf('\n', pos);
-          const line = text.slice(pos, nl<0?text.length:nl);
+          const line = text.slice(pos, nl<0?text.length:nl).replace(/\r$/,'');
           if (rx.test(line)){
-            V.loading = false;                           // release so vWindow can re-anchor
-            await vWindow(from + pos, 'forward');
-            vHighlight(rx);
+            // re-render the window starting 10 lines before the match
+            const pre = Math.max(0, lineStartByte(text, pos) - 10 * V.avgLen);
+            V.loading = false;   // release the lock so vWindow can run
+            await vWindow(from + pre, 'forward');
+            vHighlightAndFocus(rx, line);
             V.searchFrom = null;
-            $('vStatus').textContent = '';
             return;
           }
           if (nl < 0) break;
           pos = nl + 1;
         }
-        from += V_CHUNK; read += V_CHUNK;
+        from += V_CHUNK; scanned += V_CHUNK;
       }
-      if (from >= V.total){
-        V.searchFrom = null;
-        toast('no matches to end of file');
-      } else {
-        V.searchFrom = from;
-        toast('no match in next 512 MB — press Enter to continue from ' + (100*from/V.total).toFixed(1) + '%');
-      }
-    } else {
-      let from = Math.max(0, V.winStart - V_BACK);
-      while (from >= 0){
-        const text = await vReadText(from, Math.min(from + V_BACK, V.winStart));
-        const lines = CORE.windowFromBuffer(text, 'backward', 400);
-        for (let i = lines.length-1; i >= 0; i--){
-          if (rx.test(lines[i])){
-            const abs = from + lines.slice(0,i).reduce((a,l)=>a+l.length+1,0);
-            V.loading = false;                           // release so vWindow can re-anchor
-            await vWindow(abs, 'forward');
-            vHighlight(rx);
-            $('vStatus').textContent = '';
-            return;
-          }
-        }
-        if (from === 0) break;
-        from = Math.max(0, from - V_BACK);
-      }
-      toast('no matches backward');
+      $('vFoot').textContent = 'no matches for "' + q + '" in the remaining file';
+      toast('no matches found');
+      return;
     }
-  } finally { V.loading = false; $('vStatus').textContent=''; }
+    // ---- backward from start of current view ----
+    let end = V.winStart;
+    while (end > 0){
+      const from = Math.max(0, end - V_CHUNK);
+      const text = await vReadText(from, end);
+      const firstNl = text.indexOf('\n');
+      const body = firstNl >= 0 ? text.slice(firstNl + 1) : text;
+      const lines = body.split('\n');
+      // byte offset of each complete line's start in this chunk
+      const starts = [];
+      let curByte = from + (firstNl >= 0 ? V_ENC.encode(text.slice(0, firstNl + 1)).length : 0);
+      for (let i = 0; i < lines.length; i++){ starts.push(curByte); curByte += V_ENC.encode(lines[i] + '\n').length; }
+      for (let i = lines.length - 1; i >= 0; i--){
+        const line = lines[i].replace(/\r$/,'');
+        if (!line) continue;
+        if (rx.test(line)){
+          const pre = Math.max(0, starts[i] - 10 * V.avgLen);
+          V.loading = false;   // release the lock so vWindow can run
+          await vWindow(pre, 'forward');
+          vHighlightAndFocus(rx, line);
+          return;
+        }
+      }
+      end = from;
+    }
+    $('vFoot').textContent = 'no matches for "' + q + '" before the current view';
+    toast('no matches found before this point');
+  } finally {
+    V.loading = false;
+    $('vStatus').textContent = '';
+  }
 }
-function vHighlight(rx){
-  // highlight occurrences of the search text (literal-safe) in the current view
+// compute the byte offset of a line start within a decoded text string
+function lineStartByte(text, charOffset){
+  return V_ENC.encode(text.slice(0, charOffset)).length;
+}
+// highlight all rx matches in rendered rows, scroll to the matched line, show count
+function vHighlightAndFocus(rx, matchLine){
+  const b = $('vBody');
   const lit = $('vSearch').value.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  let hrx; try{ hrx = new RegExp('('+lit+')', 'g' + (rx.flags.includes('i') ? 'i' : '')); }catch(e){ return; }
-  let n = 0;
-  $('vBody').querySelectorAll('.cols span:last-child, .raw').forEach(el=>{
-    if (!hrx.test(el.textContent)) return;
-    el.innerHTML = el.textContent.replace(hrx, '<mark>$1</mark>');
-    n++;
+  let hrx; try{ hrx = new RegExp('(' + lit + ')', 'g' + (rx.flags.includes('i')?'i':'')); }catch(e){ return; }
+  let hit = null;
+  b.querySelectorAll('.vrow').forEach(row=>{
+    const span = row.querySelector('.cols span:last-child') || row.querySelector('.raw');
+    if (!span) return;
+    if (hrx.test(span.textContent)){
+      span.innerHTML = span.textContent.replace(hrx, '<mark style="background:#ffe066;color:#000;font-weight:bold">$1</mark>');
+      row.style.background = 'rgba(255,224,102,0.12)';
+      if (!hit) hit = row;
+      row.dataset.hit = '1';
+    }
   });
-  if (n) $('vFoot').textContent += ` · ${n} highlighted in view`;
+  if (hit){
+    hit.style.background = 'rgba(255,224,102,0.25)';
+    hit.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  // match count
+  const total = b.querySelectorAll('[data-hit="1"]').length;
+  const q = $('vSearch').value.trim();
+  $('vFoot').textContent = '🔍 "' + q + '" — ' + (total > 0 ? total + ' highlighted in current view' : 'no match in view');
+}
+function vScrollToLine(line){
+  const suffix = line.length > 40 ? line.slice(-40) : line;
+  const rows = $('vBody').querySelectorAll('.vrow');
+  for (const r of rows){
+    if (r.textContent.includes(suffix)){
+      r.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+  }
 }
 $('vSearch').addEventListener('keydown', e=>{
   if (e.key==='Enter'){ e.preventDefault(); vFind(e.shiftKey ? -1 : 1); }
@@ -1992,11 +2031,11 @@ $('vPrev').onclick = ()=>vFind(-1);
 $('vCase').onclick = ()=>{
   const b = $('vCase');
   b.classList.toggle('on');
-  b.title = b.classList.contains('on') ? 'case-insensitive search (click for case-sensitive)' : 'case-sensitive search (click for case-insensitive)';
-  try{ localStorage.setItem('loglens.vcase', b.classList.contains('on') ? 'i' : ''); }catch(e){}
+  b.title = b.classList.contains('on') ? 'case-sensitive search (click for case-insensitive)' : 'case-insensitive search (click for case-sensitive)';
+  try{ localStorage.setItem('loglens.vcase', b.classList.contains('on') ? 's' : 'i'); }catch(e){}
 };
 (function(){ let c=null; try{ c=localStorage.getItem('loglens.vcase'); }catch(e){}
-  if (c !== null){ $('vCase').classList.toggle('on', c==='i'); $('vCase').title = c==='i' ? 'case-insensitive search (click for case-sensitive)' : 'case-sensitive search (click for case-insensitive)'; }
+  if (c !== null){ const on = (c==='s'); $('vCase').classList.toggle('on', on); $('vCase').title = on ? 'case-sensitive search (click for case-insensitive)' : 'case-insensitive search (click for case-sensitive)'; }
 })();
 
 // ---------- PII scan tab ----------

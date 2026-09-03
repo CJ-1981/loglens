@@ -1,10 +1,10 @@
 {
   "name": "loglens",
-  "version": "1.11.0",
+  "version": "1.13.1",
   "private": true,
   "description": "Single-file browser tool for log extraction & PII masking",
   "scripts": {
-    "test": "node test_loglens.js && node test_loglens_v15.js && node test_viewer_ui.js",
+    "test": "node test_loglens.js && node test_loglens_v15.js && node test_viewer_ui.js && node test_viewer_search.js",
     "test:e2e": "node e2e/loglens.e2e.js",
     "perf": "node perf_loglens.js"
   },
