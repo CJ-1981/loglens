@@ -38,13 +38,20 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   check('viewer masks VIN on display', !vText.includes('YV4DEM0123AB34567'));
   check('viewer shows the service tag', vText.includes('MyApp'));
 
-  // ---------- 4. viewer search-jump ----------
+  // ---------- 4. viewer search-jump (demo file: whole file is in the window —
+  //              a scan that starts past the view would find nothing: strict!) ----------
   await page.locator('#vSearch').fill('Auth');
   await page.locator('#vSearch').press('Enter');
-  await page.locator('#vBody mark').first().waitFor({ timeout: 5000 }).catch(() => {});
-  const marks = await page.locator('#vBody mark').count();
-  const vText2 = await page.locator('#vBody').innerText();
-  check('search-jump highlights match', marks > 0 || vText2.includes('Auth'));
+  await page.locator('#vBody mark').first().waitFor({ timeout: 5000 });
+  check('search finds in-view match and highlights it', await page.locator('#vBody mark').count() > 0);
+  const footHit = await page.locator('#vFoot').innerText();
+  check('footer confirms the hit', footHit.includes('\uD83D\uDD0D'));
+  // a term that does not exist must report cleanly in the footer
+  await page.locator('#vSearch').fill('ZZZNOSUCHTOKEN');
+  await page.locator('#vSearch').press('Enter');
+  await page.waitForTimeout(400);
+  const footMiss = await page.locator('#vFoot').innerText();
+  check('no-match reports in footer', footMiss.includes('no matches for'));
 
   // ---------- 5. logcat theme switch (viewer toolbar selector) ----------
   await page.locator('#vTheme').selectOption('dracula');

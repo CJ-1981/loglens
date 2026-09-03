@@ -1745,7 +1745,7 @@ $('tabBtnPii').onclick = ()=>setTab('pii');
 
 // ---------- viewer (virtualized log browser) ----------
 const V = { file:null, anchor:0, lines:[], winStart:0, winEnd:0, total:0, est:0, maskCm:null,
-            loading:false, lastHit:null, avgLen:80, searchFrom:null };
+            loading:false, lastHit:null, avgLen:80, searchFrom:null, lastQ:null };
 const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900;
 const V_ENC = new TextEncoder();
 
@@ -1788,7 +1788,7 @@ function applyLogTheme(t){
 function vApplyTheme(){ applyLogTheme($('vTheme').value); }
 async function vOpen(f){
   if (!f) return;
-  V.file = f.file; V.total = V.file.size; V.anchor = 0; V.maskCm = null; V.lastHit = null;
+  V.file = f.file; V.total = V.file.size; V.anchor = 0; V.maskCm = null; V.lastHit = null; V.searchFrom = null; V.lastQ = null;
   // sample head for line estimate + theme restore
   const head = await vReadText(0, 65536);
   V.est = CORE.estimateLineCount(head, V.total);
@@ -1921,12 +1921,14 @@ async function vFind(dir){
   const flags = vCaseSensitive() ? '' : 'i';
   let rx; try{ rx = new RegExp(q, flags); }catch(e){ toast('bad regex: '+e.message); return; }
   V.rx = rx;
+  if (q !== V.lastQ){ V.searchFrom = null; V.lastQ = q; }   // new query: restart from the current view
   $('vStatus').textContent = 'searching…'; V.loading = true;
-  const b = $('vBody');
   try{
-    // ---- forward from end of current view ----
+    // ---- forward: start at the TOP of the current view (matches on screen are findable,
+    //      which matters when the whole file fits in one window, e.g. the demo log).
+    //      After a hit the cursor moves past that line, so Enter walks to the next match. ----
     if (dir > 0){
-      let from = Math.max(V.winEnd, V.searchFrom || 0);
+      let from = (V.searchFrom != null) ? V.searchFrom : V.winStart;
       let scanned = 0;
       while (from < V.total && scanned < 512*1048576){
         const text = await vReadText(from, from + V_CHUNK);
@@ -1936,11 +1938,12 @@ async function vFind(dir){
           const line = text.slice(pos, nl<0?text.length:nl).replace(/\r$/,'');
           if (rx.test(line)){
             // re-render the window starting 10 lines before the match
-            const pre = Math.max(0, lineStartByte(text, pos) - 10 * V.avgLen);
+            const lineByte = from + lineStartByte(text, pos);
+            const pre = Math.max(0, lineByte - 10 * V.avgLen);
             V.loading = false;   // release the lock so vWindow can run
-            await vWindow(from + pre, 'forward');
+            await vWindow(pre, 'forward');
             vHighlightAndFocus(rx, line);
-            V.searchFrom = null;
+            V.searchFrom = lineByte + V_ENC.encode(line + '\n').length;   // next Enter continues after this hit
             return;
           }
           if (nl < 0) break;
@@ -1948,8 +1951,15 @@ async function vFind(dir){
         }
         from += V_CHUNK; scanned += V_CHUNK;
       }
-      $('vFoot').textContent = 'no matches for "' + q + '" in the remaining file';
-      toast('no matches found');
+      if (from < V.total){                       // hit the 512 MB cap — cursor keeps the position
+        V.searchFrom = from;
+        $('vFoot').textContent = 'no match in this 512 MB — Enter keeps scanning from ' + (100*from/V.total).toFixed(1) + '%';
+        toast('no match yet — press Enter to keep scanning');
+      } else {
+        V.searchFrom = null;                     // EOF: next Enter wraps to the top of the current view
+        $('vFoot').textContent = 'no matches for "' + q + '" from here to end of file';
+        toast('no matches found');
+      }
       return;
     }
     // ---- backward from start of current view ----
@@ -1972,11 +1982,13 @@ async function vFind(dir){
           V.loading = false;   // release the lock so vWindow can run
           await vWindow(pre, 'forward');
           vHighlightAndFocus(rx, line);
+          V.searchFrom = starts[i] + V_ENC.encode(lines[i] + '\n').length;   // forward continues after this hit
           return;
         }
       }
       end = from;
     }
+    V.searchFrom = null;
     $('vFoot').textContent = 'no matches for "' + q + '" before the current view';
     toast('no matches found before this point');
   } finally {
