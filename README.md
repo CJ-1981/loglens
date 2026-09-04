@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
-![version](https://img.shields.io/badge/version-v1.13-blue)
-![tests](https://img.shields.io/badge/engine%20assertions-281%20passing-green)
+![version](https://img.shields.io/badge/version-v1.14-blue)
+![tests](https://img.shields.io/badge/engine%20assertions-295%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~95 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.13 · engine covered by 281 automated assertions (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js`) · mobile-responsive
+- **Current version**: v1.14 · engine covered by 295 automated assertions (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js`) · mobile-responsive
 
 ---
 
@@ -227,20 +227,20 @@ For **any other text format** (JSON lines, CSV, custom app logs), extraction and
 | `Ctrl/⌘+Enter` (AI box) | generate rules |
 | `Aa` on any rule | toggle case sensitivity |
 | Kind badge (include/exclude) | click to flip |
-| **viewer**: `PgUp`/`PgDn`, `↑`/`↓`, `Home`/`End` | window / line / file edges |
+| **viewer**: `PgUp`/`PgDn`, `↑`/`↓`, `Home`/`End` | page / line / file edges (mouse wheel scrolls continuously) |
 | **viewer**: `/`, `Enter`/`n`, `Shift+Enter`/`N`, `Aa` | focus search, next / previous match, case toggle |
-| **viewer**: drag left rail | jump by byte position |
+| **viewer**: drag left rail | jump by byte position (grab point preserved) |
 
 ## Viewer tab (browse the full log)
 
 A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 
-- **Virtualized streaming**: any file size, constant memory. The view is a ~900-line window read straight from disk via byte ranges; the left rail is a byte-fraction scrollbar (drag to jump), like klogg.
+- **Virtualized streaming**: any file size, constant memory. The view buffers ~900–1600 lines read straight from disk via byte ranges; **wheel / touchpad / touch scroll continuously** — when the buffer edge comes into view the next chunk chains in seamlessly (both directions), with the view pixel-anchored so nothing jumps. The left rail is the whole-file byte map (drag to jump, grab point preserved); window byte offsets are exact UTF-8 lengths, so paging never duplicates or skips lines on non-ASCII content.
 - **High-contrast by default** (near-black surface, near-white text) with the shared logcat theme presets in the toolbar.
 - **Columns** when lines parse (≈line · timestamp · level · tag · message), raw monospace otherwise; PII masking applied on display by default (toggle in the toolbar).
 - **Demo** (header button) loads the synthetic sample from either tab — in the viewer it refreshes the file list and opens it automatically; loaded files are never replaced.
 - **Search-jump**: type a regex, `Enter`/`n` streams forward to the next match, `Shift+Enter`/`N` scans backward. Search is independent of rendering — it reads raw bytes from disk (UTF-8-safe byte offsets), so nothing needs to be loaded or scrolled first. Forward scanning starts at the **top of the current view** (so matches already on screen are found, even when the whole file fits in one window); each press covers up to **512 MB** (keeps the UI responsive) and remembers its position, so multi-GB files are fully searchable across presses. A match re-anchors the view just above it, gets highlighted with a count in the footer; after EOF the cursor resets, so the next `Enter` wraps to the top; changing the query resets it too. Matching is case-insensitive by default; **Aa** toggles case-sensitive.
-- **Keys**: `PgUp`/`PgDn` window · `↑`/`↓` line · `Home`/`End` file · `/` search · `n`/`N` match. Touch: drag body to pan, drag the rail to jump.
+- **Keys**: `PgUp`/`PgDn` page · `↑`/`↓` line · `Home`/`End` file · `/` search · `n`/`N` match. Mouse wheel / touchpad / touch: continuous native scrolling with seamless edge chaining. Drag the rail to jump.
 - Line numbers are **estimates** (`fileSize / sampled average line length`) — timestamps are the reliable anchor.
 
 ## PII scan tab
@@ -289,7 +289,8 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 ## Changelog
 
-- **v1.13.2 (current)** — demo-scale search fix: with a file that fits in one window (e.g. the demo log) the entire file sat inside the initial view, so forward search started past EOF and backward search before BOF — every search reported "no matches". Forward now starts at the **top of the current view**; after a hit the cursor moves past that line so `Enter` walks match-to-match and wraps at EOF; backward walks before the view; changing the query resets the cursor; the 512 MB-per-press cap keeps its continue-cursor. Strict e2e (real `mark` + footer checks replace the lenient fallback that masked this) and a demo-scale + multi-chunk harness scenario
+- **v1.14.0 (current)** — viewer scrolling rebuilt around continuous native scrolling. Previously the wheel dead-stopped at the edge of each ~900-line window (nothing listened to `scroll`), PgUp/PgDn/touch flings replaced the entire window, arrow keys triggered a full disk read + re-render + snap-to-top per keypress (fast input silently dropped by the loading guard), rail drags fired an uncoalesced seek per mousemove that fought the async loads, and window byte offsets used JS char counts — so any non-ASCII line made paging duplicate or skip lines. Now: a scroll listener chains the next/previous chunk at either buffer edge with the view pixel-anchored (wheel/touchpad/touch just scroll, any file size); PgUp/PgDn page the viewport natively and only touch the disk at the buffer edge; arrows move a row via native scroll; the rail uses pointer events with a preserved grab point and coalesces to the latest requested position; seeks landing mid-line are re-aligned so no torn fragments render; all offsets are exact UTF-8 byte lengths; switching to the viewer tab no longer resets the position; `overscroll-behavior:contain` stops EOF wheel events from scrolling the page; masked-text + parsed-header caches keep re-renders cheap
+- **v1.13.2** — demo-scale search fix: with a file that fits in one window (e.g. the demo log) the entire file sat inside the initial view, so forward search started past EOF and backward search before BOF — every search reported "no matches". Forward now starts at the **top of the current view**; after a hit the cursor moves past that line so `Enter` walks match-to-match and wraps at EOF; backward walks before the view; changing the query resets the cursor; the 512 MB-per-press cap keeps its continue-cursor. Strict e2e (real `mark` + footer checks replace the lenient fallback that masked this) and a demo-scale + multi-chunk harness scenario
 - **v1.13.1** — viewer search repair: `vFind` referenced undefined identifiers (`V.lastByte`, `V.firstByte`, `V_ENC`, `vResetAt`, `vUpdateStatus`), so every search skipped the scan entirely and reported "no matches"; forward/backward search now scans from the current window (`V.winEnd`/`V.winStart`), jumps to and highlights matches, the backward scan walks chunks with correct per-line byte offsets, and the `finally` clears the `#vStatus` indicator without clobbering the footer result; new `test_viewer_search.js` regression suite (forward jump, next-match, multi-chunk backward, no-match, case-insensitive) wired into `npm test`; package.json version resynced
 - **v1.13** — pii scan tab: 12-detector catalog (VIN, IMEI w/ Luhn, credit card w/ Luhn, SSN, phone, email, MAC, IPv4/IPv6, serials, subscriberId, packages, hex tokens), streamed multi-file scan with stop button, findings table with shape samples + counts, one-click convert to mask rules, AI wizard handoff (findings + samples as context), findings .json export; GNSS coordinate mask rule + detector; **Aa** case toggle for viewer search; header demo auto-scans the pii tab; GNSS samples in the demo log; version-marker regression test
 - **v1.13-pre / v1.12** — pii scanner groundwork: detector catalog defaults, masking coverage table; viewer tab (v1.11): virtualized streaming log browser (byte-fraction rail, ~900-line windows, any file size), high-contrast default theme, column layout for parseable lines, regex search-jump with highlighting and a 512 MB-per-press continue-cursor, keyboard + touch navigation, masking on display, header demo button works in both tabs

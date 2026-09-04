@@ -94,11 +94,12 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vtoolbar select{max-width:220px}
 .vsearch{flex:1;min-width:160px;border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:11.5px;font-family:var(--mono);color:var(--ink);background:#fff}
 #viewCard{display:flex;flex-direction:column}
-.vscroll{width:10px;background:#eceff3;cursor:grab;position:relative;flex:0 0 10px;min-height:40px}
-.vthumb{position:absolute;left:0;top:0;width:100%;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
+.vscroll{width:12px;background:#eceff3;cursor:grab;position:relative;flex:0 0 12px;min-height:40px;touch-action:none;user-select:none}
+.vscroll:active{cursor:grabbing}
+.vthumb{position:absolute;left:1px;top:0;width:10px;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
 .vthumb:hover{background:var(--accent)}
 .vrow{display:flex;flex:0 0 auto}
-.vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0}
+.vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
 .vmain{display:flex;flex:1;min-height:0}
 .vrow .ln{flex:0 0 8ch;text-align:right;padding:0 8px 0 10px;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;line-height:1.9}
 .vrow .cols{flex:1;display:grid;grid-template-columns:14ch 3ch 20ch 1fr;gap:0 10px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
@@ -232,7 +233,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.13.2</span>
+  <h1>LogLens</h1><span class="ver">v1.14.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -471,10 +472,8 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   </div>
   <div class="vfoot" id="vFoot"></div>
 </div>
-<div class="note" style="margin-top:8px">keys: PgUp/PgDn window · Home/End file · / search · n/N match · ↑/↓ line · drag the left rail or touch-scroll to pan</div>
+<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position</div>
 </div><!-- /tabView -->
-
-</div><!-- /tabWork -->
 
 <!-- PII SCAN TAB -->
 <div id="tabPii" style="display:none">
@@ -499,8 +498,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.13.2 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI wizard (bring your own endpoint)
-  optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.14.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1727,6 +1725,12 @@ function loadDemoFile(){
   return S.files.find(x=>x.name===f.name);
 }
 
+// ---------- viewer state (declared before the tab init below: setTab('view')
+// runs viewerEnsure at load, which touches V — keep it out of the TDZ) ----------
+const V = { file:null, anchor:0, lines:[], disp:[], hdr:[], blen:[], winStart:0, winEnd:0,
+            total:0, est:0, maskCm:null, loading:false, lastHit:null, avgLen:80,
+            searchFrom:null, lastQ:null, seq:0 };
+
 // ---------- tabs ----------
 function setTab(t){
   const map = { work:['tabWork','tabBtnWork'], view:['tabView','tabBtnView'], pii:['tabPii','tabBtnPii'] };
@@ -1744,9 +1748,14 @@ $('tabBtnPii').onclick = ()=>setTab('pii');
 (function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} setTab(t==='view'||t==='pii' ? t : 'work'); })();
 
 // ---------- viewer (virtualized log browser) ----------
-const V = { file:null, anchor:0, lines:[], winStart:0, winEnd:0, total:0, est:0, maskCm:null,
-            loading:false, lastHit:null, avgLen:80, searchFrom:null, lastQ:null };
-const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900;
+// Scroll model: vBody is a native scroll container holding a buffered span of
+// ~V_WIN..V_KEEP lines read straight from disk by byte range. Wheel, touchpad
+// and touch scroll natively; a scroll listener chains more lines in at either
+// edge (pixel-anchored), so scrolling is continuous over any file size. Page
+// and arrow keys move the viewport natively and only hit the disk at the
+// buffer edge. The left rail is the whole-file byte map. All window byte
+// offsets are true UTF-8 lengths, so paging never duplicates or skips lines.
+const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900, V_KEEP = 1600;
 const V_ENC = new TextEncoder();
 
 async function vReadText(from, to){
@@ -1754,6 +1763,7 @@ async function vReadText(from, to){
   const buf = await blob.arrayBuffer();
   return new TextDecoder().decode(buf);
 }
+const vByteLen = s => V_ENC.encode(s).length;
 function vCompiledMask(){
   const cm = CORE.compile(S.maskRules,'mask').map(c=>c.error?c:{...c, rx:new RegExp(c.rx.source, c.rx.flags)});
   return cm;
@@ -1771,7 +1781,9 @@ function viewerEnsure(){
   files.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; sel.appendChild(o); });
   if (!files.length){ $('vBody').innerHTML=''; $('vFoot').textContent='no files loaded — add logs in the workbench input tab, or press demo'; V.file=null; return; }
   sel.value = files.some(f=>f.name===cur) ? cur : files[0].name;
-  vOpen(files.find(f=>f.name===sel.value));
+  const f = files.find(x=>x.name===sel.value);
+  if (V.file === f.file){ vThumb(); return; }   // same file already open — keep the browsing position
+  vOpen(f);
 }
 $('vFile').onchange = ()=>vOpen(S.files.find(f=>f.name===$('vFile').value && f.use!==false));
 $('vTheme').onchange = ()=>applyLogTheme($('vTheme').value);
@@ -1797,60 +1809,145 @@ async function vOpen(f){
   applyLogTheme(t || 'hc');   // viewer defaults to high contrast; single shared key
   await vWindow(0, 'forward');
 }
-async function vWindow(anchor, dir){
+// ---- window readers (exact UTF-8 byte accounting) ----
+// forward: complete lines from byte `from`; `from` is re-aligned to a true line
+// start so a jump that lands mid-line never shows a torn fragment. Returns
+// {lines, blens, startByte, endByte} where blens[i] = byte length of line i
+// including its newline (the final EOF line: without), endByte is exact.
+async function vReadForward(from){
+  let start = from;
+  if (from > 0){
+    const peek = await vReadText(from - 1, Math.min(V.total, from - 1 + 65536));
+    if (peek.charCodeAt(0) === 10){ start = from; }
+    else {
+      const nl = peek.indexOf('\n');
+      if (nl < 0) return { lines:[], blens:[], startByte:from, endByte:from };   // tail of an unterminated line
+      start = from - 1 + vByteLen(peek.slice(0, nl + 1));
+    }
+  }
+  let text = await vReadText(start, Math.min(V.total, start + V_CHUNK));
+  let w = CORE.windowFromBuffer(text, 'forward', V_WIN);
+  // grow the read when the chunk holds too few complete lines (very long lines)
+  for (let span = V_CHUNK; w.lines.length < 100 && start + span < V.total && span < 67108864; span *= 4){
+    text = await vReadText(start, Math.min(V.total, start + span * 4));
+    w = CORE.windowFromBuffer(text, 'forward', V_WIN);
+  }
+  const lines = w.lines, blens = new Array(lines.length);
+  let endByte = start;
+  for (let i = 0; i < lines.length; i++){ blens[i] = vByteLen(lines[i]) + 1; endByte += blens[i]; }
+  if (endByte >= V.total && w.residue){          // EOF: the unterminated tail is the final line
+    lines.push(w.residue);
+    blens.push(vByteLen(w.residue));
+    endByte = V.total;
+  }
+  return { lines, blens, startByte:start, endByte };
+}
+// backward: the last complete lines ending just before byte `before` (a line start)
+async function vReadBackward(before){
+  const from = Math.max(0, before - V_BACK);
+  let text = await vReadText(from, before);
+  let start = from;
+  if (from > 0){                                  // drop the leading partial line
+    const nl = text.indexOf('\n');
+    if (nl < 0) return { lines:[], blens:[], startByte:before, endByte:before };
+    start = from + vByteLen(text.slice(0, nl + 1));
+    text = text.slice(nl + 1);
+  }
+  const lines = CORE.windowFromBuffer(text, 'backward', V_WIN);
+  const keptChars = lines.reduce((a,l)=>a+l.length+1, 0);
+  const startByte = start + vByteLen(text.slice(0, text.length - keptChars));
+  const blens = lines.map(l => vByteLen(l) + 1);
+  return { lines, blens, startByte, endByte: before };
+}
+async function vWindow(anchor, dir, mode){
   if (!V.file || V.loading) return;
+  if (dir !== 'backward' && anchor >= V.total){          // seek at/past EOF → show the tail, landed at the bottom
+    anchor = Math.max(0, V.total - V_BACK);
+    mode = 'end';
+  }
   V.loading = true; $('vStatus').textContent = 'reading…';
   try{
-    if (dir === 'backward'){
-      const start = Math.max(0, anchor - V_BACK);
-      const text = await vReadText(start, anchor + 1);
-      const lines = CORE.windowFromBuffer(text, 'backward', V_WIN);
-      V.lines = lines;
-      V.winStart = anchor - lines.reduce((a,l)=>a+l.length+1, 0);
-      V.winEnd = V.winStart + lines.reduce((a,l)=>a+l.length+1, 0);
-      V.anchor = V.winStart;
-    } else {
-      let text = await vReadText(anchor, anchor + V_CHUNK);
-      let w = CORE.windowFromBuffer(text, 'forward', V_WIN);
-      let lines = w.lines;
-      // grow if the chunk yielded too few complete lines (very long lines)
-      while (lines.length < 100 && anchor + V_CHUNK < V.total){
-        text = await vReadText(anchor, anchor + V_CHUNK*4);
-        w = CORE.windowFromBuffer(text, 'forward', V_WIN);
-        lines = w.lines;
-        if (lines.length >= V_WIN) break;
-      }
-      V.lines = lines;
-      V.winStart = anchor;
-      V.winEnd = anchor + lines.reduce((a,l)=>a+l.length+1, 0);
-      if (w.residue && anchor + V_CHUNK >= V.total){    // EOF: the tail is the final line
-        V.lines.push(w.residue);
-        V.winEnd = V.total;
-      }
-      V.anchor = anchor;
-    }
-    vRender();
-  } finally { V.loading = false; }
+    const r = (dir === 'backward') ? await vReadBackward(anchor + 1) : await vReadForward(anchor);
+    V.seq++;
+    V.lines = r.lines;
+    V.disp = new Array(r.lines.length).fill(null);      // masked-text cache, filled lazily
+    V.hdr = new Array(r.lines.length);                  // parsed-header cache
+    V.blen = r.blens;
+    V.winStart = r.startByte; V.winEnd = r.endByte; V.anchor = r.startByte;
+    vRender((dir === 'backward' || mode === 'end') ? 'bottom' : 'top');
+  } finally { V.loading = false; if ($('vStatus').textContent === 'reading…') $('vStatus').textContent = ''; }
 }
-function vRender(){
+// scroll anchoring: remember which pixel of which row sits at the viewport top,
+// so a buffer mutation (chain/trim) keeps the view visually frozen in place
+function vTopOf(b, el){
+  return el.getBoundingClientRect().top - b.getBoundingClientRect().top + b.scrollTop;
+}
+function vCaptureAnchor(){
+  const b = $('vBody'), rows = b.children;
+  if (!rows.length) return null;
+  const br = b.getBoundingClientRect(), st = b.scrollTop;
+  let idx = 0, i = 0;
+  for (; i < rows.length; i++){
+    const bot = rows[i].getBoundingClientRect().top - br.top + st + rows[i].offsetHeight;
+    if (bot <= st + 1) idx = Math.min(i + 1, rows.length - 1);
+    else { idx = i; break; }
+  }
+  if (i >= rows.length) idx = rows.length - 1;
+  const top = rows[idx].getBoundingClientRect().top - br.top + st;
+  return { idx, into: Math.max(0, st - top) };
+}
+function vRestoreScroll(b, a){
+  const rows = b.children;
+  if (!a || !rows.length || a.idx >= rows.length){ b.scrollTop = 0; return; }
+  b.scrollTop = Math.max(0, vTopOf(b, rows[a.idx]) + a.into);
+}
+function vRender(mode, anchor){
   const body = $('vBody');
-  const frag = [];
   const firstEst = Math.round(V.winStart / V.avgLen);
-  V.lines.forEach((raw, i)=>{
-    const h = CORE.parseHeader(raw);
-    const masked = vApplyMask(raw);
+  const frag = new Array(V.lines.length);
+  for (let i = 0; i < V.lines.length; i++){
+    const raw = V.lines[i];
+    let h = V.hdr[i];
+    if (h === undefined){ h = CORE.parseHeader(raw); V.hdr[i] = h; }
+    let m = V.disp[i];
+    if (m == null){ m = vApplyMask(raw); V.disp[i] = m; }
     if (h && h.ts){
-      const msg = esc(masked.includes(h.tag) ? masked.slice(masked.indexOf(h.tag)+h.tag.length).replace(/^:\s*/,'') : masked);
-      frag.push(`<div class="vrow"><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`);
+      const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^:\s*/,'') : m);
+      frag[i] = `<div class="vrow"><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
     } else {
-      frag.push(`<div class="vrow"><span class="ln">${firstEst+i}</span><span class="raw">${esc(masked)}</span></div>`);
+      frag[i] = `<div class="vrow"><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
     }
-  });
+  }
   body.innerHTML = frag.join('') || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
-  body.scrollTop = 0;
+  if (mode === 'bottom') body.scrollTop = body.scrollHeight;
+  else if (mode === 'keep') vRestoreScroll(body, anchor);
+  else body.scrollTop = 0;
+  // keep the active search highlighted across chained renders
+  let marked = 0;
+  if (V.rx && V.lastQ != null && V.lastQ === $('vSearch').value.trim()) marked = vMarkRows();
   vStatus();
   vThumb();
+  if (marked) $('vFoot').textContent = '🔍 "' + V.lastQ + '" — ' + marked + ' highlighted in current view';
+  // chain/keep/bottom renders continue the edge-chain loop; a deliberate 'top'
+  // seek (search jump, rail jump) must not re-render and clobber its own result
+  if (mode !== 'top') vScheduleEdgeCheck();
 }
+// edge chaining driver: native scroll events drive the check synchronously, and
+// each chain re-arms it on completion — so scrolling continues without any timer
+// (timers are throttled by Chromium in occluded/background windows). The low-rate
+// interval only covers content changes that no scroll event announces.
+let vScheduleEdgeCheck = () => {};
+(function(){
+  const b = $('vBody');
+  const edges = () => {
+    if (!V.file || V.loading || !isFinite(b.scrollHeight) || !isFinite(b.scrollTop)) return;
+    if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
+    else if (b.scrollTop <= 120) vChainBackward();
+  };
+  vScheduleEdgeCheck = edges;
+  b.addEventListener('scroll', edges, { passive:true });
+  setInterval(edges, 500);
+})();
 function vStatus(){
   const pct = V.total ? (100*V.winStart/V.total).toFixed(1) : 0;
   const mb = n => (n/1048576).toFixed(2) + ' MB';
@@ -1863,55 +1960,156 @@ function vThumb(){
   th.style.height = h + 'px';
   th.style.top = (frac * Math.max(0, rail.clientHeight - h)) + 'px';
 }
-function vShift(nLines, dir){
-  if (!V.file) return;
-  const by = Math.max(1, Math.min(nLines, V.lines.length || 1)) * V.avgLen;
-  if (dir > 0) vWindow(Math.min(V.total-1, V.winEnd), 'forward');
-  else vWindow(Math.max(0, V.winStart - by), 'backward');
+// ---- edge chaining: append / prepend lines, keeping the view pixel-frozen ----
+const vChain = { busy:false };
+async function vChainForward(){
+  if (!V.file || vChain.busy || V.loading || V.winEnd >= V.total) return;
+  vChain.busy = true;
+  let rendered = false;
+  try{
+    const seq = V.seq, a = vCaptureAnchor();
+    const r = await vReadForward(V.winEnd);
+    if (!r.lines.length){ V.winEnd = V.total; return; }        // nothing more to show
+    if (V.seq !== seq || V.loading) return;                    // a seek superseded this chain
+    V.lines = V.lines.concat(r.lines);
+    V.disp = V.disp.concat(r.lines.map(()=>null));
+    V.hdr = V.hdr.concat(new Array(r.lines.length));
+    V.blen = V.blen.concat(r.blens);
+    V.winEnd = r.endByte;
+    let drop = 0;
+    if (V.lines.length > V_KEEP) drop = V.lines.length - 1000; // keep the buffer lean
+    if (drop > 0){
+      V.lines.splice(0, drop); V.disp.splice(0, drop); V.hdr.splice(0, drop);
+      for (let i = 0; i < drop; i++) V.winStart += V.blen[i];
+      V.blen.splice(0, drop);
+    }
+    if (a) a.idx = Math.max(0, a.idx - drop);
+    vRender('keep', a);
+    rendered = true;
+  }catch(e){ toast('read error: ' + e.message); }
+  finally{
+    vChain.busy = false;
+    if (rendered) vScheduleEdgeCheck();   // still at an edge? chain again (async, no timer)
+  }
 }
-// scrollbar drag = byte-fraction jump
+async function vChainBackward(){
+  if (!V.file || vChain.busy || V.loading || V.winStart <= 0) return;
+  vChain.busy = true;
+  let rendered = false;
+  try{
+    const seq = V.seq, a = vCaptureAnchor();
+    const r = await vReadBackward(V.winStart);
+    if (!r.lines.length){ V.winStart = 0; return; }            // top of file reached
+    if (V.seq !== seq || V.loading) return;
+    const add = r.lines.length;
+    V.lines = r.lines.concat(V.lines);
+    V.disp = r.lines.map(()=>null).concat(V.disp);
+    V.hdr = new Array(add).concat(V.hdr);
+    V.blen = r.blens.concat(V.blen);
+    V.winStart = r.startByte;
+    let drop = 0;
+    if (V.lines.length > V_KEEP) drop = V.lines.length - 1000;
+    if (drop > 0){
+      for (let i = 0; i < drop; i++) V.winEnd -= V.blen[V.blen.length - 1 - i];
+      V.lines.length -= drop; V.disp.length -= drop; V.hdr.length -= drop; V.blen.length -= drop;
+    }
+    if (a) a.idx += add;
+    vRender('keep', a);
+    rendered = true;
+  }catch(e){ toast('read error: ' + e.message); }
+  finally{
+    vChain.busy = false;
+    if (rendered) vScheduleEdgeCheck();
+  }
+}
+// page / line movement: native viewport scroll first, disk only at the buffer edge
+function vRowH(){
+  const b = $('vBody'), rows = b.children;
+  if (!rows.length) return 19;
+  const br = b.getBoundingClientRect(), st = b.scrollTop;
+  let h = 0, n = 0;
+  for (let i = rows.length - 1; i >= 0 && n < 10; i--){
+    const top = rows[i].getBoundingClientRect().top - br.top + st;
+    if (top + rows[i].offsetHeight < st) break;   // fully above the viewport
+    h += rows[i].offsetHeight || 19; n++;
+  }
+  return n ? h / n : 19;
+}
+async function vMove(dir, px){
+  const b = $('vBody');
+  if (!V.file) return;
+  try{
+    if (dir > 0){
+      if (b.scrollTop >= b.scrollHeight - b.clientHeight - 1 && V.winEnd < V.total) await vChainForward();
+    } else {
+      if (b.scrollTop <= 1 && V.winStart > 0) await vChainBackward();
+    }
+    const max = Math.max(0, b.scrollHeight - b.clientHeight);
+    b.scrollTop = Math.min(max, Math.max(0, b.scrollTop + dir * px));
+  }catch(e){}
+}
+const vPage = dir => vMove(dir, Math.max(120, $('vBody').clientHeight * 0.9));
+const vLine = dir => vMove(dir, vRowH());
+// coalesced seek: drag over the rail lands on the latest requested position
+let vSeekBusy = false, vSeekWant = null, vSeekEnd = false;
+async function vSeekTo(byte, endMode){
+  vSeekWant = byte; vSeekEnd = !!endMode;
+  if (vSeekBusy) return;
+  vSeekBusy = true;
+  try{
+    while (vSeekWant != null){
+      const b = vSeekWant, m = vSeekEnd;
+      vSeekWant = null;
+      await vWindow(b, 'forward', m ? 'end' : undefined);
+    }
+  } finally { vSeekBusy = false; }
+}
+// scrollbar rail: drag the thumb (grab offset preserved) or click to jump
 (function(){
   const rail = $('vScroll'), th = $('vThumb');
-  let drag = false;
-  const jump = e => {
+  let dragging = false, grabPx = 0;
+  const seek = clientY => {
     const r = rail.getBoundingClientRect();
-    const frac = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-    vWindow(Math.round(frac * V.total), 'forward');
+    const frac = Math.min(1, Math.max(0, (clientY - r.top - grabPx) / Math.max(1, r.height - th.offsetHeight)));
+    vSeekTo(Math.round(frac * V.total));
   };
-  th.addEventListener('mousedown', e=>{ drag=true; e.preventDefault(); });
-  rail.addEventListener('mousedown', e=>{ if (e.target===rail){ drag=true; jump(e); } });
-  window.addEventListener('mousemove', e=>{ if (drag) jump(e); });
-  window.addEventListener('mouseup', ()=>drag=false);
-  th.addEventListener('touchstart', e=>{ drag=true; }, {passive:true});
-  th.addEventListener('touchmove', e=>{ if (drag) jump(e.touches[0]); }, {passive:true});
-  window.addEventListener('touchend', ()=>drag=false);
+  rail.addEventListener('pointerdown', e => {
+    if (!V.file) return;
+    e.preventDefault();
+    const r = rail.getBoundingClientRect();
+    if (e.target === th) grabPx = e.clientY - r.top - th.offsetTop;   // keep the grab point
+    else { grabPx = th.offsetHeight / 2; seek(e.clientY); }           // rail click: center + drag
+    dragging = true;
+    try{ rail.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  rail.addEventListener('pointermove', e => { if (dragging) seek(e.clientY); });
+  rail.addEventListener('pointerup', () => { dragging = false; });
+  rail.addEventListener('pointercancel', () => { dragging = false; });
+  // the rail is focusable — mirror the body navigation keys
+  rail.addEventListener('keydown', e => {
+    if (!V.file) return;
+    if (e.key==='PageDown' || e.key===' '){ e.preventDefault(); vPage(1); }
+    else if (e.key==='PageUp'){ e.preventDefault(); vPage(-1); }
+    else if (e.key==='ArrowDown'){ e.preventDefault(); vLine(1); }
+    else if (e.key==='ArrowUp'){ e.preventDefault(); vLine(-1); }
+    else if (e.key==='Home'){ e.preventDefault(); vSeekTo(0); }
+    else if (e.key==='End'){ e.preventDefault(); vSeekTo(V.total, true); }
+  });
 })();
 // keyboard
 $('vBody').addEventListener('keydown', e=>{
   if (!V.file) return;
-  if (e.key==='PageDown' || e.key===' '){ e.preventDefault(); vShift(0, 1); }
-  else if (e.key==='PageUp'){ e.preventDefault(); vShift(0, -1); }
-  else if (e.key==='ArrowDown'){ e.preventDefault(); vWindow(Math.min(V.total-1, V.winStart + V.avgLen), 'forward'); }
-  else if (e.key==='ArrowUp'){ e.preventDefault(); vWindow(Math.max(0, V.winStart - V.avgLen), 'backward'); }
-  else if (e.key==='Home'){ e.preventDefault(); vWindow(0,'forward'); }
-  else if (e.key==='End'){ e.preventDefault(); vWindow(Math.max(0,V.total-V_CHUNK),'forward'); }
+  if (e.key==='PageDown' || e.key===' '){ e.preventDefault(); vPage(1); }
+  else if (e.key==='PageUp'){ e.preventDefault(); vPage(-1); }
+  else if (e.key==='ArrowDown'){ e.preventDefault(); vLine(1); }
+  else if (e.key==='ArrowUp'){ e.preventDefault(); vLine(-1); }
+  else if (e.key==='Home'){ e.preventDefault(); vSeekTo(0); }
+  else if (e.key==='End'){ e.preventDefault(); vSeekTo(V.total, true); }
   else if (e.key==='/'){ e.preventDefault(); $('vSearch').focus(); }
   else if ((e.key==='n'||e.key==='N') && document.activeElement!==$('vSearch')){ e.preventDefault(); e.key==='n' ? vFind(1) : vFind(-1); }
 });
-// touch pan on body
-(function(){
-  let lastY = null;
-  const b = $('vBody');
-  b.addEventListener('touchstart', e=>{ lastY = e.touches[0].clientY; }, {passive:true});
-  b.addEventListener('touchmove', e=>{
-    const y = e.touches[0].clientY;
-    if (lastY!=null){
-      const dy = lastY - y;
-      if (Math.abs(dy) > 30){ vShift(0, dy>0 ? 1 : -1); lastY = y; }
-    }
-  }, {passive:true});
-})();
-$('vMask').onchange = ()=>vRender();
+// touch panning is native (overflow + edge chaining) — no custom handler needed
+$('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCaptureAnchor()); };
 // search-jump: stream from current offset with the include-regex engine
 function vCaseSensitive(){ return $('vCase').classList.contains('on'); }   // Aa on = case-sensitive
 async function vFind(dir){
@@ -2000,30 +2198,34 @@ async function vFind(dir){
 function lineStartByte(text, charOffset){
   return V_ENC.encode(text.slice(0, charOffset)).length;
 }
-// highlight all rx matches in rendered rows, scroll to the matched line, show count
-function vHighlightAndFocus(rx, matchLine){
+// highlight all matches of the current search box in the rendered rows; returns count
+function vMarkRows(){
   const b = $('vBody');
   const lit = $('vSearch').value.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  let hrx; try{ hrx = new RegExp('(' + lit + ')', 'g' + (rx.flags.includes('i')?'i':'')); }catch(e){ return; }
-  let hit = null;
+  if (!lit) return 0;
+  let hrx; try{ hrx = new RegExp('(' + lit + ')', 'g' + (vCaseSensitive() ? '' : 'i')); }catch(e){ return 0; }
+  let count = 0;
   b.querySelectorAll('.vrow').forEach(row=>{
     const span = row.querySelector('.cols span:last-child') || row.querySelector('.raw');
     if (!span) return;
     if (hrx.test(span.textContent)){
       span.innerHTML = span.textContent.replace(hrx, '<mark style="background:#ffe066;color:#000;font-weight:bold">$1</mark>');
-      row.style.background = 'rgba(255,224,102,0.12)';
-      if (!hit) hit = row;
       row.dataset.hit = '1';
+      count++;
     }
   });
+  return count;
+}
+// highlight all rx matches in rendered rows, scroll to the matched line, show count
+function vHighlightAndFocus(rx, matchLine){
+  const n = vMarkRows();
+  const hit = $('vBody').querySelector('[data-hit="1"]');
   if (hit){
     hit.style.background = 'rgba(255,224,102,0.25)';
     hit.scrollIntoView({behavior:'smooth', block:'center'});
   }
-  // match count
-  const total = b.querySelectorAll('[data-hit="1"]').length;
   const q = $('vSearch').value.trim();
-  $('vFoot').textContent = '🔍 "' + q + '" — ' + (total > 0 ? total + ' highlighted in current view' : 'no match in view');
+  $('vFoot').textContent = '🔍 "' + q + '" — ' + (n > 0 ? n + ' highlighted in current view' : 'no match in view');
 }
 function vScrollToLine(line){
   const suffix = line.length > 40 ? line.slice(-40) : line;
