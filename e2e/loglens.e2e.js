@@ -70,20 +70,29 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   check('clear button hidden when empty', !(await page.locator('#vSearchClr').isVisible()));
 
   // ---------- 4c. focus ring must enclose the full unwrapped line (nowrap) ----------
+  // asserted against the RIGHT EDGE of the rendered text (widest content element),
+  // not scrollWidth — the v1.18.2 check had slack that hid a ~2-character shortfall
   await page.setInputFiles('#fpick', { name: 'longline.log', mimeType: 'text/plain',
-    buffer: Buffer.from('08-24 15:37:01.000  0100  0100 I TagA: NEEDLE long line -> ' + 'X'.repeat(400) + ' <- end\n') });
+    buffer: Buffer.from('08-24 15:37:01.000  0100  0100 I TagA: NEEDLE long line -> ' + 'X'.repeat(400) + ' <- end\n' +
+                        'plain continuation without header NEEDLE raw ' + 'Y'.repeat(300) + ' rawend\n') });
   await page.locator('#vFile').selectOption('longline.log');
   await page.locator('#vBody .vrow').first().waitFor({ timeout: 3000 });
   await page.locator('#vWrap').click();          // one-line rows (nowrap, horizontal scroll)
-  await page.locator('#vSearch').fill('NEEDLE long');
-  await page.locator('#vSearch').press('Enter');
-  await page.locator('#vBody .vrow.mfocus').waitFor({ timeout: 5000 });
-  const covers = await page.evaluate(() => {
-    const row = document.querySelector('#vBody .vrow.mfocus');
-    const cols = row.querySelector('.cols') || row.querySelector('.raw');
-    return { ringW: row.getBoundingClientRect().width, textW: cols.scrollWidth };
-  });
-  check('focus ring encloses the full unwrapped line', covers.ringW >= covers.textW - 1);
+  for (const q of ['NEEDLE long', 'NEEDLE raw']){
+    await page.locator('#vSearch').fill(q);
+    await page.locator('#vSearch').press('Enter');
+    await page.locator('#vBody .vrow.mfocus').waitFor({ timeout: 5000 });
+    const covers = await page.evaluate(() => {
+      const row = document.querySelector('#vBody .vrow.mfocus');
+      const cols = row.querySelector('.cols') || row.querySelector('.raw');
+      let textRight = -Infinity;
+      const spans = cols.querySelectorAll(':scope > span');
+      if (spans.length) for (const s of spans){ const r = s.getBoundingClientRect(); if (r.right > textRight) textRight = r.right; }
+      else textRight = cols.getBoundingClientRect().right - 10;   // .raw keeps 10px padding-right
+      return { ringRight: row.getBoundingClientRect().right, textRight };
+    });
+    check(`focus ring covers the rendered text edge (${q})`, covers.ringRight >= covers.textRight - 0.5);
+  }
   await page.locator('#vSearchClr').click();
   await page.locator('#vWrap').click();          // restore wrap for the remaining checks
 

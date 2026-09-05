@@ -131,7 +131,9 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vrow .tg{color:var(--ink);font-weight:600}
 .vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
 .vrow.mfocus{box-shadow:inset 0 0 0 2px #e8a200}
-/* nowrap: the ring must enclose the whole unwrapped line, not just the viewport width */
+/* nowrap: the ring must enclose the whole unwrapped line, not just the viewport width.
+   width:max-content is only the base — the flex→grid intrinsic chain undersizes it
+   by a couple of characters, so vFitFocusRow() pins the exact content extent. */
 #vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
@@ -279,7 +281,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.2</span>
+  <h1>LogLens</h1><span class="ver">v1.18.3</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -571,7 +573,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.2 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback).
+  LogLens v1.18.3 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback).
 </div>
 </div>
 
@@ -2366,6 +2368,7 @@ function vRender(mode, anchor){
     const focusRow = cur || (V.markByte == null ? markRows[0] : null);
     if (focusRow){
       focusRow.classList.add('mfocus');
+      vFitFocusRow(focusRow);
       const dispIdx = markRows.indexOf(focusRow) + 1;
       $('vFoot').textContent = '🔍 "' + V.lastQ + '" — ' + (marked > 1 ? 'match ' + dispIdx + '/' + marked + ' in view' : '1 match in view');
     }
@@ -2818,11 +2821,18 @@ function vHighlightAndFocus(rx, matchLine){
 // put the match focus ring on a marked row (and scroll it into view unless asked not to)
 function vSetFocusMark(el, scroll){
   const b = $('vBody');
-  b.querySelectorAll('.vrow.mfocus').forEach(r => r.classList.remove('mfocus'));
+  b.querySelectorAll('.vrow.mfocus').forEach(r => { r.classList.remove('mfocus'); r.style.width = ''; });
   if (!el) return;
   el.classList.add('mfocus');
   V.markByte = el.dataset.byte;   // stable line identity — survives buffer shifts
+  vFitFocusRow(el);
   if (scroll !== false) el.scrollIntoView({behavior:'smooth', block:'center'});
+}
+// nowrap: pin the focused row to its exact content extent — intrinsic max-content
+// of the flex→grid chain falls a couple of characters short of the rendered text
+function vFitFocusRow(row){
+  if (!row) return;
+  row.style.width = $('vBody').classList.contains('nowrap') ? (row.scrollWidth + 1) + 'px' : '';   // +1: scrollWidth floors
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
 // continue with the byte scan (Enter / n semantics) into the rest of the file

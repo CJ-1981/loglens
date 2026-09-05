@@ -92,9 +92,13 @@ new Function(uiCode).call(global);
   } catch (e) { check('search handler attached (structural)', false); }
 
   // focus ring must enclose the full unwrapped line in nowrap mode (v1.18.2 fix:
-  // the ring was viewport-wide while one-line rows overflow far to the right)
-  check('nowrap focus ring spans unwrapped text (CSS)',
+  // the ring was viewport-wide while one-line rows overflow far to the right;
+  // v1.18.3: intrinsic max-content still fell ~2 chars short — vFitFocusRow pins
+  // the exact content extent)
+  check('nowrap focus ring spans unwrapped text (CSS base)',
     html.includes('#vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}'));
+  check('nowrap focus ring pinned to exact content extent (vFitFocusRow)',
+    html.includes('function vFitFocusRow') && html.includes('row.scrollWidth + 1'));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
