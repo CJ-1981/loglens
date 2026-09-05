@@ -69,6 +69,24 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   await page.waitForTimeout(100);
   check('clear button hidden when empty', !(await page.locator('#vSearchClr').isVisible()));
 
+  // ---------- 4c. focus ring must enclose the full unwrapped line (nowrap) ----------
+  await page.setInputFiles('#fpick', { name: 'longline.log', mimeType: 'text/plain',
+    buffer: Buffer.from('08-24 15:37:01.000  0100  0100 I TagA: NEEDLE long line -> ' + 'X'.repeat(400) + ' <- end\n') });
+  await page.locator('#vFile').selectOption('longline.log');
+  await page.locator('#vBody .vrow').first().waitFor({ timeout: 3000 });
+  await page.locator('#vWrap').click();          // one-line rows (nowrap, horizontal scroll)
+  await page.locator('#vSearch').fill('NEEDLE long');
+  await page.locator('#vSearch').press('Enter');
+  await page.locator('#vBody .vrow.mfocus').waitFor({ timeout: 5000 });
+  const covers = await page.evaluate(() => {
+    const row = document.querySelector('#vBody .vrow.mfocus');
+    const cols = row.querySelector('.cols') || row.querySelector('.raw');
+    return { ringW: row.getBoundingClientRect().width, textW: cols.scrollWidth };
+  });
+  check('focus ring encloses the full unwrapped line', covers.ringW >= covers.textW - 1);
+  await page.locator('#vSearchClr').click();
+  await page.locator('#vWrap').click();          // restore wrap for the remaining checks
+
   // ---------- 5. logcat theme switch (viewer toolbar selector) ----------
   await page.locator('#vTheme').selectOption('dracula');
   const bodyTheme = await page.evaluate(() => document.body.getAttribute('data-logtheme'));

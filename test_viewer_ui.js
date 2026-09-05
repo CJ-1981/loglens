@@ -91,6 +91,11 @@ new Function(uiCode).call(global);
     check('search handler attached (structural)', true);
   } catch (e) { check('search handler attached (structural)', false); }
 
+  // focus ring must enclose the full unwrapped line in nowrap mode (v1.18.2 fix:
+  // the ring was viewport-wide while one-line rows overflow far to the right)
+  check('nowrap focus ring spans unwrapped text (CSS)',
+    html.includes('#vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}'));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();
