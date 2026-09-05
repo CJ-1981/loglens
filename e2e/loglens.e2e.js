@@ -53,6 +53,22 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   const footMiss = await page.locator('#vFoot').innerText();
   check('no-match reports in footer', footMiss.includes('no matches for'));
 
+  // ---------- 4b. search clear (✕): query, highlights and footer reset ----------
+  await page.locator('#vSearch').fill('Auth');
+  await page.locator('#vSearch').press('Enter');
+  await page.locator('#vBody mark').first().waitFor({ timeout: 5000 });
+  await page.locator('#vSearchClr').click();
+  check('clear button empties the search box', (await page.locator('#vSearch').inputValue()) === '');
+  check('clear button removes all highlights', (await page.locator('#vBody mark').count()) === 0);
+  const footClr = await page.locator('#vFoot').innerText();
+  check('clear restores the status footer', !footClr.includes('\uD83D\uDD0D') && footClr.includes('lines'));
+  // the ✕ only shows while the box holds text
+  await page.locator('#vSearch').fill('Auth');
+  check('clear button visible only with text', await page.locator('#vSearchClr').isVisible());
+  await page.locator('#vSearchClr').click();
+  await page.waitForTimeout(100);
+  check('clear button hidden when empty', !(await page.locator('#vSearchClr').isVisible()));
+
   // ---------- 5. logcat theme switch (viewer toolbar selector) ----------
   await page.locator('#vTheme').selectOption('dracula');
   const bodyTheme = await page.evaluate(() => document.body.getAttribute('data-logtheme'));

@@ -107,7 +107,13 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 /* ---- viewer ---- */
 .vtoolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line)}
 .vtoolbar select{max-width:220px}
-.vsearch{flex:1;min-width:160px;border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:11.5px;font-family:var(--mono);color:var(--ink);background:#fff}
+.vsearchwrap{position:relative;flex:1;min-width:160px}
+.vsearch{width:100%;border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:11.5px;font-family:var(--mono);color:var(--ink);background:#fff}
+/* inline clear (×) for the search box — visible only when it holds text */
+.vclr{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--mut);cursor:pointer;font:600 12px/1 "Segoe UI",system-ui,sans-serif;padding:3px 5px;border-radius:4px;display:none}
+.vclr.vis{display:inline-block}
+.vclr:hover{color:var(--red);background:rgba(201,59,63,.12)}
+.vsearchwrap:has(.vclr.vis) .vsearch{padding-right:24px}
 #viewCard{display:flex;flex-direction:column}
 .vscroll{width:12px;background:#eceff3;cursor:grab;position:relative;flex:0 0 12px;min-height:40px;touch-action:none;user-select:none}
 .vscroll:active{cursor:grabbing}
@@ -271,7 +277,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.0</span>
+  <h1>LogLens</h1><span class="ver">v1.18.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -506,7 +512,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
     <button class="btn sec on" id="vWrap" title="wrap long lines — click for one-line rows (scroll sideways)">wrap</button>
     <button class="btn sec" id="vFontDn" title="decrease viewer font size">A−</button>
     <button class="btn sec" id="vFontUp" title="increase viewer font size">A+</button>
-    <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
+    <div class="vsearchwrap"><input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false"><button type="button" class="vclr" id="vSearchClr" title="clear search">✕</button></div>
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
     <label class="tgl" title="display lines through the mask rules"><input type="checkbox" id="vMask" checked> mask</label>
@@ -563,7 +569,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback).
+  LogLens v1.18.1 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback).
 </div>
 </div>
 
@@ -2751,6 +2757,16 @@ async function vFind(dir){
 function lineStartByte(text, charOffset){
   return V_ENC.encode(text.slice(0, charOffset)).length;
 }
+// clear the current search: empty state, no leftover highlights, cursor reset
+function vClearSearch(){
+  V.rx = null; V.lastQ = null; V.searchFrom = null; V.markByte = null;
+  vFindAbort = true;                        // also stops a scan that is still running
+  const b = $('vBody');
+  b.querySelectorAll('mark').forEach(m => { if (m.replaceWith) m.replaceWith(m.textContent); });
+  b.querySelectorAll('[data-hit]').forEach(r => { if (r.dataset) delete r.dataset.hit; });
+  b.querySelectorAll('.vrow.mfocus').forEach(r => r.classList.remove('mfocus'));
+  vStatus();
+}
 // highlight all matches of the current search box across EVERY column of the
 // row (timestamp, level, tag, message — or the raw line); returns marked rows.
 // Uses the user's actual regex (same query + case mode as vFind) and builds the
@@ -2865,6 +2881,14 @@ $('vSearch').addEventListener('keydown', e=>{
 });
 $('vNext').onclick = ()=>vWalkMark(1);
 $('vPrev').onclick = ()=>vWalkMark(-1);
+// search box: inline ✕ clears the query, the highlights and the search cursor
+(function(){
+  const box = $('vSearch'), clr = $('vSearchClr');
+  const sync = () => clr.classList.toggle('vis', !!box.value);
+  box.addEventListener('input', sync);
+  clr.onclick = () => { box.value = ''; sync(); vClearSearch(); if (box.focus) box.focus(); };
+  sync();
+})();
 $('vCase').onclick = ()=>{
   const b = $('vCase');
   b.classList.toggle('on');

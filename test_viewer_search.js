@@ -27,6 +27,7 @@ function el(id){
                  toggle(c,f){ if(f===undefined){ this._s.has(c)?this._s.delete(c):this._s.add(c); } else if(f) this._s.add(c); else this._s.delete(c); },
                  contains(c){ return this._s.has(c); } },
     setAttribute(){}, appendChild(c){ this.children.push(c); },
+    focus(){},
     _handlers: {},
     addEventListener(t, fn){ (this._handlers[t] = this._handlers[t] || []).push(fn); },
     removeEventListener(){},
@@ -88,6 +89,16 @@ const found = () => el('vFoot').textContent.startsWith('\uD83D\uDD0D');   // ðŸ”
   // wrap: after EOF the cursor resets, next forward finds the first match again
   asyncErr = null; fireSearch(false); await settle();
   check('A: forward wraps after EOF', !asyncErr && found());
+
+  // ---- clear (âœ•) button: markup, emptying, cursor reset, fresh re-search ----
+  check('clr: markup present (wrapper + button)',
+    html.includes('vsearchwrap') && html.includes('id="vSearchClr"') && html.includes('function vClearSearch'));
+  asyncErr = null; el('vSearchClr').onclick(); await settle();
+  check('clr: query emptied, footer back to the status line', !asyncErr && el('vSearch').value === '' &&
+    !found() && !el('vFoot').textContent.includes('no matches for') && /lines/.test(el('vFoot').textContent));
+  el('vSearch').value = 'MyApp';
+  asyncErr = null; fireSearch(false); await settle();
+  check('clr: searching again works from scratch', !asyncErr && found());
 
   // ================= B) large file across multiple chunk reads =================
   const lines = [];
