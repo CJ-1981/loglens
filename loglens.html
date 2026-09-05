@@ -153,9 +153,8 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
    viewport-wide row into the horizontal scroll, and everything past the row's
    right edge (tag/message area included) would sit on the unstriped vbody.
    width:max-content is only the base — the flex→grid intrinsic chain undersizes
-   it by a couple of characters, so vFitFocusRow() pins the exact content extent. */
+   it by ~2 characters, so vFitRows() pins every row to its exact content extent. */
 #vBody.nowrap .vrow{width:max-content;min-width:100%}
-#vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
 #vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -314,7 +313,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.7</span>
+  <h1>LogLens</h1><span class="ver">v1.18.8</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -606,7 +605,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.7 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.18.8 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2388,6 +2387,7 @@ function vRender(mode, anchor){
   // tag column: manual width wins; otherwise it hugs the longest tag in the
   // buffer, so short tags don't leave a blank stretch before the message
   body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
+  vFitRows();
   if (mode === 'bottom') body.scrollTop = body.scrollHeight;
   else if (mode === 'keep') vRestoreScroll(body, anchor);
   else body.scrollTop = 0;
@@ -2657,6 +2657,9 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
     $('vWrap').classList.toggle('on', on);
     apply(on);
     try{ localStorage.setItem('loglens.vwrap', on ? '1' : '0'); }catch(e){}
+    // rows may carry render-time pinned widths (nowrap) — re-fit for the new mode
+    if (on) document.querySelectorAll('#vBody .vrow').forEach(r => { r.style.width = ''; });
+    else vFitRows();
   };
   let w = null; try{ w = localStorage.getItem('loglens.vwrap'); }catch(e){}
   if (w === '0'){ $('vWrap').classList.remove('on'); apply(false); }
@@ -2666,7 +2669,7 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
   let n = 12; try{ n = parseInt(localStorage.getItem('loglens.vfs'), 10); }catch(e){}
   if (!Number.isFinite(n)) n = 12;
   n = Math.min(28, Math.max(9, n));
-  const apply = () => { const s = $('vBody').style; if (s.setProperty) s.setProperty('--vfs', n + 'px'); };
+  const apply = () => { const s = $('vBody').style; if (s.setProperty) s.setProperty('--vfs', n + 'px'); if (typeof vFitRows === 'function') vFitRows(); };
   apply();
   $('vFontUp').onclick = () => { n = Math.min(28, n + 1); apply(); try{ localStorage.setItem('loglens.vfs', String(n)); }catch(e){} toast('viewer font ' + n + 'px'); };
   $('vFontDn').onclick = () => { n = Math.max(9, n - 1); apply(); try{ localStorage.setItem('loglens.vfs', String(n)); }catch(e){} toast('viewer font ' + n + 'px'); };
@@ -2855,7 +2858,8 @@ function vHighlightAndFocus(rx, matchLine){
 // put the match focus ring on a marked row (and scroll it into view unless asked not to)
 function vSetFocusMark(el, scroll){
   const b = $('vBody');
-  b.querySelectorAll('.vrow.mfocus').forEach(r => { r.classList.remove('mfocus'); r.style.width = ''; });
+  // rows keep their render-time pinned width on blur — it matches their content
+  b.querySelectorAll('.vrow.mfocus').forEach(r => r.classList.remove('mfocus'));
   if (!el) return;
   el.classList.add('mfocus');
   V.markByte = el.dataset.byte;   // stable line identity — survives buffer shifts
@@ -2866,7 +2870,16 @@ function vSetFocusMark(el, scroll){
 // of the flex→grid chain falls a couple of characters short of the rendered text
 function vFitFocusRow(row){
   if (!row) return;
-  row.style.width = $('vBody').classList.contains('nowrap') ? (row.scrollWidth + 1) + 'px' : '';   // +1: scrollWidth floors
+  row.style.width = $('vBody').classList.contains('nowrap') ? (row.scrollWidth + 1) + 'px' : '';
+}
+// nowrap: pin EVERY row at render time (two passes — reads first, then writes —
+// so the whole buffer costs one layout, not one per row)
+function vFitRows(){
+  if (!$('vBody').classList.contains('nowrap')) return;
+  const rows = $('vBody').children;
+  const widths = new Array(rows.length);
+  for (let i = 0; i < rows.length; i++) widths[i] = rows[i].scrollWidth;
+  for (let i = 0; i < rows.length; i++) rows[i].style.width = (widths[i] + 1) + 'px';
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
 // continue with the byte scan (Enter / n semantics) into the rest of the file

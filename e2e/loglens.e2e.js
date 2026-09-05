@@ -86,7 +86,9 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   // not scrollWidth — the v1.18.2 check had slack that hid a ~2-character shortfall
   await page.setInputFiles('#fpick', { name: 'longline.log', mimeType: 'text/plain',
     buffer: Buffer.from('08-24 15:37:01.000  0100  0100 I TagA: NEEDLE long line -> ' + 'X'.repeat(400) + ' <- end\n' +
-                        'plain continuation without header NEEDLE raw ' + 'Y'.repeat(300) + ' rawend\n') });
+                        'plain continuation without header NEEDLE raw ' + 'Y'.repeat(300) + ' rawend\n' +
+                        '08-24 15:37:02.000  0100  0100 I TagC: short line\n' +
+                        'second raw line that is also long NEEDLE tail ' + 'Z'.repeat(300) + ' tailend\n') });
   await page.locator('#vFile').selectOption('longline.log');
   await page.locator('#vBody .vrow').first().waitFor({ timeout: 3000 });
   await page.locator('#vWrap').click();          // one-line rows (nowrap, horizontal scroll)
@@ -125,6 +127,22 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   });
   check('zebra paints under overflowing message text (nowrap, scrolled)',
     scrolledStripe && String(scrolledStripe.cls).includes('vrow'));
+  // 4c-ter: the stripe row must cover the LAST characters of the line — max-content
+  // intrinsic sizing falls ~2 chars short, so every nowrap row is pinned to its
+  // measured content extent (v1.18.8; the never-focused row discriminates)
+  const tails = await page.evaluate(() => {
+    const out = [];
+    for (const row of document.querySelectorAll('#vBody .vrow.alt')){
+      const cols = row.querySelector('.cols') || row.querySelector('.raw');
+      const last = [...cols.querySelectorAll(':scope > span')].pop() || cols;
+      const range = document.createRange();
+      range.selectNodeContents(last);
+      out.push({ rowRight: row.getBoundingClientRect().right, textRight: range.getBoundingClientRect().right });
+    }
+    return out;
+  });
+  for (let i = 0; i < tails.length; i++)
+    check(`stripe row covers the line tail (row ${i})`, tails[i].rowRight >= tails[i].textRight - 1);
   await page.evaluate(() => { document.getElementById('vBody').scrollLeft = 0; });
   await page.locator('#vSearchClr').click();
   await page.locator('#vWrap').click();          // restore wrap for the remaining checks

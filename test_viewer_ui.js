@@ -93,12 +93,11 @@ new Function(uiCode).call(global);
 
   // focus ring must enclose the full unwrapped line in nowrap mode (v1.18.2 fix:
   // the ring was viewport-wide while one-line rows overflow far to the right;
-  // v1.18.3: intrinsic max-content still fell ~2 chars short — vFitFocusRow pins
-  // the exact content extent)
-  check('nowrap focus ring spans unwrapped text (CSS base)',
-    html.includes('#vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}'));
-  check('nowrap focus ring pinned to exact content extent (vFitFocusRow)',
-    html.includes('function vFitFocusRow') && html.includes('row.scrollWidth + 1'));
+  // v1.18.3/18.8: intrinsic max-content falls ~2 chars short — rows are pinned
+  // to their measured content extent)
+  check('nowrap rows pinned to exact content extent (vFitFocusRow/vFitRows)',
+    html.includes('function vFitFocusRow') && html.includes('row.scrollWidth + 1') &&
+    html.includes('function vFitRows') && html.includes('vFitRows();'));
   // v1.18.7: in nowrap mode ALL rows must be content-sized — a viewport-wide row
   // leaves the overflowing message text (past the tag column) on the unstriped
   // vbody background when scrolled horizontally
