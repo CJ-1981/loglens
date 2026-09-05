@@ -109,6 +109,7 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vrow .ts{color:var(--mut)}
 .vrow .tg{color:var(--ink);font-weight:600}
 .vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
+.vrow.mfocus{box-shadow:inset 0 0 0 2px #e8a200}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
 #vCase.on,#vWrap.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -240,7 +241,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.14.4</span>
+  <h1>LogLens</h1><span class="ver">v1.14.5</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -481,7 +482,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   </div>
   <div class="vfoot" id="vFoot"></div>
 </div>
-<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position · drag the tag/message edge to resize the tag column (double-click = auto-fit)</div>
+<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · ←/→ previous/next match (after a search) · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position · drag the tag/message edge to resize the tag column (double-click = auto-fit)</div>
 </div><!-- /tabView -->
 
 <!-- PII SCAN TAB -->
@@ -507,7 +508,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.14.4 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.14.5 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1738,7 +1739,7 @@ function loadDemoFile(){
 // runs viewerEnsure at load, which touches V — keep it out of the TDZ) ----------
 const V = { file:null, anchor:0, lines:[], disp:[], hdr:[], blen:[], winStart:0, winEnd:0,
             total:0, est:0, maskCm:null, loading:false, lastHit:null, avgLen:80,
-            searchFrom:null, lastQ:null, seq:0, tgwUser:null };
+            searchFrom:null, lastQ:null, seq:0, tgwUser:null, markByte:null };
 try{ const t = parseFloat(localStorage.getItem('loglens.tgw')); if (t > 0) V.tgwUser = t; }catch(e){}
 
 // ---------- tabs ----------
@@ -1912,23 +1913,28 @@ function vRestoreScroll(b, a){
   b.scrollTop = Math.max(0, vTopOf(b, rows[a.idx]) + a.into);
 }
 function vRender(mode, anchor){
+  anchor = Math.round(anchor || 0);
   const body = $('vBody');
   const firstEst = Math.round(V.winStart / V.avgLen);
   const frag = new Array(V.lines.length);
   let maxTag = 0;
+  let byteCursor = V.winStart;
   for (let i = 0; i < V.lines.length; i++){
     const raw = V.lines[i];
     let h = V.hdr[i];
     if (h === undefined){ h = CORE.parseHeader(raw); V.hdr[i] = h; }
     let m = V.disp[i];
     if (m == null){ m = vApplyMask(raw); V.disp[i] = m; }
+    // stable per-line identity: byte offset — walkers/anchors survive buffer shifts
+    const idAttr = ` data-byte="${byteCursor}" data-idx="${i}"`;
     if (h && h.ts){
       if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
-      frag[i] = `<div class="vrow"><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
+      frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
     } else {
-      frag[i] = `<div class="vrow"><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
+      frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
     }
+    byteCursor += V.blen[i] || 0;
   }
   body.innerHTML = frag.join('') || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
   // tag column: manual width wins; otherwise it hugs the longest tag in the
@@ -1938,12 +1944,20 @@ function vRender(mode, anchor){
   else if (mode === 'keep') vRestoreScroll(body, anchor);
   else body.scrollTop = 0;
   // keep the active search highlighted across chained renders
-  let marked = 0;
-  if (V.rx && V.lastQ != null && V.lastQ === $('vSearch').value.trim()) marked = vMarkRows();
+  let marked = 0, markRows = [];
+  if (V.rx && V.lastQ != null && V.lastQ === $('vSearch').value.trim()){ markRows = vMarkRows(); marked = markRows.length; }
   vStatus();
   vThumb();
   vPlaceTgGrip();
-  if (marked) $('vFoot').textContent = '🔍 "' + V.lastQ + '" — ' + marked + ' highlighted in current view';
+  if (marked){
+    const cur = V.markByte != null ? markRows.find(r => r.dataset.byte === String(V.markByte)) : null;
+    const focusRow = cur || (V.markByte == null ? markRows[0] : null);
+    if (focusRow){
+      focusRow.classList.add('mfocus');
+      const dispIdx = markRows.indexOf(focusRow) + 1;
+      $('vFoot').textContent = '🔍 "' + V.lastQ + '" — ' + (marked > 1 ? 'match ' + dispIdx + '/' + marked + ' in view' : '1 match in view');
+    }
+  }
   // chain/keep/bottom renders continue the edge-chain loop; a deliberate 'top'
   // seek (search jump, rail jump) must not re-render and clobber its own result
   if (mode !== 'top') vScheduleEdgeCheck();
@@ -2112,6 +2126,8 @@ async function vSeekTo(byte, endMode){
     else if (e.key==='ArrowUp'){ e.preventDefault(); vLine(-1); }
     else if (e.key==='Home'){ e.preventDefault(); vSeekTo(0); }
     else if (e.key==='End'){ e.preventDefault(); vSeekTo(V.total, true); }
+    else if (e.key==='ArrowRight' && $('vBody').querySelector('[data-hit="1"]')){ e.preventDefault(); vWalkMark(1); }
+    else if (e.key==='ArrowLeft' && $('vBody').querySelector('[data-hit="1"]')){ e.preventDefault(); vWalkMark(-1); }
   });
 })();
 // keyboard
@@ -2121,11 +2137,13 @@ $('vBody').addEventListener('keydown', e=>{
   else if (e.key==='PageUp'){ e.preventDefault(); vPage(-1); }
   else if (e.key==='ArrowDown'){ e.preventDefault(); vLine(1); }
   else if (e.key==='ArrowUp'){ e.preventDefault(); vLine(-1); }
+  else if (e.key==='ArrowRight' && $('vBody').querySelector('[data-hit="1"]')){ e.preventDefault(); vWalkMark(1); }
+  else if (e.key==='ArrowLeft' && $('vBody').querySelector('[data-hit="1"]')){ e.preventDefault(); vWalkMark(-1); }
   else if (e.key==='Home'){ e.preventDefault(); vSeekTo(0); }
   else if (e.key==='End'){ e.preventDefault(); vSeekTo(V.total, true); }
   else if (e.key==='Escape'){ vFindAbort = true; }
   else if (e.key==='/'){ e.preventDefault(); $('vSearch').focus(); }
-  else if ((e.key==='n'||e.key==='N') && document.activeElement!==$('vSearch')){ e.preventDefault(); e.key==='n' ? vFind(1) : vFind(-1); }
+  else if ((e.key==='n'||e.key==='N') && document.activeElement!==$('vSearch')){ e.preventDefault(); vWalkMark(e.key==='n' ? 1 : -1); }
 });
 // touch panning is native (overflow + edge chaining) — no custom handler needed
 $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCaptureAnchor()); };
@@ -2218,7 +2236,7 @@ async function vFind(dir){
           if (rx.test(line)){
             // re-render the window starting 10 lines before the match
             const lineByte = from + lineStartByte(text, pos);
-            const pre = Math.max(0, lineByte - 10 * V.avgLen);
+            const pre = Math.max(0, Math.round(lineByte - 10 * V.avgLen));
             V.loading = false;   // release the lock so vWindow can run
             await vWindow(pre, 'forward');
             vHighlightAndFocus(rx, line);
@@ -2284,34 +2302,77 @@ async function vFind(dir){
 function lineStartByte(text, charOffset){
   return V_ENC.encode(text.slice(0, charOffset)).length;
 }
-// highlight all matches of the current search box in the rendered rows; returns count
+// highlight all matches of the current search box in the rendered rows;
+// returns the marked row elements in document order
 function vMarkRows(){
   const b = $('vBody');
   const lit = $('vSearch').value.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  if (!lit) return 0;
-  let hrx; try{ hrx = new RegExp('(' + lit + ')', 'g' + (vCaseSensitive() ? '' : 'i')); }catch(e){ return 0; }
-  let count = 0;
+  if (!lit) return [];
+  let hrx; try{ hrx = new RegExp('(' + lit + ')', 'g' + (vCaseSensitive() ? '' : 'i')); }catch(e){ return []; }
+  const marked = [];
   b.querySelectorAll('.vrow').forEach(row=>{
     const span = row.querySelector('.cols span:last-child') || row.querySelector('.raw');
     if (!span) return;
     if (hrx.test(span.textContent)){
       span.innerHTML = span.textContent.replace(hrx, '<mark style="background:#ffe066;color:#000;font-weight:bold">$1</mark>');
       row.dataset.hit = '1';
-      count++;
+      marked.push(row);
     }
   });
-  return count;
+  return marked;
 }
 // highlight all rx matches in rendered rows, scroll to the matched line, show count
 function vHighlightAndFocus(rx, matchLine){
-  const n = vMarkRows();
-  const hit = $('vBody').querySelector('[data-hit="1"]');
-  if (hit){
-    hit.style.background = 'rgba(255,224,102,0.25)';
-    hit.scrollIntoView({behavior:'smooth', block:'center'});
-  }
+  const rows = vMarkRows();
   const q = $('vSearch').value.trim();
-  $('vFoot').textContent = '🔍 "' + q + '" — ' + (n > 0 ? n + ' highlighted in current view' : 'no match in view');
+  if (rows.length){
+    vSetFocusMark(rows[0]);
+    $('vFoot').textContent = '🔍 "' + q + '" — ' + (rows.length > 1 ? 'match 1/' + rows.length + ' in view' : '1 match in view');
+  } else {
+    $('vFoot').textContent = '🔍 "' + q + '" — no match in view';
+  }
+}
+// put the match focus ring on a marked row (and scroll it into view unless asked not to)
+function vSetFocusMark(el, scroll){
+  const b = $('vBody');
+  b.querySelectorAll('.vrow.mfocus').forEach(r => r.classList.remove('mfocus'));
+  if (!el) return;
+  el.classList.add('mfocus');
+  V.markByte = el.dataset.byte;   // stable line identity — survives buffer shifts
+  if (scroll !== false) el.scrollIntoView({behavior:'smooth', block:'center'});
+}
+// ←/→ walking: step through the highlighted matches in view; at either edge
+// continue with the byte scan (Enter / n semantics) into the rest of the file
+function vWalkMark(dir){
+  const b = $('vBody');
+  const rows = [...b.querySelectorAll('[data-hit="1"]')].filter(r => r.dataset && r.dataset.hit === '1');
+  if (!rows.length){ vFind(dir); return; }
+  let cur = rows.findIndex(r => r.dataset.byte === String(V.markByte));
+  if (cur < 0){
+    // focus was lost (chain render) — anchor at the mark nearest mid-viewport
+    const mid = b.scrollTop + b.clientHeight / 2;
+    let best = 0, bd = Infinity;
+    rows.forEach((r, i) => {
+      const rc = r.getBoundingClientRect();
+      const d = Math.abs(rc.top + rc.height / 2 - mid);
+      if (d < bd){ bd = d; best = i; }
+    });
+    cur = best;
+  }
+  const next = cur + dir;
+  if (next >= 0 && next < rows.length){
+    vSetFocusMark(rows[next]);
+    $('vFoot').textContent = '🔍 "' + V.lastQ + '" — match ' + (next + 1) + '/' + rows.length + ' in view';
+    return;
+  }
+  // past the buffered matches — continue the scan just beyond the window edge
+  if (dir > 0 && V.searchFrom != null){
+    const edgeIdx = parseInt(rows[rows.length - 1].dataset.idx, 10);
+    let byte = V.winStart;
+    for (let i = 0; i <= edgeIdx && i < V.blen.length; i++) byte += V.blen[i];
+    V.searchFrom = byte;   // first byte after the last in-view match
+  }
+  vFind(dir);
 }
 function vScrollToLine(line){
   const suffix = line.length > 40 ? line.slice(-40) : line;
@@ -2324,11 +2385,21 @@ function vScrollToLine(line){
   }
 }
 $('vSearch').addEventListener('keydown', e=>{
-  if (e.key==='Enter'){ e.preventDefault(); vFind(e.shiftKey ? -1 : 1); }
+  if (e.key==='Enter'){ e.preventDefault(); vWalkMark(e.shiftKey ? -1 : 1); }
   else if (e.key==='Escape'){ vFindAbort = true; }
+  else if (e.key==='ArrowRight'||e.key==='ArrowLeft'){
+    // caret at the box edge + highlighted matches → walk matches instead of moving the caret
+    const el = e.target, len = el.value.length;
+    const atEnd = e.key==='ArrowRight' && el.selectionStart >= len && el.selectionEnd >= len;
+    const atStart = e.key==='ArrowLeft' && el.selectionStart === 0 && el.selectionEnd === 0;
+    if ((atEnd || atStart) && $('vBody').querySelector('[data-hit="1"]')){
+      e.preventDefault();
+      vWalkMark(e.key==='ArrowRight' ? 1 : -1);
+    }
+  }
 });
-$('vNext').onclick = ()=>vFind(1);
-$('vPrev').onclick = ()=>vFind(-1);
+$('vNext').onclick = ()=>vWalkMark(1);
+$('vPrev').onclick = ()=>vWalkMark(-1);
 $('vCase').onclick = ()=>{
   const b = $('vCase');
   b.classList.toggle('on');
