@@ -231,6 +231,8 @@ For **any other text format** (JSON lines, CSV, custom app logs), extraction and
 | **viewer**: `/`, `Enter`/`n`, `Shift+Enter`/`N`, `Aa` | focus search, next / previous match, case toggle |
 | **viewer**: drag left rail | jump by byte position (grab point preserved) |
 | **viewer**: drag tag/message edge · `wrap` toggle | resize tag column (double-click = auto-fit) · long-line wrap on/off |
+| **viewer**: `A−`/`A+` · `Δt` | viewer font size · time-delta column on/off |
+| **viewer**: click a row | copy that exact line (masked text) |
 
 ## Viewer tab (browse the full log)
 
@@ -290,7 +292,8 @@ The engine lives in a separate `<script id="core">` block (pure functions, no DO
 
 ## Changelog
 
-- **v1.14.5 (current)** — search match walking: `→`/`←` (in the viewer or at the edge of the search box) move the focus ring to the next/previous highlighted match — matches already in view step instantly without a re-scan, and walking past the last one continues the byte scan into the rest of the file; the focused match gets a ring + a `match i/N in view` footer counter, and Enter / n / N share the same walker
+- **v1.15.0 (current)** — viewer analysis pack: **search now matches every column** (timestamp, level, tag, message — highlighting lands in the column that matched, so searching `Tag42` or a module name works); **Δt column** shows the time gap between consecutive timestamped lines (`800ms`, `12.3s`, `1h05m`) — invaluable for spotting stalls, dropped heartbeats and reboot boundaries (toggle in the toolbar, persisted; midnight rollovers handled); **click a row to copy that exact line** (masked text, toast confirms); **A− / A+ font-size buttons** for the viewer (persisted, 9–28px)
+- **v1.14.5** — search match walking: `→`/`←` (in the viewer or at the edge of the search box) move the focus ring to the next/previous highlighted match — matches already in view step instantly without a re-scan, and walking past the last one continues the byte scan into the rest of the file; the focused match gets a ring + a `match i/N in view` footer counter, and Enter / n / N share the same walker. Focus is tracked by the line's byte offset (stamped as `data-byte` on each row) so the ring survives buffer shifts from edge chaining
 - **v1.14.4** — wrap-off column hardening: with wrap off, text that renders wider than its column (CJK / wide glyphs, font-fallback runs, squeezed widths) can no longer bleed into the neighboring column — timestamp, level and tag columns clip with an ellipsis; monospace font stacks gained `NSimSun` so CJK log text renders at consistent monospaced metrics, and `text-size-adjust:100%` prevents browsers from auto-inflating text sizes
 - **v1.14.3** — viewer tag column is **manually resizable**: drag the grip at the tag/message boundary (persisted; double-click returns to auto-fit), and a **wrap** toolbar toggle switches long lines between wrapped rows and one-line rows with horizontal scroll (persisted)
 - **v1.14.2** — viewer tag column auto-sizes to the longest tag in the current buffer (clamped 10–24ch) instead of reserving a fixed 16ch, so short tags no longer leave a blank stretch before the message while alignment is kept

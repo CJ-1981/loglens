@@ -99,7 +99,7 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vthumb{position:absolute;left:1px;top:0;width:10px;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
 .vthumb:hover{background:var(--accent)}
 .vrow{display:flex;flex:0 0 auto}
-.vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
+.vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:var(--vfs,12px);line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
 .vmain{display:flex;flex:1;min-height:0;position:relative}
 #vTgGrip{position:absolute;top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize;z-index:6;touch-action:none}
 #vTgGrip:hover,#vTgGrip.drag{background:rgba(77,139,255,.30)}
@@ -112,12 +112,15 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vrow.mfocus{box-shadow:inset 0 0 0 2px #e8a200}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
-#vCase.on,#vWrap.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#vCase.on,#vWrap.on,#vDlt.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* wrap off: one line per log entry, horizontal scroll instead; fixed columns
    never let their text bleed into the neighbor column (wide glyphs, fallback
    fonts, or squeezed widths all get clipped with an ellipsis) */
 #vBody.nowrap .cols,#vBody.nowrap .raw{white-space:pre;word-break:normal}
 #vBody.nowrap .ts,#vBody.nowrap .lv,#vBody.nowrap .tg{overflow:hidden;text-overflow:ellipsis}
+.dlt{display:none;color:var(--mut);text-align:right;font-size:10.5px;line-height:1.9}
+#vBody.hasdlt .dlt{display:block}
+#vBody.hasdlt .cols{grid-template-columns:18ch 3ch 7ch max(6ch,min(var(--tgw,16ch),80ch)) 1fr}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -142,6 +145,7 @@ body[data-theme=dark] .vscroll{background:#1a2330}
   table{font-size:11px}
   .vtoolbar select{max-width:130px}
   .vrow .cols{grid-template-columns:11ch 3ch 12ch 1fr;grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) 1fr;gap:0 6px}
+  #vBody.hasdlt .cols{grid-template-columns:11ch 3ch 6ch max(8ch,min(var(--tgw,12ch),14ch)) 1fr}
 }
 /* dark theme (toggle in header; persisted) */
 body[data-theme=dark]{--bg:#0d1218;--card:#151c24;--ink:#d7e3ee;--mut:#8ba1b5;--line:#263140;
@@ -241,7 +245,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.14.5</span>
+  <h1>LogLens</h1><span class="ver">v1.15.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -461,6 +465,8 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
     <select id="vFile" title="file to browse"></select>
     <button class="btn sec" id="vCase" title="case-insensitive search (click for case-sensitive)">Aa</button>
     <button class="btn sec on" id="vWrap" title="wrap long lines — click for one-line rows (scroll sideways)">wrap</button>
+    <button class="btn sec" id="vFontDn" title="decrease viewer font size">A−</button>
+    <button class="btn sec" id="vFontUp" title="increase viewer font size">A+</button>
     <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
@@ -473,6 +479,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
       <option value="dracula">Dracula</option>
       <option value="solarized">Solarized Dark</option>
     </select>
+    <button class="btn sec on" id="vDlt" title="show time delta between consecutive timestamped lines">Δt</button>
     <span id="vStatus" class="vstatus"></span>
   </div>
   <div class="vmain">
@@ -508,7 +515,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.14.5 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.15.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1919,6 +1926,7 @@ function vRender(mode, anchor){
   const frag = new Array(V.lines.length);
   let maxTag = 0;
   let byteCursor = V.winStart;
+  let prevMs = null;   // previous parsed timestamp (ms since midnight) for the Δt column
   for (let i = 0; i < V.lines.length; i++){
     const raw = V.lines[i];
     let h = V.hdr[i];
@@ -1930,7 +1938,15 @@ function vRender(mode, anchor){
     if (h && h.ts){
       if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
-      frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
+      const tms = h.ts ? (((+h.ts.slice(0,2))*86400 + (+h.ts.slice(6,2))*3600 + (+h.ts.slice(9,2))*60 + (+h.ts.slice(12,2)))*1000 + (h.ts.slice(15,18)===''?0:+h.ts.slice(15,18)) || 0) : null;
+      let dltHtml = '<span class="dlt"></span>';
+      if (prevMs !== null){
+        let d = tms - prevMs;
+        if (d < 0) d += 86400000;   // midnight rollover
+        dltHtml = `<span class="dlt">${vFmtDlt(d)}</span>`;
+      }
+      prevMs = tms;
+      frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span>${dltHtml}<span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
     } else {
       frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
     }
@@ -1961,6 +1977,13 @@ function vRender(mode, anchor){
   // chain/keep/bottom renders continue the edge-chain loop; a deliberate 'top'
   // seek (search jump, rail jump) must not re-render and clobber its own result
   if (mode !== 'top') vScheduleEdgeCheck();
+}
+// Δt cell formatting for the time-delta column
+function vFmtDlt(d){
+  if (d < 1000) return d + 'ms';
+  if (d < 60000) return (d / 1000).toFixed(1) + 's';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm' + String(Math.floor(d % 60000 / 1000)).padStart(2, '0') + 's';
+  return Math.floor(d / 3600000) + 'h' + String(Math.floor(d % 3600000 / 60000)).padStart(2, '0') + 'm';
 }
 // edge chaining driver: native scroll events drive the check synchronously, and
 // each chain re-arms it on completion — so scrolling continues without any timer
@@ -2205,6 +2228,44 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
   let w = null; try{ w = localStorage.getItem('loglens.vwrap'); }catch(e){}
   if (w === '0'){ $('vWrap').classList.remove('on'); apply(false); }
 })();
+// ---- viewer font size A- / A+ (persisted) ----
+(function(){
+  let n = 12; try{ n = parseInt(localStorage.getItem('loglens.vfs'), 10); }catch(e){}
+  if (!Number.isFinite(n)) n = 12;
+  n = Math.min(28, Math.max(9, n));
+  const apply = () => { const s = $('vBody').style; if (s.setProperty) s.setProperty('--vfs', n + 'px'); };
+  apply();
+  $('vFontUp').onclick = () => { n = Math.min(28, n + 1); apply(); try{ localStorage.setItem('loglens.vfs', String(n)); }catch(e){} toast('viewer font ' + n + 'px'); };
+  $('vFontDn').onclick = () => { n = Math.max(9, n - 1); apply(); try{ localStorage.setItem('loglens.vfs', String(n)); }catch(e){} toast('viewer font ' + n + 'px'); };
+})();
+// ---- Δt column on/off (persisted) ----
+(function(){
+  const apply = on => {
+    $('vBody').classList.toggle('hasdlt', on);
+    $('vDlt').title = on ? 'time deltas shown — click to hide the Δt column'
+                         : 'Δt column hidden — click to show time deltas between consecutive lines';
+  };
+  $('vDlt').onclick = () => {
+    const on = !$('vDlt').classList.contains('on');
+    $('vDlt').classList.toggle('on', on);
+    apply(on);
+    try{ localStorage.setItem('loglens.dlt', on ? '1' : '0'); }catch(e){}
+  };
+  let d = null; try{ d = localStorage.getItem('loglens.dlt'); }catch(e){}
+  if (d === '0'){ $('vDlt').classList.remove('on'); apply(false); }
+  else apply(true);
+})();
+// ---- click a viewer row to copy that line (masked text) ----
+(function(){
+  $('vBody').addEventListener('click', e => {
+    const row = e.target.closest && e.target.closest('.vrow');
+    if (!row || row.dataset.idx === undefined) return;
+    const line = V.disp[+row.dataset.idx];
+    if (line == null) return;
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(line) : Promise.reject())
+      .then(() => toast('line copied ✓'), () => toast('clipboard blocked — select the text manually'));
+  });
+})();
 // search-jump: stream from current offset with the include-regex engine
 function vCaseSensitive(){ return $('vCase').classList.contains('on'); }   // Aa on = case-sensitive
 let vFindAbort = false;
@@ -2302,8 +2363,8 @@ async function vFind(dir){
 function lineStartByte(text, charOffset){
   return V_ENC.encode(text.slice(0, charOffset)).length;
 }
-// highlight all matches of the current search box in the rendered rows;
-// returns the marked row elements in document order
+// highlight all matches of the current search box across EVERY column of the
+// row (timestamp, level, tag, message — or the raw line); returns marked rows
 function vMarkRows(){
   const b = $('vBody');
   const lit = $('vSearch').value.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -2311,13 +2372,17 @@ function vMarkRows(){
   let hrx; try{ hrx = new RegExp('(' + lit + ')', 'g' + (vCaseSensitive() ? '' : 'i')); }catch(e){ return []; }
   const marked = [];
   b.querySelectorAll('.vrow').forEach(row=>{
-    const span = row.querySelector('.cols span:last-child') || row.querySelector('.raw');
-    if (!span) return;
-    if (hrx.test(span.textContent)){
-      span.innerHTML = span.textContent.replace(hrx, '<mark style="background:#ffe066;color:#000;font-weight:bold">$1</mark>');
-      row.dataset.hit = '1';
-      marked.push(row);
-    }
+    const spans = [...row.querySelectorAll('.cols > span')];
+    const raw = row.querySelector('.raw');
+    if (raw) spans.push(raw);
+    let hit = false;
+    spans.forEach(span=>{
+      if (hrx.test(span.textContent)){
+        span.innerHTML = span.textContent.replace(hrx, '<mark style="background:#ffe066;color:#000;font-weight:bold">$1</mark>');
+        hit = true;
+      }
+    });
+    if (hit){ row.dataset.hit = '1'; marked.push(row); }
   });
   return marked;
 }
