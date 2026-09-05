@@ -110,7 +110,12 @@ new Function(uiCode).call(global);
 
   // v1.18.5: results table zebra (append-only rows → nth-child stable) + dark legibility fixes
   check('results table zebra, error/context rows keep their tint',
-    html.includes('#resBody tr:nth-child(2n):not(.errrow):not(.ctxrow) td{background:rgba(127,127,127,.07)}'));
+    html.includes('#resBody tr:nth-child(2n):not(.errrow):not(.ctxrow) td{background:var(--stripeT)}'));
+  // v1.18.6: stripe strength is per-theme — a single fixed alpha is invisible on
+  // dark surfaces (hc black) and too strong on light ones
+  check('zebra stripe strength themed for every viewer theme',
+    ['hc','as','vscode','dracula','solarized'].every(t => html.includes('body[data-logtheme="' + t + '"]{--stripe:')) &&
+    html.includes(':root{--stripe:') && html.includes('body[data-theme=dark]{--stripe:'));
   check('dark: plain text inputs themed (time window, errish, go-to-time)',
     html.includes('body[data-theme=dark] input[type=text]{background:#0d141b;color:var(--ink);border-color:var(--line)}'));
   check('dark: active tabs/chips use accent (no white-on-white)',

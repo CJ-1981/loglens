@@ -128,6 +128,11 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
     return rows.map(r => getComputedStyle(r).backgroundColor);
   });
   check('zebra persists under theme presets', zebraD[0] !== zebraD[1]);
+  // stripe strength is per-theme: on hc black the stripe must be clearly visible
+  await page.locator('#vTheme').selectOption('hc');
+  await page.waitForTimeout(80);
+  const hcStripe = await page.evaluate(() => getComputedStyle(document.querySelector('#vBody .vrow.alt')).backgroundColor);
+  check('hc stripe is clearly visible (strong white over black)', hcStripe === 'rgba(255, 255, 255, 0.17)');
   await page.locator('#vTheme').selectOption('default');
 
   // ---------- 6. [Lnnn] toggle exists ----------
