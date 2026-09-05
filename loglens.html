@@ -79,6 +79,21 @@ td.mono,th.mono{font-family:var(--mono);font-size:11px}
 .preview{font-family:var(--mono);font-size:11px;background:var(--code);color:var(--codeink);border-radius:5px;padding:8px 10px;white-space:pre-wrap;word-break:break-all}
 .ok{color:var(--green);font-weight:600}.bad{color:var(--red);font-weight:600}
 .note{background:#f5f8fd;border:1px solid #d7e3f4;border-left:3px solid var(--accent);border-radius:4px;padding:6px 10px;font-size:11px;margin-top:8px;color:var(--mut)}
+/* workflow stepper (workbench) */
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
+.step{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--card);color:var(--mut);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;user-select:none}
+.step b{color:var(--accent);font-size:10px}
+.step em{font-style:normal;font-size:10px;opacity:.85}
+.step.on{border-color:var(--accent);background:rgba(77,139,255,.08);color:var(--ink)}
+.step:hover{border-color:var(--accent);color:var(--ink)}
+/* advanced collapsible section */
+details.adv{border:1px solid var(--line);border-radius:7px;background:var(--card);margin-bottom:12px}
+details.adv > summary{cursor:pointer;list-style:none;padding:9px 14px;font-size:10.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--mut)}
+details.adv > summary::before{content:'▸ '}
+details.adv[open] > summary::before{content:'▾ '}
+details.adv > summary b{color:var(--accent)}
+details.adv[open] > summary{border-bottom:1px solid var(--line)}
+details.adv > .card{margin:10px}
 h3.mini{margin:10px 0 4px;font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;font-weight:700}
 .footer{margin-top:18px;color:var(--mut);font-size:10.5px;border-top:1px solid var(--line);padding-top:8px}
 .toast{position:fixed;right:14px;bottom:14px;background:var(--dark);color:#fff;padding:6px 11px;border-radius:5px;font-size:11.5px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
@@ -245,7 +260,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.15.1</span>
+  <h1>LogLens</h1><span class="ver">v1.16.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -257,9 +272,18 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 </div>
 <div id="tabWork">
 
-<!-- FILES -->
+<!-- workflow stepper -->
+<div class="steps" id="wfSteps" title="the workbench follows this pipeline — click a step to jump to it">
+  <span class="step on" data-sec="secFiles"><b>1</b> load files<em id="wfFiles"></em></span>
+  <span class="step" data-sec="secExtract"><b>2</b> filter<em id="wfFilters"></em></span>
+  <span class="step" data-sec="runCard"><b>3</b> run</span>
+  <span class="step" data-sec="statsCard"><b>4</b> results<em id="wfResults"></em></span>
+  <span class="step" data-sec="advTools"><b>5</b> advanced</span>
+</div>
+
+<!-- FILES · step 1 -->
 <div class="card" id="secFiles">
-  <h2 title="streamed line-by-line, any size · timestamps auto-detected (logcat / syslog / ISO / CLF)">input</h2>
+  <h2 title="streamed line-by-line, any size · timestamps auto-detected (logcat / syslog / ISO / CLF)">step 1 · input files</h2>
   <div class="drop" id="drop" title="drop files or folders · or click to browse">drop files or folders · or click to browse</div>
   <input type="file" id="fpick" multiple accept=".log,.txt,.text" style="display:none">
   <input type="file" id="dpick" webkitdirectory multiple style="display:none">
@@ -270,7 +294,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="grid2">
   <!-- EXTRACT RULES -->
   <div class="card" id="secExtract">
-    <h2 title="a line is kept when it matches any include rule and no exclude rule · empty include list = match all">extract rules</h2>
+    <h2 title="a line is kept when it matches any include rule and no exclude rule · empty include list = match all">step 2 · extract rules</h2>
     <div class="chips" id="lvlChips"></div>
     <div id="lvlWarn" style="display:none;color:var(--red);font-size:12px;margin:-2px 0 8px">no levels selected — nothing will ever match</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
@@ -310,7 +334,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
   <!-- MASK RULES -->
   <div class="card" id="secMask">
-    <h2 title="ordered rules · each match replaced ($1 group refs) · hit counts appear after a run">mask rules <span class="badge blue">pii</span></h2>
+    <h2 title="ordered rules · each match replaced ($1 group refs) · hit counts appear after a run">step 2b · mask rules <span class="badge blue">pii</span></h2>
     <div style="margin-bottom:6px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn sec" id="restoreMask">reset presets</button>
     </div>
@@ -326,22 +350,9 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   </div>
 </div>
 
-<!-- MASK-ONLY MODE -->
-<div class="card" id="secMaskOnly">
-  <h2 title="run the mask rules over every line of the checked files and write complete &lt;original&gt;.masked.log copies — no rules, no cap, no prefixes">sanitize copy <span class="badge green">full file</span></h2>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <button class="btn" id="mRun">mask to disk</button>
-    <button class="btn sec" id="mStop" disabled>stop</button>
-    <label class="tgl" title="gzip the output (Chromium; single-file only)"><input type="checkbox" id="mGz"> .gz</label>
-  </div>
-  <div class="progress" id="mProg"><div class="bar" id="mProgBar"></div></div>
-  <div class="ptext" id="mProgText"></div>
-  <div id="mSummary" class="note" style="display:none"></div>
-  <div class="note" style="border-left-color:var(--amber)">disk streaming: Chromium · fallback: in-memory download, single file ≤ ~1 GB</div>
-</div>
-
 <!-- RUN -->
 <div class="card" id="runCard" style="position:sticky;top:40px;z-index:40;box-shadow:0 2px 10px rgba(20,40,70,.10)">
+  <h2>step 3 · run</h2>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <button class="btn" id="btnRun">run</button>
     <button class="btn sec" id="btnStop" disabled>stop</button>
@@ -361,7 +372,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <!-- STATS -->
 <div class="card" id="statsCard" style="display:none">
-  <h2 title="click a histogram bar to time-filter the scan">overview</h2>
+  <h2 title="click a histogram bar to time-filter the scan">step 4 · overview</h2>
   <div class="stats" id="statCards"></div>
   <div id="truncNote" class="note" style="display:none;background:#fff4f2;border-color:#f3c1bd;border-left-color:var(--red)"></div>
   <div class="hbox"><div id="histBox"></div></div>
@@ -374,7 +385,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <!-- RESULTS -->
 <div class="card" id="resCard" style="display:none">
-  <h2 title="click a row to copy the full masked line">matches</h2>
+  <h2 title="click a row to copy the full masked line">step 4 · matches</h2>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <label class="tgl">font
       <select id="fontSel"></select>
@@ -402,7 +413,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <!-- EXPORT -->
 <div class="card" id="expCard" style="display:none">
-  <h2 title="extracts are masked by default — raw lines are never stored in memory, so an unmasked export is impossible by design">export</h2>
+  <h2 title="extracts are masked by default — raw lines are never stored in memory, so an unmasked export is impossible by design">step 4 · export</h2>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <button class="btn" id="dlExtract">extract .log</button>
     <button class="btn sec" id="cpExtract" title="copy the masked extract to the clipboard">copy</button>
@@ -411,6 +422,22 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
     <button class="btn sec" id="dlCsv" title="message column is capped at 1000 characters per row">results .csv</button>
     <label class="tgl" style="margin-left:8px" title="per-file line numbers in the extract"><input type="checkbox" id="optLnnn" checked> [Lnnn]</label>
   </div>
+</div>
+
+<details id="advTools" class="adv">
+<summary><b>step 5</b> · advanced — sanitize copy · ai rule wizard <span class="badge gray">beta</span></summary>
+<!-- MASK-ONLY MODE -->
+<div class="card" id="secMaskOnly">
+  <h2 title="run the mask rules over every line of the checked files and write complete &lt;original&gt;.masked.log copies — no rules, no cap, no prefixes">sanitize copy <span class="badge green">full file</span></h2>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="btn" id="mRun">mask to disk</button>
+    <button class="btn sec" id="mStop" disabled>stop</button>
+    <label class="tgl" title="gzip the output (Chromium; single-file only)"><input type="checkbox" id="mGz"> .gz</label>
+  </div>
+  <div class="progress" id="mProg"><div class="bar" id="mProgBar"></div></div>
+  <div class="ptext" id="mProgText"></div>
+  <div id="mSummary" class="note" style="display:none"></div>
+  <div class="note" style="border-left-color:var(--amber)">disk streaming: Chromium · fallback: in-memory download, single file ≤ ~1 GB</div>
 </div>
 
 <!-- AI WIZARD -->
@@ -456,6 +483,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   </div>
 </div>
 
+</details>
 </div><!-- /tabWork -->
 
 <!-- VIEWER TAB -->
@@ -515,7 +543,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.15.1 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.16.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1362,6 +1390,7 @@ async function run(){
   renderResults(true);
   $('statsCard').style.display=''; $('resCard').style.display=''; $('expCard').style.display='';
   reset();
+  wfUpdate();
   if (!S.aborted) $('statsCard').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function reset(){ S.running=false; $('btnStop').disabled=true; $('mRun').disabled=false;
@@ -1656,6 +1685,7 @@ function updateReady(){
   const b = $('btnRun');
   b.disabled = S.running || S.mBusy || !r.ok;
   b.title = r.ok ? '' : 'load at least one file in section 1 first';
+  wfUpdate();
 }
 function applyTheme(t){
   document.body.setAttribute('data-theme', t);
@@ -1774,6 +1804,46 @@ $('tabBtnWork').onclick = ()=>setTab('work');
 $('tabBtnView').onclick = ()=>setTab('view');
 $('tabBtnPii').onclick = ()=>setTab('pii');
 (function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} setTab(t==='view'||t==='pii' ? t : 'work'); })();
+
+// ---- workbench workflow stepper: 1 load → 2 filter → 3 run → 4 results → 5 advanced ----
+function wfUpdate(){
+  const set = (id, txt) => { const el = $(id); if (el) el.textContent = txt; };
+  const files = S.files.filter(f => f.use !== false).length;
+  set('wfFiles', files ? '(' + files + ')' : '');
+  const inc = S.extRules.filter(r => r.kind === 'include' && r.enabled !== false).length;
+  const exc = S.extRules.filter(r => r.kind === 'exclude' && r.enabled !== false).length;
+  const mk = S.maskRules.filter(r => r.enabled !== false).length;
+  set('wfFilters', '(' + inc + ' in · ' + exc + ' out · ' + mk + ' mask)');
+  set('wfResults', S.result ? '(' + S.result.state.matched.toLocaleString() + ' matches)' : '');
+}
+(function(){
+  const steps = () => [...document.querySelectorAll('#wfSteps .step')];
+  document.getElementById('wfSteps').addEventListener('click', e => {
+    const st = e.target.closest('.step');
+    if (!st) return;
+    const sec = document.getElementById(st.dataset.sec);
+    if (!sec) return;
+    if (st.dataset.sec === 'advTools') document.getElementById('advTools').open = true;
+    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  let queued = false;
+  const spy = () => {
+    queued = false;
+    if (document.getElementById('tabWork').style.display === 'none') return;
+    const sts = steps();
+    let active = sts[0];
+    for (const st of sts){
+      const sec = document.getElementById(st.dataset.sec);
+      if (!sec || sec.style.display === 'none') continue;
+      if (sec.getBoundingClientRect().top <= 130) active = st; else break;
+    }
+    sts.forEach(st => st.classList.toggle('on', st === active));
+  };
+  const queue = () => { if (!queued){ queued = true; setTimeout(spy, 80); } };
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue, { passive: true });
+  wfUpdate();
+})();
 
 // ---------- viewer (virtualized log browser) ----------
 // Scroll model: vBody is a native scroll container holding a buffered span of
@@ -2592,6 +2662,7 @@ $('piiDl').onclick = ()=>{
   dl('loglens_pii_findings.json', JSON.stringify(F, null, 2), 'application/json');
 };
 $('piiToAi').onclick = ()=>{
+  document.getElementById('advTools').open = true;
   const F = P.findings; if (!F || !F.detectors.length){ alert('Run a scan first.'); return; }
   setTab('work');
   const summary = F.detectors.map(d=>'- ' + d.name + ': ' + d.count.toLocaleString() + ' hit(s)').join('\n');
@@ -2631,6 +2702,7 @@ const AIZ = {
   }
 };
 $('aiTest').onclick=async()=>{
+  document.getElementById('advTools').open = true;
   const c=AIZ.cfg(); const out=$('aiTestOut');
   out.innerHTML='<span style="color:var(--mut)">testing…</span>'; AIZ.save();
   try{
@@ -2667,6 +2739,7 @@ function renderAIPreview(v){
 }
 $('aiReq').addEventListener('keydown',e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter') $('aiGen').click(); });
 $('aiGen').onclick=async()=>{
+  document.getElementById('advTools').open = true;
   const req=$('aiReq').value.trim();
   if(!req){ alert('Describe your requirement first.'); return; }
   AIZ.save();
