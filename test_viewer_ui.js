@@ -99,6 +99,11 @@ new Function(uiCode).call(global);
     html.includes('#vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}'));
   check('nowrap focus ring pinned to exact content extent (vFitFocusRow)',
     html.includes('function vFitFocusRow') && html.includes('row.scrollWidth + 1'));
+  // v1.18.7: in nowrap mode ALL rows must be content-sized — a viewport-wide row
+  // leaves the overflowing message text (past the tag column) on the unstriped
+  // vbody background when scrolled horizontally
+  check('nowrap rows content-sized so stripes follow the text',
+    html.includes('#vBody.nowrap .vrow{width:max-content;min-width:100%}'));
 
   // zebra striping: rows carry .alt by line-number parity (not DOM order — rows
   // are recycled while scrolling), so stripes stay put and match the gutter

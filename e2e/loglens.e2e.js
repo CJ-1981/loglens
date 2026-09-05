@@ -105,6 +105,27 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
     });
     check(`focus ring covers the rendered text edge (${q})`, covers.ringRight >= covers.textRight - 0.5);
   }
+  // 4c-bis: while still nowrap + horizontally scrolled into the overflowing
+  // message text, the zebra stripe must still paint there (v1.18.7: rows are
+  // content-sized; before, the stripe ended at the viewport-wide row box)
+  await page.evaluate(() => { document.getElementById('vBody').scrollLeft = 900; });
+  await page.waitForTimeout(80);
+  const scrolledStripe = await page.evaluate(() => {
+    const b = document.getElementById('vBody');
+    const row = b.querySelector('.vrow.alt');
+    const rr = row.getBoundingClientRect(), br = b.getBoundingClientRect();
+    let el = document.elementFromPoint(br.left + 400, rr.top + rr.height / 2);
+    let painter = null;
+    while (el && el !== document.body){
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'){ painter = { cls: el.className, bg }; break; }
+      el = el.parentElement;
+    }
+    return painter;
+  });
+  check('zebra paints under overflowing message text (nowrap, scrolled)',
+    scrolledStripe && String(scrolledStripe.cls).includes('vrow'));
+  await page.evaluate(() => { document.getElementById('vBody').scrollLeft = 0; });
   await page.locator('#vSearchClr').click();
   await page.locator('#vWrap').click();          // restore wrap for the remaining checks
 

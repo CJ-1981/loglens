@@ -149,9 +149,12 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 .vrow .tg{color:var(--ink);font-weight:600}
 .vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
 .vrow.mfocus{box-shadow:inset 0 0 0 2px #e8a200}
-/* nowrap: the ring must enclose the whole unwrapped line, not just the viewport width.
-   width:max-content is only the base — the flex→grid intrinsic chain undersizes it
-   by a couple of characters, so vFitFocusRow() pins the exact content extent. */
+/* nowrap: rows must be as wide as their content — the message text overflows a
+   viewport-wide row into the horizontal scroll, and everything past the row's
+   right edge (tag/message area included) would sit on the unstriped vbody.
+   width:max-content is only the base — the flex→grid intrinsic chain undersizes
+   it by a couple of characters, so vFitFocusRow() pins the exact content extent. */
+#vBody.nowrap .vrow{width:max-content;min-width:100%}
 #vBody.nowrap .vrow.mfocus{width:max-content;min-width:100%}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
@@ -311,7 +314,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.6</span>
+  <h1>LogLens</h1><span class="ver">v1.18.7</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -603,7 +606,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.6 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.18.7 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
