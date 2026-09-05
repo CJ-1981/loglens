@@ -3,14 +3,24 @@
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
 ![version](https://img.shields.io/badge/version-v1.18-blue)
-![tests](https://img.shields.io/badge/assertions-386%20passing-green)
+![tests](https://img.shields.io/badge/assertions-387%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~190 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.18.9 · 386 automated assertions across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · zebra log viewer · mobile-responsive
+- **Current version**: v1.18.10 · 387 automated assertions across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · zebra log viewer · mobile-responsive
+
+## Screenshots
+
+| Workbench — extraction, stats & histogram | Viewer — virtualized, High Contrast |
+| --- | --- |
+| ![Workbench](docs/screenshots/workbench-light.png) | ![Viewer — High Contrast](docs/screenshots/viewer-hc.png) |
+| **Viewer — Dracula theme** | **Viewer — Solarized Dark theme** |
+| ![Viewer — Dracula](docs/screenshots/viewer-dracula.png) | ![Viewer — Solarized](docs/screenshots/viewer-solarized.png) |
+| **PII scan — findings → mask rules** | **Dark mode** |
+| ![PII scan](docs/screenshots/pii-scan.png) | ![Dark mode](docs/screenshots/workbench-dark.png) |
 
 ---
 
@@ -347,7 +357,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.18.9 (current)** — **viewer tag column legibility under dark logcat presets**: the tag column used `var(--ink)`, which is near-black in the light body theme — on the dark surfaces of High Contrast, Android Studio, VS Code, Dracula and Solarized it rendered at 1.1–1.3:1 contrast (effectively invisible), while messages inherited the theme's light foreground and stayed readable. Every preset now sets explicit tag, Δt and gap-Δt colors from its own palette (HC white, AS/VS Code/Dracula base foregrounds, Solarized base2; Δt matches each theme's timestamp color and gap warnings use the theme's error red), and Solarized's timestamps/line numbers were bumped from base01 to the palette's standard body color (2.8 → 4.7:1). Verified by a WCAG-ratio audit across all six themes before/after, per-theme screenshots, structural checks + computed-contrast e2e checks for AS/VS Code/Solarized
+- **v1.18.10 (current)** — worker-scan fix + README screenshots. The worker scan driver omitted `bucketMin: 1`, so worker scans bucketed per `undefined` minute and the histogram's x-axis rendered **"12:NaN"-style labels** (and bar click-to-time-filter set a garbage window) — the in-page fallback was unaffected, which is why the node suites stayed green. Driver now pins `bucketMin: 1` like `processFile`; regression-guarded by a structural check and a strict e2e "no NaN histogram labels" check. README gained a Screenshots section (workbench light/dark, viewer HC/Dracula/Solarized, PII scan) captured from the real app
+- **v1.18.9** — **viewer tag column legibility under dark logcat presets**: the tag column used `var(--ink)`, which is near-black in the light body theme — on the dark surfaces of High Contrast, Android Studio, VS Code, Dracula and Solarized it rendered at 1.1–1.3:1 contrast (effectively invisible), while messages inherited the theme's light foreground and stayed readable. Every preset now sets explicit tag, Δt and gap-Δt colors from its own palette (HC white, AS/VS Code/Dracula base foregrounds, Solarized base2; Δt matches each theme's timestamp color and gap warnings use the theme's error red), and Solarized's timestamps/line numbers were bumped from base01 to the palette's standard body color (2.8 → 4.7:1). Verified by a WCAG-ratio audit across all six themes before/after, per-theme screenshots, structural checks + computed-contrast e2e checks for AS/VS Code/Solarized
 - **v1.18.8** — viewer zebra follow-up: the **last ~2 characters of a line were unstriped** in wrap-off mode — the same flex→grid intrinsic-sizing shortfall behind the v1.18.3 focus-ring bug, now affecting every row: `width:max-content` undersizes each row by a small constant, leaving the line's tail on the unstriped container. `vFitRows()` pins every row to its measured content extent at render time (two passes — read all `scrollWidth`s, then write — one layout per render, not one per row); the wrap toggle re-fits both ways, the viewer font-size buttons re-fit after a size change, and a blurred match row keeps its (still correct) pin instead of being un-pinned. Tail coverage asserted for every striped row via Range-based text-extent e2e checks
 - **v1.18.7** — **zebra now follows the text in wrap-off mode** (the actual cause of "stripes stop at the tag column"): with wrap off, viewer rows were only viewport-wide while the message text overflowed far into the horizontal scroll — everything past the row's right edge (most of a long log line) sat on the unstriped container background, so stripes appeared to end around the tag column. Rows are now content-sized in nowrap mode (`width:max-content;min-width:100%` on every row, not just the focused one), so the stripe travels with the text at any scroll depth; wrap mode and vertical scrolling are unchanged. Found by screenshot + pixel-sampling the horizontally-scrolled region (stripe absent before the fix, present at scroll depths 0→16.6k after). Structural check + a scrolled e2e check
 - **v1.18.6** — **zebra stripes retuned per viewer theme**. Pixel-sampling proved the stripe painted the full row width in every theme (nothing covers the tag/message columns) — the real problem was strength: one fixed alpha is nearly invisible on the High Contrast theme the viewer defaults to (6% gray over black) and faint on the other dark presets, while the light theme wears it fine. Stripe color is now a `--stripe` / `--stripeT` variable set per theme — HC jumps to a clearly visible 17% white (Δ43/255 luminance vs Δ6 before), the four dark presets get ~7% white, dark mode 6%, and the light themes a cool blue-gray tint — so stripes read equally across the default, HC, Android Studio, VS Code, Dracula and Solarized themes, in both wrap modes and in the workbench results table. Pixel-sampled verification + structural and e2e checks

@@ -28,6 +28,10 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   const statText = await page.locator('#statCards').innerText();
   check('scan completes with matches', /matched/i.test(statText) && !/matched\s*\n0/.test(statText));
   check('results table has rows', await page.locator('#resBody tr').count() > 3);
+  // histogram bucket labels must be real times — a worker scan without bucketMin
+  // produced "HH:NaN" keys (v1.18.10 regression)
+  const histLabels = await page.evaluate(() => [...document.querySelectorAll('#histBox text')].map(t => t.textContent).join(' '));
+  check('histogram labels are valid bucket times (no NaN)', histLabels.includes(':') && !histLabels.includes('NaN'));
 
   // ---------- 2b. results table zebra + dark theme legibility ----------
   const resZebra = await page.evaluate(() => {
