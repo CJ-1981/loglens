@@ -21,7 +21,7 @@ const els = {};
 function el(id){
   if (els[id]) return els[id];
   const e = {
-    id, style: {}, dataset: {}, children: [], value: '', textContent: '', innerHTML: '',
+    id, style: { setProperty(){} }, dataset: {}, children: [], value: '', textContent: '', innerHTML: '',
     disabled: false, checked: true, title: '', placeholder: '', scrollTop: 0, clientHeight: 300, className: '',
     classList: { _s: new Set(), add(c){ this._s.add(c); }, remove(c){ this._s.delete(c); },
                  toggle(c,f){ if(f===undefined){ this._s.has(c)?this._s.delete(c):this._s.add(c); } else if(f) this._s.add(c); else this._s.delete(c); },

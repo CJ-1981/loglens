@@ -14,7 +14,7 @@ const uiCode = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]
 function el(id){
   if (els[id]) return els[id];
   const e = {
-    id, style: {}, dataset: {}, children: [], value: '', textContent: '', innerHTML: '',
+    id, style: { setProperty(){} }, dataset: {}, children: [], value: '', textContent: '', innerHTML: '',
     disabled: false, checked: true, title: '', placeholder: '', scrollTop: 0, clientHeight: 300, className: '',
     classList: { add(){}, remove(){}, toggle(){} },
     setAttribute(){}, appendChild(c){ this.children.push(c); },

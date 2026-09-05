@@ -102,7 +102,7 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
 .vmain{display:flex;flex:1;min-height:0}
 .vrow .ln{flex:0 0 8ch;text-align:right;padding:0 8px 0 10px;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;line-height:1.9}
-.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch 1fr;gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
+.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch 1fr;grid-template-columns:18ch 3ch max(10ch,min(var(--tgw,16ch),24ch)) 1fr;gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
 .vrow .raw{flex:1;white-space:pre-wrap;word-break:break-all;padding-right:10px}
 .vrow .ts{color:var(--mut)}
 .vrow .tg{color:var(--ink);font-weight:600}
@@ -133,7 +133,7 @@ body[data-theme=dark] .vscroll{background:#1a2330}
   #runCard{position:static}
   table{font-size:11px}
   .vtoolbar select{max-width:130px}
-  .vrow .cols{grid-template-columns:11ch 3ch 12ch 1fr;gap:0 6px}
+  .vrow .cols{grid-template-columns:11ch 3ch 12ch 1fr;grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) 1fr;gap:0 6px}
 }
 /* dark theme (toggle in header; persisted) */
 body[data-theme=dark]{--bg:#0d1218;--card:#151c24;--ink:#d7e3ee;--mut:#8ba1b5;--line:#263140;
@@ -233,7 +233,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.14.1</span>
+  <h1>LogLens</h1><span class="ver">v1.14.2</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -498,7 +498,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.14.1 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.14.2 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1905,6 +1905,7 @@ function vRender(mode, anchor){
   const body = $('vBody');
   const firstEst = Math.round(V.winStart / V.avgLen);
   const frag = new Array(V.lines.length);
+  let maxTag = 0;
   for (let i = 0; i < V.lines.length; i++){
     const raw = V.lines[i];
     let h = V.hdr[i];
@@ -1912,6 +1913,7 @@ function vRender(mode, anchor){
     let m = V.disp[i];
     if (m == null){ m = vApplyMask(raw); V.disp[i] = m; }
     if (h && h.ts){
+      if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
       frag[i] = `<div class="vrow"><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span><span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
     } else {
@@ -1919,6 +1921,9 @@ function vRender(mode, anchor){
     }
   }
   body.innerHTML = frag.join('') || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
+  // tag column hugs the longest tag in the buffer (CSS clamps 10–24ch) instead
+  // of reserving a fixed width, so short tags don't leave a blank stretch
+  body.style.setProperty('--tgw', Math.max(1, maxTag) + 'ch');
   if (mode === 'bottom') body.scrollTop = body.scrollHeight;
   else if (mode === 'keep') vRestoreScroll(body, anchor);
   else body.scrollTop = 0;
