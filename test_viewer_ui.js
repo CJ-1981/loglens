@@ -140,6 +140,13 @@ new Function(uiCode).call(global);
     ['as','vscode','dracula','solarized'].every(t => html.includes('body[data-logtheme="' + t + '"] .vbody .dlt{color:')) &&
     html.includes('#vBody.hc .dlt{color:#9aa7b4}'));
 
+  // v1.19.0: multi-file search tab — markup, wiring, results plumbing
+  check('search tab ids present', ['tabBtnSearch','tabSearch','msq','msCase','msCap','msRun','msStop','msProg','msProgBar','msProgText','msStatus','msSummary','msNote','msFilter','msTable','msWrap','msMore','msCsv','msCopy'].every(id => html.includes('id="' + id + '"')));
+  check('search tab in setTab map + saved-tab whitelist', html.includes("search:['tabSearch','tabBtnSearch']") && html.includes("t==='view'||t==='search'||t==='pii'"));
+  check('search results plumbing wired', html.includes('function msRenderResults') && html.includes('msRenderResults(true)') &&
+    html.includes("msTable').addEventListener('click'") && html.includes('vSeekTo(rec.b)') && html.includes('vSetFocusMark(row)'));
+  check('search worker messages wired', html.includes("type:'search'") && html.includes("type:'searchDone'") && html.includes('function searchViaWorker'));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

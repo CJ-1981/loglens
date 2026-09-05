@@ -157,7 +157,7 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 #vBody.nowrap .vrow{width:max-content;min-width:100%}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
-#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#msCase.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* wrap off: one line per log entry, horizontal scroll instead; fixed columns
    never let their text bleed into the neighbor column (wide glyphs, fallback
    fonts, or squeezed widths all get clipped with an ellipsis) */
@@ -330,7 +330,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.10</span>
+  <h1>LogLens</h1><span class="ver">v1.19.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -338,6 +338,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="tabs" id="mainTabs">
   <button class="tab on" id="tabBtnWork" title="rules, scans, exports">workbench</button>
   <button class="tab" id="tabBtnView" title="browse the full log — virtualized, any size">viewer</button>
+  <button class="tab" id="tabBtnSearch" title="search a text/regex across all loaded files at once">search</button>
   <button class="tab" id="tabBtnPii" title="find unmasked PII in the loaded files">pii scan</button>
 </div>
 <div id="tabWork">
@@ -598,6 +599,33 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · ←/→ previous/next match (after a search) · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position · drag the tag/message edge to resize the tag column (double-click = auto-fit)</div>
 </div><!-- /tabView -->
 
+<!-- MULTI-FILE SEARCH TAB -->
+<div id="tabSearch" style="display:none">
+<div class="card">
+  <h2 title="streamed regex search across all loaded files at once — worker-offloaded, results capped in memory (counts stay exact)">search all files</h2>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <button class="btn" id="msRun">search files</button>
+    <button class="btn sec" id="msStop" disabled>stop</button>
+    <input type="text" id="msq" class="search" placeholder="regex — e.g. Auth|GNSS|timeout" style="flex:1;min-width:220px;margin:0" spellcheck="false">
+    <button class="btn sec" id="msCase" title="case-insensitive search (click for case-sensitive)">Aa</button>
+    <label class="tgl" title="maximum matches stored in memory — totals stay exact beyond the cap">max results <input type="number" id="msCap" min="100" step="10000" value="20000" style="width:88px"></label>
+    <span id="msStatus" style="font-size:11px;color:var(--mut)">no files loaded — add logs in the workbench</span>
+  </div>
+  <div class="progress" id="msProg"><div class="bar" id="msProgBar"></div></div>
+  <div class="ptext" id="msProgText"></div>
+  <div id="msSummary" style="display:none;margin-top:8px;font-size:12px;color:var(--mut)"></div>
+  <div id="msNote" class="note warn" style="display:none"></div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 6px">
+    <input type="text" id="msFilter" class="search" placeholder="filter results (regex over text)" style="max-width:320px;margin:0">
+    <button class="btn sec" id="msCsv">results .csv</button>
+    <button class="btn sec" id="msCopy" title="copy all visible results as file:line: text">copy</button>
+    <span style="font-size:11px;color:var(--mut)">click a row to open it in the viewer</span>
+  </div>
+  <div class="reswrap" id="msWrap" style="max-height:480px"><table id="msTable"></table></div>
+  <button class="btn sec" id="msMore" style="margin-top:8px">Show more rows</button>
+</div>
+</div><!-- /tabSearch -->
+
 <!-- PII SCAN TAB -->
 <div id="tabPii" style="display:none">
 <div class="card">
@@ -622,7 +650,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.10 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.19.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -1317,6 +1345,7 @@ function renderFiles(){
   updateReady();
   sniffFormat();
   if ($('tabView').style.display !== 'none') viewerEnsure();   // keep viewer file list in sync while visible
+  if ($('tabSearch') && $('tabSearch').style.display !== 'none') msRefreshFiles();
   if ($('tabPii') && $('tabPii').style.display !== 'none') piiRefreshFiles();
 }
 
@@ -1378,6 +1407,9 @@ $('btnDemo').onclick=()=>{
     $('vFile').value = 'demo_sample.log';
     vOpen(S.files.find(f=>f.name==='demo_sample.log' && f.use!==false));
   }
+  if ($('tabSearch') && $('tabSearch').style.display !== 'none'){
+    msRefreshFiles();   // demo works from the search tab too (user still presses "search files")
+  }
   if ($('tabPii') && $('tabPii').style.display !== 'none'){
     piiRefreshFiles();
     $('piiRun').click();   // contextual: demo + auto-scan on the pii tab
@@ -1388,7 +1420,7 @@ $('btnDemo').onclick=()=>{
 $('btnRun').onclick=run;
 $('btnStop').onclick=()=>{ S.aborted=true; if (S.worker) S.worker.postMessage({type:'abort'}); };
 async function run(){
-  if (S.running || S.mBusy) return;
+  if (S.running || S.mBusy || P.running || MS.running) return;
   const files = S.files.filter(f=>f.use!==false);
   if (!files.length){ alert('Load at least one file (or click “Load demo sample”).'); return; }
 
@@ -1605,6 +1637,7 @@ function WORKER_DRIVER(self){
     try{
       if (msg.type === 'scan') await driveScan(self, msg);
       else if (msg.type === 'pii') await drivePii(self, msg);
+      else if (msg.type === 'search') await driveSearch(self, msg);
     }catch(e){
       self.postMessage({ type:'error', message:String(e && e.message || e) });
     }
@@ -1698,6 +1731,65 @@ function WORKER_DRIVER(self){
     self.postMessage({ type:'piiDone', scannedLines:lines, hits,
       detectors:[...agg.values()].sort((a,b)=>b.count-a.count), files:msg.names, stopped:self.__abort });
   }
+  // multi-file search: stream every file, keep matching lines up to the memory
+  // caps, keep exact counts past the caps. per-file store cap = fair share of the
+  // global cap (min 500) so late files always contribute.
+  async function driveSearch(self, msg){
+    let rx;
+    try { rx = new RegExp(msg.pattern, msg.flags); }
+    catch(e){ self.postMessage({ type:'error', message:'bad regex: ' + e.message }); return; }
+    const mask = CORE.compile(msg.maskRules || [], 'mask');
+    const enc = new TextEncoder(), nonAscii = /[^\x00-\x7F]/;
+    const byteLen = s => nonAscii.test(s) ? enc.encode(s).length : s.length;
+    const perFileCap = Math.max(500, Math.floor(msg.cap / Math.max(1, msg.files.length)));
+    const matches = [], perFile = [];
+    let total = 0, lastPost = 0;
+    for (let fi = 0; fi < msg.files.length; fi++){
+      if (self.__abort) break;
+      const file = msg.files[fi], name = msg.names[fi];
+      const pf = { name, matches: 0, stored: 0, truncated: false };
+      perFile.push(pf);
+      const reader = file.stream().getReader();
+      const dec = new TextDecoder();
+      let buf = '', read = 0, lineno = 0, byte = 0;
+      const emit = (line2, b) => {
+        pf.matches++; total++;
+        if (matches.length >= msg.cap || pf.stored >= perFileCap){ pf.truncated = true; return; }
+        const h = CORE.parseHeader(line2, msg.tsFamily || null);
+        const m = mask.length ? CORE.maskLine(line2, mask) : { line: line2 };
+        matches.push({ f: fi, ln: lineno, b, ts: (h && h.ts) || '', lvl: (h && h.lvl) || '',
+                       t: m.line.length > 500 ? m.line.slice(0, 500) : m.line });
+        pf.stored++;
+      };
+      while (true){
+        if (self.__abort) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        read += value.byteLength;
+        buf += dec.decode(value, { stream:true });
+        let pos = 0, i;
+        while ((i = buf.indexOf('\n', pos)) >= 0){
+          const line = chomp(buf.slice(pos, i)); pos = i + 1; lineno++;
+          if (rx.test(line)) emit(line, byte);
+          byte += byteLen(line) + 1;
+        }
+        buf = buf.slice(pos);
+        if (buf.length > 8*1048576){          // newline valve: pathological single line
+          lineno++;
+          if (rx.test(buf)) emit(buf, byte);
+          byte += byteLen(buf) + 1;
+          buf = '';
+        }
+        if (read - lastPost > 8*1048576){
+          lastPost = read;
+          self.postMessage({ type:'prog', name, read, size:file.size, total, stored:matches.length });
+        }
+      }
+      if (buf && !self.__abort){ lineno++; if (rx.test(buf)) emit(buf, byte); }
+      if (reader.releaseLock) reader.releaseLock();
+    }
+    self.postMessage({ type:'searchDone', matches, perFile, total, stopped:self.__abort });
+  }
 }
 let scanWorkerUrl = null;
 function workerAvailable(){
@@ -1771,6 +1863,38 @@ function piiViaWorker(files){
     w.onerror = () => { if (settled) return; stop(); resolve({ ok:false, fallback:true }); };
     w.postMessage({ type:'pii', files:files.map(f=>f.file), names:files.map(f=>f.name),
       detectors: CORE.PII_DETECTORS.filter(d=>d.enabled).map(d=>d.name) });
+  });
+}
+// resolves { ok:true, res } | { ok:false, fallback:true } | { ok:false, fallback:false }
+function searchViaWorker(files, q){
+  return new Promise(resolve => {
+    let w;
+    try { w = new Worker(scanWorkerUrl); } catch(e){ resolve({ ok:false, fallback:true }); return; }
+    S.worker = w;
+    let alive = false, settled = false;
+    const stop = () => { try{ w.terminate(); }catch(e){} if (S.worker === w) S.worker = null; };
+    w.onmessage = ev => {
+      const m = ev.data;
+      if (m.type === 'prog'){
+        alive = true;
+        const el = (performance.now()-q.t0)/1000, rate = m.read/1048576/Math.max(el,0.001);
+        const eta = m.read < m.size ? (m.size-m.read)/1048576/Math.max(rate,0.01) : 0;
+        $('msProgBar').style.width = Math.min(99, 100*m.read/m.size)+'%';
+        $('msProgText').textContent = `${m.name} — ${(m.read/1048576).toFixed(0)}/${(m.size/1048576).toFixed(0)} MB · ${rate.toFixed(0)} MB/s · ETA ${eta<1?'<1':eta.toFixed(0)} s · ${m.total.toLocaleString()} matches`;
+      } else if (m.type === 'searchDone'){
+        alive = true; settled = true; stop(); resolve({ ok:true, res:m });
+      } else if (m.type === 'error'){
+        alive = true; settled = true; stop(); alert('Search error: ' + m.message); resolve({ ok:false, fallback:false });
+      }
+    };
+    w.onerror = () => {
+      if (settled) return;
+      stop();
+      if (!alive) resolve({ ok:false, fallback:true });
+      else { alert('Search worker failed — results may be incomplete.'); resolve({ ok:false, fallback:false }); }
+    };
+    w.postMessage({ type:'search', files:files.map(f=>f.file), names:files.map(f=>f.name),
+      pattern:q.pattern, flags:q.flags, cap:q.cap, tsFamily:q.tsFamily, maskRules:q.maskRules });
   });
 }
 
@@ -2020,7 +2144,7 @@ function updateReady(){
   const r = CORE.readiness(files, inc, exc, mk);
   const el = $('readyInfo'); if (el) el.textContent = r.text;
   const b = $('btnRun');
-  b.disabled = S.running || S.mBusy || !r.ok;
+  b.disabled = S.running || S.mBusy || P.running || MS.running || !r.ok;
   b.title = r.ok ? '' : 'load at least one file in section 1 first';
   wfUpdate();
 }
@@ -2108,7 +2232,7 @@ window.addEventListener('beforeunload', ()=>{ clearTimeout(profT); store.save(bu
 $('errishRx').addEventListener('input',()=>{ saveProfile(); scheduleRerun(); });
 function syncErrish(){ $('errishRx').disabled = !$('optErrish').checked; }
 $('optErrish').addEventListener('change',()=>{ syncErrish(); saveProfile(); scheduleRerun(); });
-window.addEventListener('beforeunload',e=>{ if (S.running || S.mBusy){ e.preventDefault(); e.returnValue=''; } });
+window.addEventListener('beforeunload',e=>{ if (S.running || S.mBusy || P.running || MS.running){ e.preventDefault(); e.returnValue=''; } });
 
 // click a row -> copy the full masked line
 $('resTable').addEventListener('click',e=>{
@@ -2135,19 +2259,21 @@ try{ const t = parseFloat(localStorage.getItem('loglens.tgw')); if (t > 0) V.tgw
 
 // ---------- tabs ----------
 function setTab(t){
-  const map = { work:['tabWork','tabBtnWork'], view:['tabView','tabBtnView'], pii:['tabPii','tabBtnPii'] };
+  const map = { work:['tabWork','tabBtnWork'], view:['tabView','tabBtnView'], search:['tabSearch','tabBtnSearch'], pii:['tabPii','tabBtnPii'] };
   for (const k in map){
     $(map[k][0]).style.display = (k===t) ? '' : 'none';
     $(map[k][1]).classList.toggle('on', k===t);
   }
   try{ localStorage.setItem('loglens.tab', t); }catch(e){}
   if (t==='view') viewerEnsure();
+  if (t==='search') msRefreshFiles();
   if (t==='pii') piiRefreshFiles();
 }
 $('tabBtnWork').onclick = ()=>setTab('work');
 $('tabBtnView').onclick = ()=>setTab('view');
+$('tabBtnSearch').onclick = ()=>setTab('search');
 $('tabBtnPii').onclick = ()=>setTab('pii');
-(function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} setTab(t==='view'||t==='pii' ? t : 'work'); })();
+(function(){ let t=null; try{ t=localStorage.getItem('loglens.tab'); }catch(e){} setTab(t==='view'||t==='search'||t==='pii' ? t : 'work'); })();
 
 // ---- workbench workflow stepper: 1 load → 2 filter → 3 run → 4 results → 5 advanced ----
 function wfUpdate(){
@@ -2985,14 +3111,15 @@ function piiRefreshFiles(){
 }
 function piiSetBusy(b){
   P.running = b; P.abort = b ? false : P.abort;
-  $('piiRun').disabled = b || S.running || S.mBusy;
+  $('piiRun').disabled = b || S.running || S.mBusy || MS.running;
+  $('msRun').disabled = b || S.running || S.mBusy || MS.running;
   $('piiStop').disabled = !b;
   $('btnRun').disabled = b || S.running; $('mRun').disabled = b || S.mBusy;
   $('piiProg').style.display = b ? 'block' : 'none';
 }
 $('piiStop').onclick = ()=>{ P.abort = true; if (S.worker) S.worker.postMessage({type:'abort'}); };
 $('piiRun').onclick = async ()=>{
-  if (P.running) return;
+  if (P.running || MS.running || S.running || S.mBusy) return;
   const files = S.files.filter(f=>f.use!==false);
   if (!files.length){ alert('Load at least one file first (section 1).'); return; }
   const dets = CORE.PII_DETECTORS.filter(d=>d.enabled);
@@ -3113,6 +3240,206 @@ $('piiToAi').onclick = ()=>{
   $('wizCard').scrollIntoView({behavior:'smooth', block:'start'});
   toast('context prepared in the AI wizard ✓');
 };
+
+// ---------- multi-file search tab ----------
+const MS = { running:false, abort:false, res:null, shown:0, filtered:[] };
+
+function msRefreshFiles(){
+  const n = S.files.filter(f=>f.use!==false).length;
+  const el = $('msStatus');
+  if (el) el.textContent = n ? n + ' file(s) loaded — enter a pattern and press "search files"' : 'no files loaded — add logs in the workbench first';
+}
+function msSetBusy(b){
+  MS.running = b; MS.abort = b ? false : MS.abort;
+  $('msRun').disabled = b || S.running || S.mBusy || P.running;
+  $('piiRun').disabled = b || S.running || S.mBusy || MS.running;
+  $('btnRun').disabled = b || S.running || P.running;
+  $('mRun').disabled = b || S.mBusy || P.running;
+  $('msStop').disabled = !b;
+  $('msProg').style.display = b ? 'block' : 'none';
+  $('msProgText').style.display = b ? 'block' : 'none';
+}
+$('msStop').onclick = ()=>{ MS.abort = true; if (S.worker) S.worker.postMessage({type:'abort'}); };
+$('msq').addEventListener('input', e=>{
+  const ok = validRe(e.target.value);
+  e.target.style.borderColor = ok ? '' : 'var(--red)';
+});
+$('msCase').onclick = ()=>{
+  const b = $('msCase');
+  b.classList.toggle('on');
+  b.title = b.classList.contains('on') ? 'case-sensitive search (click for case-insensitive)' : 'case-insensitive search (click for case-sensitive)';
+};
+
+function msFinish(res){
+  MS.res = res; MS.shown = 0;
+  msSetBusy(false);
+  $('msProg').style.display='none'; $('msProgText').style.display='none';
+  msRenderSummary(); msRenderResults(true);
+}
+async function msRun(){
+  if (MS.running || S.running || S.mBusy || P.running) return;
+  const files = S.files.filter(f=>f.use!==false);
+  if (!files.length){ alert('Load at least one file first (workbench, section 1).'); return; }
+  const pattern = $('msq').value;
+  if (!pattern){ alert('Enter a search pattern first.'); return; }
+  if (!validRe(pattern)){ alert('Invalid search regex: ' + pattern); return; }
+  const flags = $('msCase').classList.contains('on') ? '' : 'i';
+  const cap = Math.max(100, parseInt($('msCap').value,10) || 20000);
+  msSetBusy(true);
+  MS.abort = false;
+  $('msSummary').style.display='none'; $('msNote').style.display='none';
+  $('msProg').style.display='block'; $('msProgText').style.display='block';
+  $('msProgText').textContent = 'starting…';
+  const t0 = performance.now();
+  try{
+    if (workerAvailable()){
+      const r = await searchViaWorker(files, { pattern, flags, cap, tsFamily: S.tsFamily || null, maskRules: S.maskRules, t0 });
+      if (r.ok){ msFinish(r.res); return; }
+      if (!r.fallback){   // worker died mid-scan — don't rescan, report what we have
+        msFinish({ matches:[], perFile: files.map(f=>({name:f.name, matches:0, stored:0, truncated:true})), total:0, stopped:true });
+        return;
+      }
+    }
+    // in-page fallback loop (same semantics as the worker's driveSearch)
+    let rx; try{ rx = new RegExp(pattern, flags); }catch(e){ alert('Invalid search regex: ' + e.message); msSetBusy(false); return; }
+    const mask = CORE.compile(S.maskRules, 'mask');
+    const enc = new TextEncoder(), nonAscii = /[^\x00-\x7F]/;
+    const byteLen = s => nonAscii.test(s) ? enc.encode(s).length : s.length;
+    const perFileCap = Math.max(500, Math.floor(cap / files.length));
+    const matches = [], perFile = [];
+    let total = 0;
+    for (let fi = 0; fi < files.length; fi++){
+      if (MS.abort) break;
+      const f = files[fi];
+      const pf = { name: f.name, matches: 0, stored: 0, truncated: false };
+      perFile.push(pf);
+      const reader = f.file.stream().getReader();
+      const dec = new TextDecoder();
+      let buf = '', read = 0, lineno = 0, byte = 0, lastYield = 0;
+      const emit = (line2, b) => {
+        pf.matches++; total++;
+        if (matches.length >= cap || pf.stored >= perFileCap){ pf.truncated = true; return; }
+        const h = CORE.parseHeader(line2, S.tsFamily || null);
+        const m = mask.length ? CORE.maskLine(line2, mask) : { line: line2 };
+        matches.push({ f: fi, ln: lineno, b, ts: (h && h.ts) || '', lvl: (h && h.lvl) || '',
+                       t: m.line.length > 500 ? m.line.slice(0, 500) : m.line });
+        pf.stored++;
+      };
+      while (true){
+        if (MS.abort) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        read += value.byteLength;
+        buf += dec.decode(value, { stream:true });
+        let pos = 0, i;
+        while ((i = buf.indexOf('\n', pos)) >= 0){
+          const line = chomp(buf.slice(pos, i)); pos = i + 1; lineno++;
+          if (rx.test(line)) emit(line, byte);
+          byte += byteLen(line) + 1;
+        }
+        buf = buf.slice(pos);
+        if (buf.length > 8*1048576){          // newline valve: pathological single line
+          lineno++;
+          if (rx.test(buf)) emit(buf, byte);
+          byte += byteLen(buf) + 1;
+          buf = '';
+        }
+        if (read - lastYield > 8*1048576){
+          lastYield = read;
+          const pct = Math.min(99, 100*read/f.file.size);
+          const el = (performance.now()-t0)/1000, rate = read/1048576/Math.max(el,0.001);
+          const eta = read < f.file.size ? ((f.file.size-read)/1048576/Math.max(rate,0.01)) : 0;
+          $('msProgBar').style.width = pct+'%';
+          $('msProgText').textContent = `${f.name} — ${(read/1048576).toFixed(0)}/${(f.file.size/1048576).toFixed(0)} MB · ${rate.toFixed(0)} MB/s · ETA ${eta<1?'<1':eta.toFixed(0)} s · ${total.toLocaleString()} matches`;
+          await new Promise(r=>setTimeout(r));
+        }
+      }
+      if (buf && !MS.abort){ lineno++; if (rx.test(buf)) emit(buf, byte); }
+      try{ await reader.cancel(); }catch(e){}
+    }
+    msFinish({ matches, perFile, total, stopped: MS.abort });
+  }catch(e){
+    alert('Search error: ' + e.message);
+    msSetBusy(false);
+  }
+}
+$('msRun').onclick = msRun;
+
+function msRenderSummary(){
+  const F = MS.res; if (!F) return;
+  const box = $('msSummary'); box.style.display='';
+  const truncated = F.perFile.some(p=>p.truncated);
+  box.innerHTML = '<b>' + F.total.toLocaleString() + '</b> matching line(s) across ' + F.perFile.length + ' file(s)' +
+    (F.stopped ? ' — <i>stopped early</i>' : '') +
+    ' · ' + F.perFile.map(p=>esc(p.name) + ': ' + p.matches.toLocaleString() + (p.truncated ? ' (capped)' : '')).join(' · ');
+  const note = $('msNote');
+  note.style.display = truncated ? '' : 'none';
+  note.textContent = 'Result list capped at ' + F.matches.length.toLocaleString() + ' stored rows — counts above are complete. Narrow the pattern or raise "max results" to store more.';
+}
+function msRows(){
+  if (!MS.res) return [];
+  let rows = MS.res.matches;
+  const q = $('msFilter').value.trim();
+  if (q){ let rx; try{ rx = new RegExp(q, 'i'); }catch(e){ return rows; } rows = rows.filter(r => rx.test(r.t)); }
+  return rows;
+}
+const MS_HEAD = '<thead><tr><th style="width:22%">file</th><th style="width:64px">line</th><th style="width:104px">time</th><th style="width:34px">lvl</th><th>text (masked)</th></tr></thead>';
+function msRowHTML(r, i){
+  const pf = MS.res.perFile[r.f];
+  const name = pf ? pf.name : ('file ' + r.f);
+  return `<tr data-i="${i}"><td class="mono" title="${esc(name)}">${esc(name.length>26?'…'+name.slice(-25):name)}</td><td class="mono">${r.ln}</td><td class="mono">${esc(r.ts ? r.ts.substr(6,11) : '')}</td><td>${r.lvl?`<span class="lv lv${r.lvl}">${r.lvl}</span>`:''}</td><td class="mono">${esc(r.t)}</td></tr>`;
+}
+function msRenderResults(reset){
+  MS.filtered = msRows();
+  if (reset || MS.shown === 0){
+    MS.shown = 0;
+    $('msTable').innerHTML = MS_HEAD + '<tbody id="msBody"></tbody>';
+    const w = $('msWrap'); if (w) w.scrollTop = 0;
+  }
+  const N = Math.min(MS.shown + 500, MS.filtered.length);
+  const frag = [];
+  for (let i = MS.shown; i < N; i++) frag.push(msRowHTML(MS.filtered[i], i));
+  if (frag.length) $('msBody').insertAdjacentHTML('beforeend', frag.join(''));
+  MS.shown = N;
+  $('msMore').style.display = N < MS.filtered.length ? '' : 'none';
+  $('msMore').textContent = `Show more rows (${N.toLocaleString()} / ${MS.filtered.length.toLocaleString()})`;
+}
+let msFilterT = 0;
+$('msFilter').addEventListener('input', ()=>{ clearTimeout(msFilterT); msFilterT = setTimeout(()=>msRenderResults(true), 180); });
+$('msMore').onclick = ()=>msRenderResults(false);
+$('msCsv').onclick = ()=>{
+  if (!MS.res){ alert('Run a search first.'); return; }
+  const rows = MS.filtered;
+  const q = v => '"' + String(v==null?'':v).substr(0,1000).replace(/"/g,'""') + '"';
+  const csv = ['file,line,time,level,text', ...rows.map(r=>{
+    const pf = MS.res.perFile[r.f];
+    return [q(pf?pf.name:'file '+r.f), r.ln, q(r.ts), q(r.lvl), q(r.t)].join(',');
+  })].join('\n');
+  dl('loglens_search_results.csv', csv, 'text/csv');
+};
+$('msCopy').onclick = ()=>{
+  if (!MS.res){ alert('Run a search first.'); return; }
+  const txt = MS.filtered.map(r => (MS.res.perFile[r.f]?MS.res.perFile[r.f].name:'') + ':' + r.ln + ': ' + r.t).join('\n');
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
+    .then(()=>toast(MS.filtered.length + ' results copied ✓'), ()=>toast('clipboard blocked — use the .csv export'));
+};
+// click a result row → open that file in the viewer, jump to the exact line
+$('msTable').addEventListener('click', async e=>{
+  const tr = e.target.closest && e.target.closest('tr');
+  if (!tr || tr.dataset.i === undefined) return;
+  if (!MS.res) return;
+  const rec = MS.filtered[+tr.dataset.i];
+  if (!rec) return;
+  const pf = MS.res.perFile[rec.f];
+  const file = S.files.find(f=>f.name===(pf && pf.name) && f.use!==false);
+  if (!file){ toast('that file is no longer loaded'); return; }
+  setTab('view');
+  const cur = S.files.find(f=>f.name===$('vFile').value && f.use!==false);
+  if (!cur || cur.file !== file.file){ await vOpen(file); $('vFile').value = file.name; }
+  await vSeekTo(rec.b);
+  const row = $('vBody').querySelector(`[data-byte="${rec.b}"]`);
+  if (row) vSetFocusMark(row);
+});
 
 // ---------- AI wizard ----------
 const AI_EXAMPLES = [
@@ -3250,8 +3577,8 @@ async function maskOnlyRun(){
     return;
   }
   if (!useFS && wantGz){ alert('Gzip output requires the disk-streaming path (Chromium browser).'); return; }
-  if (S.running || S.mBusy) return;
-  S.mBusy=true; $('btnRun').disabled=true;
+  if (S.running || S.mBusy || P.running || MS.running) return;
+  S.mBusy=true; $('btnRun').disabled=true; $('msRun').disabled=true;
   S.mAbort=false; $('mRun').disabled=true; $('mStop').disabled=false;
   $('mProg').style.display='block'; $('mProgText').style.display='block'; $('mSummary').style.display='none';
 
@@ -3362,7 +3689,7 @@ async function maskOnlyRun(){
       try{ await t.writable.close(); }catch(_){}
     }
   }finally{
-    S.mAbort=false; S.mBusy=false; $('mRun').disabled=false; $('mStop').disabled=true; $('btnRun').disabled=false;
+    S.mAbort=false; S.mBusy=false; $('mRun').disabled=false; $('mStop').disabled=true; $('btnRun').disabled=false; $('msRun').disabled=false;
     $('mProg').style.display='none'; $('mProgText').style.display='none';
   }
 }

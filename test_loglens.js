@@ -404,5 +404,87 @@ check('GNSS hemisphere + ISO form detected', (() => {
 check('GNSS space-separated detected', CORE.scanLinePII('GNSS: position 48.858400 2.294500', dets).some(x => x.name === 'GNSS coordinates'));
 check('plain decimals without pair not flagged', CORE.scanLinePII('ratio 48.858400 measured', dets).every(x => x.name !== 'GNSS coordinates'));
 
-console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
-process.exit(fail ? 1 : 0);
+console.log('== v1.19: multi-file search tab ==');
+check('search tab markup + wiring', html.includes('id="tabBtnSearch"') && html.includes('id="tabSearch"') &&
+  html.includes("search:['tabSearch','tabBtnSearch']") && html.includes("t==='view'||t==='search'||t==='pii'"));
+check('worker driver handles search messages', html.includes("type:'search'") && html.includes('driveSearch') && html.includes("type:'searchDone'"));
+check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilter','msTable','msMore','msCsv','msCopy','msSummary','msNote'].every(id => html.includes('id="' + id + '"')));
+
+(async () => {
+  if (typeof global.File === 'undefined') global.File = class extends Blob { constructor(parts, name){ super(parts); this.name = name; } };
+  global.CORE = CORE;
+  const drvSrc = /function WORKER_DRIVER\(self\)\{[\s\S]*?\n\}/.exec(html)[0];
+  function makeSelf(){
+    const msgs = [];
+    const self = { postMessage: m => msgs.push(m), __abort: false };
+    new Function('self', drvSrc + '\nWORKER_DRIVER(self);')(self);   // declare + install self.onmessage
+    return { self, msgs };
+  }
+  const waitDone = async (msgs, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms){
+      const d = msgs.find(m => m.type === 'searchDone');
+      if (d) return d;
+      await new Promise(r => setTimeout(r, 10));
+    }
+    throw new Error('searchDone timeout');
+  };
+  const mkFile = (txt, name) => new File([txt], name, { type: 'text/plain' });
+  const f1 = mkFile('08-24 10:00:00.000  1  1 I TagA: alpha NEEDLE one\n08-24 10:00:01.000  1  1 I TagA: beta\n', 'a.log');
+  const f2 = mkFile('08-24 11:00:00.000  2  2 W TagB: gamma NEEDLE two\nno match here\n08-24 11:00:02.000  2  2 E TagB: NEEDLE three\n', 'b.log');
+  const q = cap => ({ type: 'search', files: [f1, f2], names: ['a.log', 'b.log'], pattern: 'NEEDLE', flags: 'i', cap, tsFamily: null, maskRules: [] });
+
+  { // full search across both files
+    const { self, msgs } = makeSelf();
+    self.onmessage({ data: q(100) });
+    const done = await waitDone(msgs, 5000);
+    check('search: totals across both files', done.total === 3);
+    check('search: per-file counts (a=1, b=2)', done.perFile[0].matches === 1 && done.perFile[1].matches === 2);
+    check('search: rows store file index, line, ts', done.matches.length === 3 &&
+      done.matches[0].f === 0 && done.matches[0].ln === 1 && done.matches[0].ts === '08-24 10:00:00.000' && done.matches[1].f === 1);
+    check('search: byte offsets are line starts', done.matches.every(m => typeof m.b === 'number') && done.matches[0].b === 0);
+    check('search: messages clean', msgs.every(m => m.type !== 'error'));
+  }
+  { // global cap + per-file fair share + exact counts past the cap
+    const { self, msgs } = makeSelf();
+    self.onmessage({ data: q(2) });
+    const done = await waitDone(msgs, 5000);
+    check('search: global cap bounds storage', done.matches.length === 2);
+    check('search: counts stay exact past the cap', done.total === 3 && done.perFile[1].matches === 2);
+    check('search: per-file fair share flags truncation', done.perFile.some(p => p.truncated));
+  }
+  { // case sensitivity
+    const { self, msgs } = makeSelf();
+    self.onmessage({ data: { ...q(100), pattern: 'needle', flags: '' } });
+    const done = await waitDone(msgs, 5000);
+    check('search: case-sensitive mode works', done.total === 0);
+  }
+  { // masking applies to stored rows
+    const { self, msgs } = makeSelf();
+    self.onmessage({ data: { ...q(100), maskRules: [{ name: 'n', pattern: 'NEEDLE', replace: '[N]', flags: 'g', enabled: true }] } });
+    const done = await waitDone(msgs, 5000);
+    check('search: stored rows are masked', done.matches.length === 3 && done.matches.every(m => m.t.includes('[N]') && !m.t.includes('NEEDLE')));
+  }
+  { // abort mid-scan (chunked stream gives the abort a boundary to land on —
+    // Node's File stream hands out one giant chunk, unlike browser readers)
+    const big = Array.from({ length: 20000 }, (_, i) => '08-24 12:00:00.000  1  1 I T: line ' + i + ' NEEDLE').join('\n') + '\n';
+    const enc = new TextEncoder();
+    const chunked = { name: 'big.log', size: big.length, stream(){ let off = 0; return new ReadableStream({
+        async pull(ctrl){
+          if (off >= big.length){ ctrl.close(); return; }
+          const nl = big.indexOf('\n', off + 6000);
+          const end = nl < 0 ? big.length : nl + 1;
+          ctrl.enqueue(enc.encode(big.slice(off, end)));
+          off = end;
+          await new Promise(r => setTimeout(r, 2));
+        } }); } };
+    const { self, msgs } = makeSelf();
+    self.onmessage({ data: { type: 'search', files: [chunked], names: ['big.log'], pattern: 'NEEDLE', flags: 'i', cap: 100000, tsFamily: null, maskRules: [] } });
+    self.onmessage({ data: { type: 'abort' } });
+    const done = await waitDone(msgs, 10000);
+    check('search: abort stops the scan early', done.stopped === true && done.total < 20000);
+  }
+
+  console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
+  process.exit(fail ? 1 : 0);
+})().catch(e => { console.error('SEARCH HARNESS ERROR:', e); process.exit(2); });

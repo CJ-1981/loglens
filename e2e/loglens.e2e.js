@@ -225,6 +225,40 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   await page.locator('#btnTheme').click();          // restore light
   await page.locator('#tabBtnView').click();
 
+  // ---------- 6c. multi-file search tab: combined results across all loaded files ----------
+  await page.setInputFiles('#fpick', [
+    { name: 'one.log', mimeType: 'text/plain', buffer: Buffer.from('08-24 10:00:00.000  1  1 I Alpha: NEEDLE first file hit\n08-24 10:00:01.000  1  1 I Alpha: plain\n') },
+    { name: 'two.log', mimeType: 'text/plain', buffer: Buffer.from('08-24 11:00:00.000  2  2 W Beta: NEEDLE second file hit\n') },
+  ]);
+  await page.locator('#tabBtnSearch').click();
+  await page.locator('#msq').fill('NEEDLE');
+  await page.locator('#msRun').click();
+  await page.locator('#msBody tr').first().waitFor({ timeout: 10000 });
+  await page.waitForTimeout(150);
+  const msFiles = await page.evaluate(() => [...new Set([...document.querySelectorAll('#msBody tr td:first-child')].map(td => td.textContent))]);
+  check('multi-file search returns rows from the added files',
+    msFiles.includes('one.log') && msFiles.includes('two.log'));
+  const msTotal = await page.locator('#msSummary').innerText();
+  check('multi-file search summary lists per-file counts', msTotal.includes('matching line') && msTotal.includes('one.log: 1') && msTotal.includes('two.log: 1'));
+  // click-through: the one.log result row → viewer opens that file, focus ring on the line
+  await page.locator('#msBody tr', { hasText: 'NEEDLE first file hit' }).first().click();
+  await page.locator('#vBody .vrow.mfocus').waitFor({ timeout: 5000 });
+  const jumped = await page.evaluate(() => {
+    const row = document.querySelector('#vBody .vrow.mfocus');
+    return { file: document.getElementById('vFile').value, text: row.textContent };
+  });
+  check('result click opens the viewer on the matched line',
+    jumped.file === 'one.log' && jumped.text.includes('NEEDLE first file hit'));
+  // totals: '.' matches every line of every loaded file (demo 15 + longline 4 + one 2 + two 1)
+  await page.locator('#tabBtnSearch').click();
+  await page.locator('#msq').fill('.');
+  await page.locator('#msRun').click();
+  await page.locator('#msSummary').waitFor({ state: 'visible', timeout: 10000 });
+  const allTotal = await page.locator('#msSummary').innerText();
+  check('multi-file search totals every line of every file', /\b22\b/.test(allTotal.replace(/,/g, '')));
+  await page.locator('#tabBtnView').click();
+  await page.locator('#tabBtnWork').click();
+
   // ---------- 7. console errors ----------
   check('no page errors during flow', errors.length === 0);
   if (errors.length) console.log(errors.join('\n'));
