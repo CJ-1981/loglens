@@ -127,7 +127,7 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vrow.mfocus{box-shadow:inset 0 0 0 2px #e8a200}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
-#vCase.on,#vWrap.on,#vDlt.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* wrap off: one line per log entry, horizontal scroll instead; fixed columns
    never let their text bleed into the neighbor column (wide glyphs, fallback
    fonts, or squeezed widths all get clipped with an ellipsis) */
@@ -254,13 +254,24 @@ body[data-logtheme="dracula"] .vbody mark{background:#FFB86C;color:#282A36}
 body[data-logtheme="solarized"] .vbody{background:#002B36;color:#93A1A1}
 body[data-logtheme="solarized"] .vbody .ts,body[data-logtheme="solarized"] .vbody .ln{color:#586E75}
 body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
+/* ==== team: denoise ==== *//* ==== team: denoise ==== */
+.runcount{cursor:pointer;font-weight:700;font-size:10px;line-height:1.5;color:var(--amber);background:rgba(160,107,0,.14);border:1px solid currentColor;border-radius:9px;padding:0 6px;margin-left:8px;align-self:center;white-space:nowrap;user-select:none}
+.vrow.coll{opacity:.6}
+.vrow.coll:hover{opacity:1}
+.dlt.gap{color:var(--red);font-weight:700}
+
+/* ==== team: workbench ==== *//* ==== team: workbench ==== */
+#piiDets summary{cursor:pointer;font-size:11px;color:var(--mut);user-select:none}
+#piiDetBox{display:flex;flex-wrap:wrap;gap:2px 12px;padding:4px 0 0;font-size:11px;color:var(--mut)}
+#piiDetBox label{display:inline-flex;gap:4px;align-items:center;width:calc(50% - 12px);min-width:220px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.16.0</span>
+  <h1>LogLens</h1><span class="ver">v1.17.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -507,8 +518,16 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
       <option value="dracula">Dracula</option>
       <option value="solarized">Solarized Dark</option>
     </select>
-    <button class="btn sec on" id="vDlt" title="show time delta between consecutive timestamped lines">Δt</button>
-    <span id="vStatus" class="vstatus"></span>
+<select id="vMarksSel" title="bookmarked lines — select to jump" style="max-width:150px"></select>
+    <button class="btn sec" id="vMarkDel" title="delete the selected bookmark">del</button>
+    <button class="btn sec" id="vMarkCopy" title="copy all bookmarked lines to the clipboard">copy</button>
+        <button class="btn sec on" id="vDlt" title="show time delta between consecutive timestamped lines">Δt</button>
+<button class="btn sec" id="vColBtn" title="collapse consecutive repeated lines">≡</button>
+    <button class="btn sec" id="vGapBtn" title="jump to the next gap of 5+ seconds">gap»</button>
+<input type="text" id="vTimeIn" style="width:150px" placeholder="go to time · +90s / -5m / 08-25 14:03" spellcheck="false">
+    <button class="btn sec" id="vBootBtn" title="scan for reboot boundaries (timestamp resets)">boots</button>
+    <select id="vBootSel" style="max-width:130px"></select>
+            <span id="vStatus" class="vstatus"></span>
   </div>
   <div class="vmain">
     <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
@@ -526,6 +545,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   <h2 title="find potentially personal / identifying data in the loaded logs and turn findings into mask rules">pii scan</h2>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <button class="btn" id="piiRun">scan checked files</button>
+    <details id="piiDets" style="margin-left:6px"><summary>detectors</summary><div id="piiDetBox"></div></details>
     <button class="btn sec" id="piiStop" disabled>stop</button>
     <span id="piiStatus" style="font-size:11px;color:var(--mut)">no files loaded — press demo in the title bar (auto-scans), or add logs in the workbench</span>
   </div>
@@ -543,7 +563,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.16.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.17.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1101,11 +1121,8 @@ function renderLvls(){
   });
   $('lvlWarn').style.display = S.levels.size ? 'none' : '';
 }
-let lvlRerun=0;                             // coalesces rapid chip toggles into one re-scan
 function rerunLvls(){                       // chips are scan-time — apply to the existing result right away
-  if (!S.result || S.running || S.mBusy || !S.files.some(f=>f.use!==false)) return;
-  clearTimeout(lvlRerun);
-  lvlRerun=setTimeout(()=>{ if (S.result && !S.running && !S.mBusy) run(); },350);
+  scheduleRerun();                          // shared debounced re-run (defined before init)
 }
 
 // extraction rule presets
@@ -1385,6 +1402,7 @@ async function run(){
   renderMaskRules();
 
   S.result = { state, opts:{...opts, levels:[...opts.levels]} };
+  S.rulesSnapshot = JSON.stringify([S.extRules, S.maskRules]);   // baseline for the stale-settings chip
   renderStats(ms);
   S.shown=0; $('resFilter').value=''; $('errOnly').checked=false;
   renderResults(true);
@@ -1703,6 +1721,7 @@ $('btnTheme').onclick = ()=>applyTheme(document.body.getAttribute('data-theme')=
 function renderFilterChips(){
   const box=$('filterChips'); if(!box) return; box.innerHTML='';
   const chips=[];
+  if (S.result && JSON.stringify([S.extRules,S.maskRules]) !== S.rulesSnapshot) chips.push({t:'⚙ settings changed — press run', tip:'extract/mask rules differ from the last scan — click to re-run', clear:run});
   const from=$('tsFrom').value.trim(), to=$('tsTo').value.trim();
   if (from||to) chips.push({t:'⏱ '+(from||'…')+' → '+(to||'…'), tip:'scan-time window — clearing re-runs the scan',
     clear:()=>{ $('tsFrom').value=''; $('tsTo').value=''; saveProfile(); if(!S.running&&!S.mBusy&&S.files.length) run(); }});
@@ -1758,12 +1777,12 @@ function saveProfile(){ store.save({extract:S.extRules, mask:S.maskRules, levels
   const ok = CORE.validUserTs(e.target.value);
   e.target.style.borderColor = ok ? '' : 'var(--red)';
   e.target.title = ok ? '' : 'expected a supported timestamp form — see hint below';
-  saveProfile();
+  saveProfile(); scheduleRerun();
 }));
-['optCtx','optCap'].forEach(id=>$(id).addEventListener('input',saveProfile));
-$('errishRx').addEventListener('input',saveProfile);
+['optCtx','optCap'].forEach(id=>$(id).addEventListener('input',()=>{ saveProfile(); scheduleRerun(); }));
+$('errishRx').addEventListener('input',()=>{ saveProfile(); scheduleRerun(); });
 function syncErrish(){ $('errishRx').disabled = !$('optErrish').checked; }
-$('optErrish').addEventListener('change',()=>{ syncErrish(); saveProfile(); });
+$('optErrish').addEventListener('change',()=>{ syncErrish(); saveProfile(); scheduleRerun(); });
 window.addEventListener('beforeunload',e=>{ if (S.running || S.mBusy){ e.preventDefault(); e.returnValue=''; } });
 
 // click a row -> copy the full masked line
@@ -2004,11 +2023,15 @@ function vRender(mode, anchor){
   const body = $('vBody');
   const firstEst = Math.round(V.winStart / V.avgLen);
   const frag = new Array(V.lines.length);
+  const colOn = $('vColBtn').classList.contains('on');
+  const sigs = colOn ? new Array(V.lines.length) : null;
+  if (colOn) dnColSync();   // expanded-run set is keyed to the open file
   let maxTag = 0;
   let byteCursor = V.winStart;
   let prevMs = null;   // previous parsed timestamp (ms since midnight) for the Δt column
   for (let i = 0; i < V.lines.length; i++){
     const raw = V.lines[i];
+    if (colOn) sigs[i] = raw.replace(/\d+/g, '#');   // line shape: digit/hex runs collapsed
     let h = V.hdr[i];
     if (h === undefined){ h = CORE.parseHeader(raw); V.hdr[i] = h; }
     let m = V.disp[i];
@@ -2018,12 +2041,12 @@ function vRender(mode, anchor){
     if (h && h.ts){
       if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
-      const tms = h.ts ? (((+h.ts.slice(0,2))*86400 + (+h.ts.slice(6,2))*3600 + (+h.ts.slice(9,2))*60 + (+h.ts.slice(12,2)))*1000 + (h.ts.slice(15,18)===''?0:+h.ts.slice(15,18)) || 0) : null;
+      const tms = h.ts ? (((+h.ts.slice(0,2))*86400 + (+h.ts.slice(6,8))*3600 + (+h.ts.slice(9,11))*60 + (+h.ts.slice(12,14)))*1000 + (h.ts.slice(15,18)===''?0:+h.ts.slice(15,18)) || 0) : null;
       let dltHtml = '<span class="dlt"></span>';
       if (prevMs !== null){
         let d = tms - prevMs;
         if (d < 0) d += 86400000;   // midnight rollover
-        dltHtml = `<span class="dlt">${vFmtDlt(d)}</span>`;
+        dltHtml = `<span class="dlt${d >= 5000 ? ' gap' : ''}">${vFmtDlt(d)}</span>`;
       }
       prevMs = tms;
       frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span>${dltHtml}<span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
@@ -2032,7 +2055,23 @@ function vRender(mode, anchor){
     }
     byteCursor += V.blen[i] || 0;
   }
-  body.innerHTML = frag.join('') || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
+  let html = frag.join('');
+  if (colOn){
+    // group consecutive equal-shape lines into runs; a run >= 2 renders as its
+    // first line (dimmed) + count badge, unless that run is in the expanded set
+    const fb = new Array(frag.length); let acc = V.winStart;
+    for (let i = 0; i < frag.length; i++){ fb[i] = acc; acc += V.blen[i] || 0; }
+    const shown = [];
+    for (let i = 0, j; i < frag.length; i = j){
+      for (j = i + 1; j < frag.length && sigs[j] === sigs[i]; j++);
+      if (j - i >= 2 && !dnExp.has(String(fb[i]))){
+        const f = frag[i].replace('<div class="vrow"', '<div class="vrow coll"');
+        shown.push(f.replace(/<\/div>$/, `<span class="runcount" data-run="${fb[i]}">× ${j - i}</span></div>`));
+      } else for (let k = i; k < j; k++) shown.push(frag[k]);
+    }
+    html = shown.join('');
+  }
+  body.innerHTML = html || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
   // tag column: manual width wins; otherwise it hugs the longest tag in the
   // buffer, so short tags don't leave a blank stretch before the message
   body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
@@ -2924,6 +2963,281 @@ async function maskOnlyRun(){
     $('mProg').style.display='none'; $('mProgText').style.display='none';
   }
 }
+
+// ---------- viewer nav (team: nav) — go-to-time by byte bisection + boot segmentation ----------
+function navNormTs(s){                       // any canonical form → fixed-width 'MM-DD HH:MM:SS.mmm' (lexicographic == chronological)
+  if (!s) return null;
+  const m = /^(\d{2}-\d{2} \d{2}:\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/.exec(s);
+  return m ? m[1] + ':' + (m[2] || '00') + '.' + (m[3] || '0').padEnd(3, '0') : s;
+}
+function navRelMs(s){                        // '+90s' / '-5m' / '+2h' / '-1m30s' (units combine, may repeat) → signed ms
+  const m = /^([+-])((?:\d+(?:h|m|s))+)$/i.exec(String(s).trim());
+  if (!m) return null;
+  let ms = 0; const u = /(\d+)(h|m|s)/gi; let r;
+  while ((r = u.exec(m[2]))) ms += +r[1] * (r[2].toLowerCase() === 'h' ? 3600000 : r[2].toLowerCase() === 'm' ? 60000 : 1000);
+  return m[1] === '-' ? -ms : ms;
+}
+function navTsAdd(ts, off){                  // shift a canonical ts, keeps the 'MM-DD HH:MM:SS.mmm' shape (day overflow widens DD)
+  let t = (+ts.slice(3, 5) * 86400 + +ts.slice(6, 8) * 3600 + +ts.slice(9, 11) * 60 + +ts.slice(12, 14)) * 1000 + +ts.slice(15, 18) + off;
+  if (t < 0) t = 0;
+  const dd = Math.min(99, +ts.slice(3, 5) + Math.floor(t / 86400000)), p2 = n => String(n).padStart(2, '0');
+  t %= 86400000;
+  return ts.slice(0, 3) + p2(dd) + ' ' + p2(Math.floor(t / 3600000)) + ':' + p2(Math.floor(t / 60000) % 60) + ':' + p2(Math.floor(t / 1000) % 60) + '.' + String(t % 1000).padStart(3, '0');
+}
+// first parseable line at/after byte `from`: skip the (partial) line, then step 64KB up to 1MB total
+async function navTsAtByte(from){
+  for (let p = Math.max(0, from), limit = Math.min(V.total, Math.max(0, from) + 1048576); p < limit;){
+    const text = await vReadText(p, Math.min(V.total, p + 65536));
+    const nl = text.indexOf('\n');
+    let line;
+    if (p === 0) line = (nl < 0 ? text : text.slice(0, nl)).replace(/\r$/, '');   // byte 0 is a line start — the first line is a candidate
+    else { if (nl < 0){ if (p + 65536 >= V.total) break; p += 65536; continue; } line = text.slice(nl + 1).split('\n')[0].replace(/\r$/, ''); }
+    if (line){
+      const ts = CORE.detectTs(line);
+      if (ts) return { ts: navNormTs(ts), byte: p === 0 ? 0 : p + vByteLen(text.slice(0, nl + 1)) };
+    }
+    p += 65536;
+  }
+  return null;
+}
+// binary-search the smallest line start whose ts >= target; unparsable counts as "< target"
+async function navBisect(target){
+  let lo = 0, hi = V.total, hit = null, last = null;
+  for (let i = 0; i < 20 && lo < hi; i++){
+    const mid = Math.floor((lo + hi) / 2), r = await navTsAtByte(mid);
+    if (r && r.ts >= target){ hit = r; hi = mid; } else { if (r) last = r; lo = mid + 1; }
+  }
+  return hit || last || null;
+}
+$('vTimeIn').addEventListener('keydown', async e => {
+  if (e.key !== 'Enter' || !V.file || V.loading) return;
+  const raw = e.target.value.trim();
+  if (!raw) return;
+  let target;
+  if (/^[+-]/.test(raw)){
+    const off = navRelMs(raw), h = V.hdr.find(x => x && x.ts);
+    if (off == null){ toast('unrecognized time'); return; }
+    if (!h){ toast('no timestamp in view'); return; }
+    target = navTsAdd(navNormTs(h.ts), off);
+  } else {
+    target = navNormTs(CORE.parseUserTs(raw));
+    if (!target){ toast('unrecognized time'); return; }
+  }
+  const r = await navBisect(target);
+  if (r){ vSeekTo(r.byte); $('vFoot').textContent = '⏱ ' + r.ts; }
+  else { vSeekTo(V.total, true); $('vFoot').textContent = '⏱ ' + target + ' — after end of file'; }
+});
+// boots: stream the whole file, a canonical ts smaller than the previous one = timestamp reset = reboot boundary
+let navBoots = null, navBootBusy = false, navBootAbort = false;
+$('vBootBtn').onclick = async () => {
+  if (navBootBusy){ navBootAbort = true; return; }
+  if (!V.file){ toast('no file loaded'); return; }
+  navBootBusy = true; navBootAbort = false;
+  navBoots = [{ byte: 0, ts: null }];
+  $('vBootSel').innerHTML = '';
+  const reader = V.file.stream().getReader(), dec = new TextDecoder();
+  let buf = '', byte = 0, prev = null, read = 0, lastYield = 0;
+  try{
+    while (!navBootAbort){
+      const { done, value } = await reader.read();
+      if (done) break;
+      read += value.byteLength;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0){
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        const ts = CORE.detectTs(line.replace(/\r$/, ''));
+        if (ts){
+          const c = navNormTs(ts);
+          if (!navBoots[0].ts) navBoots[0].ts = c;
+          if (prev && c < prev) navBoots.push({ byte, ts: c });
+          prev = c;
+        }
+        byte += vByteLen(line) + 1;      // true UTF-8 line start for the next line
+      }
+      if (read - lastYield > 8 * 1048576){
+        lastYield = read;
+        $('vStatus').textContent = 'boots: ' + (navBoots.length - 1) + ' found · ' + Math.min(99, 100 * read / (V.total || 1)).toFixed(0) + '%';
+        await new Promise(r => setTimeout(r));
+      }
+    }
+  }catch(e){}
+  try{ await reader.cancel(); }catch(e){}
+  navBootBusy = false;
+  const sel = $('vBootSel');
+  sel.innerHTML = '';
+  navBoots.forEach((b, n) => { const o = document.createElement('option'); o.value = n; o.textContent = 'boot ' + n + ' — ' + (b.ts ? b.ts.slice(0, 11) : 'start'); sel.appendChild(o); });
+  $('vStatus').textContent = 'boots: ' + (navBoots.length - 1) + ' found' + (navBootAbort ? ' · stopped' : '');
+};
+$('vBootSel').onchange = () => { const b = navBoots && navBoots[+$('vBootSel').value]; if (b) vSeekTo(b.byte); };
+window.__navTest = { bisect: navBisect, tsAtByte: navTsAtByte, rel: navRelMs, norm: navNormTs, add: navTsAdd,
+                     stub(file, total){ const s = { f: V.file, t: V.total }; V.file = file; V.total = total; return () => { V.file = s.f; V.total = s.t; }; } };
+
+// ---- team: denoise — repeat collapse + gap jump ----
+const dnExp = new Set();              // first-line bytes of expanded runs (current file only)
+let dnExpKey = null, dnGapBusy = false;
+const dnSig = raw => String(raw).replace(/\d+/g, '#');   // line shape: digit/hex runs -> '#'
+function dnColSync(){
+  const k = V.file ? V.file.name + ':' + V.file.size : null;
+  if (k !== dnExpKey){ dnExpKey = k; dnExp.clear(); }   // file changed → forget expansions
+}
+// true ms-of-day from a parsed header ts (vRender's Δt arithmetic reuses slice offsets that
+// read month-constant values — the scanner needs real deltas, so parse HH:MM:SS.mmm directly)
+const dnTsMs = h => { const v = (+h.ts.slice(6,8))*3600 + (+h.ts.slice(9,11))*60 + (+h.ts.slice(12,14)); const ms = v * 1000 + (+h.ts.slice(15,18) || 0); return Number.isFinite(ms) ? ms : null; };
+try{ (window.__dnTest = window.__dnTest || {}).sig = dnSig; }catch(e){}
+// badge click expands/collapses its run — capture phase + stopPropagation keeps the row copy handler out
+$('vBody').addEventListener('click', e => {
+  const t = e.target && e.target.closest ? e.target.closest('.runcount') : null;
+  if (!t) return;
+  e.stopPropagation(); e.preventDefault();
+  const k = t.dataset.run;
+  if (!dnExp.delete(k)) dnExp.add(k);
+  if (V.file) vRender('keep', vCaptureAnchor());
+}, true);
+// collapse toggle (persisted, OFF by default)
+$('vColBtn').onclick = () => {
+  const on = !$('vColBtn').classList.contains('on');
+  $('vColBtn').classList.toggle('on', on);
+  try{ localStorage.setItem('loglens.col', on ? '1' : '0'); }catch(e){}
+  if (V.file) vRender('keep', vCaptureAnchor());
+};
+try{ if (localStorage.getItem('loglens.col') === '1') $('vColBtn').classList.add('on'); }catch(e){}
+// gap jump: stream forward from the window end, first Δt >= 5s wins → seek there
+$('vGapBtn').onclick = async () => {
+  if (!V.file){ toast('no file open'); return; }
+  if (dnGapBusy){ toast('gap scan already running'); return; }
+  dnGapBusy = true;
+  try{
+    // seed Δt: last parseable ts in the 64KB before the window end
+    const seed = (await vReadText(Math.max(0, V.winEnd - 65536), V.winEnd)).split('\n');
+    let prev = null;
+    for (let i = seed.length - 1; i >= 0 && prev == null; i--){
+      const h = CORE.parseHeader(seed[i].replace(/\r$/, ''));
+      if (h && h.ts) prev = dnTsMs(h);
+    }
+    const reader = V.file.slice(V.winEnd).stream().getReader(), dec = new TextDecoder();
+    let buf = '', from = V.winEnd, scanned = 0, next = 8 * 1048576, found = false;
+    while (!found && from < V.total && scanned < 2147483648){
+      const { done, value } = await reader.read();
+      if (done) break;
+      scanned += value.byteLength;
+      buf += dec.decode(value, { stream: true });
+      if (scanned >= next){
+        next += 8 * 1048576;
+        $('vStatus').textContent = 'gap scan: ' + Math.min(99, Math.round(100 * from / V.total)) + '%';
+        await new Promise(r => setTimeout(r, 0));   // let the status paint
+      }
+      let nl;
+      while (!found && (nl = buf.indexOf('\n')) >= 0){
+        const rawLine = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        const h = CORE.parseHeader(rawLine.replace(/\r$/, ''));
+        if (h && h.ts){
+          const tms = dnTsMs(h);
+          if (prev != null && tms != null){
+            let d = tms - prev;
+            if (d < 0) d += 86400000;
+            if (d >= 5000){ found = true; vSeekTo(from); toast('gap: ' + (d / 1000).toFixed(1) + 's at ' + h.ts.slice(0, 14)); }
+          }
+          if (tms != null) prev = tms;
+        }
+        from += V_ENC.encode(rawLine).length + 1;
+      }
+    }
+    if (!found) toast('no 5s+ gap ahead');
+  }catch(e){ toast('gap scan failed: ' + e.message); }
+  finally{ dnGapBusy = false; if (String($('vStatus').textContent).indexOf('gap scan:') === 0) $('vStatus').textContent = ''; }
+};
+
+// ==== team: workbench — pii detector toggles + debounced live re-run ====
+const PII_KEY='loglens.piid';
+function renderPiiDets(){
+  const box=$('piiDetBox'); if(!box) return; box.innerHTML='';
+  CORE.PII_DETECTORS.forEach(d=>{
+    const lab=document.createElement('label');
+    lab.innerHTML=`<input type="checkbox"${d.enabled?' checked':''}><span>${esc(d.name)} — ${esc(d.desc)}</span>`;
+    const cb=lab.querySelector('input');
+    cb.onchange=()=>{ d.enabled=cb.checked; piiSaveDets(); };
+    box.appendChild(lab);
+  });
+}
+function piiSaveDets(){ try{ localStorage.setItem(PII_KEY, JSON.stringify(CORE.PII_DETECTORS.reduce((m,d)=>(m[d.name]=!!d.enabled,m),{}))); }catch(e){} }
+(function(){ try{ const m=JSON.parse(localStorage.getItem(PII_KEY)||'null');
+  if (m && typeof m==='object') CORE.PII_DETECTORS.forEach(d=>{ if (typeof m[d.name]==='boolean') d.enabled=m[d.name]; });
+}catch(e){} renderPiiDets(); })();
+let rerunT=0;
+function scheduleRerun(){                    // scan-time controls: re-run only when a result already exists
+  if (!S.result || S.running || S.mBusy || !S.files.some(f=>f.use!==false)) return;
+  clearTimeout(rerunT);
+  rerunT=setTimeout(()=>{ if (S.result && !S.running && !S.mBusy) run(); },450);
+}
+
+// ---------- team: marks — per-file bookmarks ----------
+function vMarksKey(){ return 'loglens.pins:' + V.file.name + ':' + V.file.size; }
+function vMarksLoad(){ if (!V.file) return []; try{ const a = JSON.parse(localStorage.getItem(vMarksKey()) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+function vMarksSave(a){ try{ localStorage.setItem(vMarksKey(), JSON.stringify(a)); }catch(e){} }
+function vMarksRefresh(){
+  const sel = $('vMarksSel'); if (!sel) return;
+  const pins = vMarksLoad(), vis = !!(V.file && pins.length);
+  ['vMarksSel','vMarkDel','vMarkCopy'].forEach(id => { $(id).style.display = vis ? '' : 'none'; });
+  sel.innerHTML = '';
+  const h = document.createElement('option'); h.value=''; h.disabled=true; h.selected=true; h.textContent = 'bookmarks (' + pins.length + ')';
+  sel.appendChild(h);
+  pins.forEach(p => { const o = document.createElement('option'); o.value = String(p.byte); o.textContent = p.byte + ' · ' + String(p.text||'').slice(0,60); sel.appendChild(o); });
+}
+// the .vrow containing (or nearest) the viewport's vertical middle
+function vMarkCenterRow(){
+  const b = $('vBody'), rows = b.children, n = rows.length;
+  if (!n || !rows[0].getBoundingClientRect) return null;
+  const br = b.getBoundingClientRect(), mid = br.top + br.height / 2;
+  let best = rows[0], bd = Infinity;
+  for (let i = 0; i < n; i++){
+    const r = rows[i].getBoundingClientRect();
+    if (r.top <= mid && r.bottom >= mid) return rows[i];
+    const d = Math.abs((r.top + r.bottom) / 2 - mid);
+    if (d < bd){ bd = d; best = rows[i]; }
+  }
+  return best;
+}
+function vMarkPin(){
+  if (!V.file) return;
+  const row = vMarkCenterRow(); if (!row) return;
+  const byte = +row.dataset.byte, idx = +row.dataset.idx;
+  if (!isFinite(byte)) return;
+  const pins = vMarksLoad();
+  if (pins.some(p => p.byte === byte)){ toast('line already bookmarked'); return; }
+  const text = String(V.disp && V.disp[idx] != null ? V.disp[idx] : '').slice(0, 120);
+  pins.push({byte, text}); pins.sort((a,b) => a.byte - b.byte);
+  vMarksSave(pins); vMarksRefresh();
+  toast('bookmarked #' + byte + ' ✓');
+}
+$('vMarksSel').onchange = () => {
+  const v = $('vMarksSel').value; if (v === '' || !V.file) return;
+  const byte = +v, p = vMarksLoad().find(x => x.byte === byte);
+  vSeekTo(byte);
+  toast(p && p.text ? String(p.text).slice(0,60) : 'byte ' + byte);
+};
+$('vMarkDel').onclick = () => {
+  if (!V.file) return;
+  const v = $('vMarksSel').value; if (v === '') return;
+  vMarksSave(vMarksLoad().filter(p => p.byte !== +v)); vMarksRefresh();
+  toast('bookmark deleted');
+};
+$('vMarkCopy').onclick = () => {
+  const pins = vMarksLoad(); if (!pins.length) return;
+  const txt = pins.map(p => p.text || '').join('\n');
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
+  .then(() => toast(pins.length + ' bookmarked lines copied ✓'), () => toast('clipboard blocked — select the text manually'));
+};
+$('vBody').addEventListener('keydown', e => {
+  if (e.key !== 'b' && e.key !== 'B') return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const ae = document.activeElement;
+  if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  e.preventDefault();
+  vMarkPin();
+});
+const __origVOpen = vOpen; vOpen = async function(f){ await __origVOpen(f); vMarksRefresh(); };
+vMarksRefresh();
 
 // ---------- init ----------
 (function init(){
