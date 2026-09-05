@@ -79,6 +79,9 @@ td.mono,th.mono{font-family:var(--mono);font-size:11px}
 .preview{font-family:var(--mono);font-size:11px;background:var(--code);color:var(--codeink);border-radius:5px;padding:8px 10px;white-space:pre-wrap;word-break:break-all}
 .ok{color:var(--green);font-weight:600}.bad{color:var(--red);font-weight:600}
 .note{background:#f5f8fd;border:1px solid #d7e3f4;border-left:3px solid var(--accent);border-radius:4px;padding:6px 10px;font-size:11px;margin-top:8px;color:var(--mut)}
+.note.warn{background:#fff4f2;border-color:#f3c1bd;border-left-color:var(--red);color:var(--ink)}
+/* mask table header row (styles were inline; class so dark theme can restyle) */
+.rulehdr{background:#eef2f7;font-weight:600;font-size:10px;color:#3a4a5a;letter-spacing:.4px}
 /* workflow stepper (workbench) */
 .steps{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
 .step{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--card);color:var(--mut);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;user-select:none}
@@ -123,7 +126,10 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 /* zebra: every other line, keyed to the line number's parity (not :nth-child —
    rows are recycled while scrolling, so DOM parity would slide). One translucent
    overlay composites over the default theme, dark mode and every logcat preset. */
-.vrow.alt{background:rgba(127,127,127,.09)}
+.vrow.alt{background:rgba(127,127,127,.12)}
+/* results table zebra — rows are append-only there, so nth-child is stable;
+   :not() keeps error/context row tinting on top */
+#resBody tr:nth-child(2n):not(.errrow):not(.ctxrow) td{background:rgba(127,127,127,.07)}
 .vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:var(--vfs,12px);line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
 .vmain{display:flex;flex:1;min-height:0;position:relative}
 #vTgGrip{position:absolute;top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize;z-index:6;touch-action:none}
@@ -185,6 +191,18 @@ body[data-theme=dark] .rule input[type=text],body[data-theme=dark] .search,body[
 body[data-theme=dark] select,body[data-theme=dark] input[type=number],body[data-theme=dark] input[type=password],
 body[data-theme=dark] .rule input[type=text],body[data-theme=dark] .rule .aa{background:#0d141b;color:var(--ink);border-color:var(--line)}
 body[data-theme=dark] .rule .aa.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* v1.18.5 legibility: plain (unclassed) text inputs — time window, err-ish regex, viewer go-to-time */
+body[data-theme=dark] input[type=text]{background:#0d141b;color:var(--ink);border-color:var(--line)}
+/* active tabs + chips: --ink is near-white in dark, so white text on it is unreadable */
+body[data-theme=dark] .tab.on,body[data-theme=dark] .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+body[data-theme=dark] .chip{border-color:var(--line)}
+body[data-theme=dark] .lvV{background:#222b36;color:#9fb0c0}
+body[data-theme=dark] .note.warn{background:#3a1416;border-color:#5c2a2c;border-left-color:var(--red)}
+body[data-theme=dark] .rulehdr{background:#1a2330;color:#a9bccd}
+/* histogram: hardcoded light-theme SVG attrs need dark counterparts */
+body[data-theme=dark] #histBox line{stroke:#263140}
+body[data-theme=dark] #histBox text{fill:#8ba1b5}
+body[data-theme=dark] #histBox rect{fill:var(--accent)}
 body[data-theme=dark] .fileitem{background:#10171f}
 body[data-theme=dark] th{background:#1a2330;color:#a9bccd}
 body[data-theme=dark] .drop{border-color:#3a4a5c}
@@ -285,7 +303,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.4</span>
+  <h1>LogLens</h1><span class="ver">v1.18.5</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -363,7 +381,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
     <div style="margin-bottom:6px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn sec" id="restoreMask">reset presets</button>
     </div>
-    <div class="rule rulehdr" style="background:#eef2f7;font-weight:600;font-size:10px;color:#3a4a5a;letter-spacing:.4px">
+    <div class="rule rulehdr">
       <span style="width:15px"></span><span class="nm" style="width:130px;flex:0 0 130px">name</span>
       <span style="flex:1">pattern (regex)</span><span class="rp" style="width:150px;flex:0 0 150px">replacement</span><span class="hits">hits</span><span style="width:22px"></span>
     </div>
@@ -399,7 +417,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="card" id="statsCard" style="display:none">
   <h2 title="click a histogram bar to time-filter the scan">step 4 · overview</h2>
   <div class="stats" id="statCards"></div>
-  <div id="truncNote" class="note" style="display:none;background:#fff4f2;border-color:#f3c1bd;border-left-color:var(--red)"></div>
+  <div id="truncNote" class="note warn" style="display:none"></div>
   <div class="hbox"><div id="histBox"></div></div>
   <div class="grid2">
     <div class="hbox" style="margin:0"><h3 class="mini" style="margin-top:0">tags</h3><div style="max-height:260px;overflow:auto"><table id="tagTable"></table></div></div>
@@ -577,7 +595,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.4 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.18.5 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 

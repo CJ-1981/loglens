@@ -108,6 +108,20 @@ new Function(uiCode).call(global);
   check('collapse keeps zebra parity (coll injected before alt)',
     html.includes('/<div class="vrow( alt)?"/') && body.includes('class="vrow alt" data-byte'));
 
+  // v1.18.5: results table zebra (append-only rows → nth-child stable) + dark legibility fixes
+  check('results table zebra, error/context rows keep their tint',
+    html.includes('#resBody tr:nth-child(2n):not(.errrow):not(.ctxrow) td{background:rgba(127,127,127,.07)}'));
+  check('dark: plain text inputs themed (time window, errish, go-to-time)',
+    html.includes('body[data-theme=dark] input[type=text]{background:#0d141b;color:var(--ink);border-color:var(--line)}'));
+  check('dark: active tabs/chips use accent (no white-on-white)',
+    html.includes('body[data-theme=dark] .tab.on,body[data-theme=dark] .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}'));
+  check('dark: verbose level chip + warn note + mask header themed',
+    html.includes('body[data-theme=dark] .lvV') && html.includes('body[data-theme=dark] .note.warn') && html.includes('body[data-theme=dark] .rulehdr'));
+  check('dark: histogram gridlines/text/bars themed',
+    html.includes('body[data-theme=dark] #histBox line') && html.includes('body[data-theme=dark] #histBox rect') && html.includes('body[data-theme=dark] #histBox text'));
+  check('warn note + mask header are classes, not inline styles',
+    html.includes('<div id="truncNote" class="note warn" style="display:none"></div>') && html.includes('<div class="rule rulehdr">'));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

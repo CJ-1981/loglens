@@ -29,6 +29,18 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   check('scan completes with matches', /matched/i.test(statText) && !/matched\s*\n0/.test(statText));
   check('results table has rows', await page.locator('#resBody tr').count() > 3);
 
+  // ---------- 2b. results table zebra + dark theme legibility ----------
+  const resZebra = await page.evaluate(() => {
+    const seen = new Set();
+    for (const tr of document.querySelectorAll('#resBody tr')){
+      const td = tr.querySelector('td');
+      if (td) seen.add(getComputedStyle(td).backgroundColor);
+      if (seen.size > 1) break;
+    }
+    return seen.size;
+  });
+  check('results table zebra striping', resZebra > 1);
+
   // ---------- 3. viewer: demo visible + masked ----------
   await page.locator('#tabBtnView').click();
   await page.locator('#vBody .vrow').first().waitFor({ timeout: 3000 });
@@ -120,6 +132,29 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
 
   // ---------- 6. [Lnnn] toggle exists ----------
   check('[Lnnn] toggle present', await page.locator('#optLnnn').isChecked());
+
+  // ---------- 6b. dark theme legibility (v1.18.5) ----------
+  await page.locator('#tabBtnWork').click();
+  await page.locator('#btnTheme').click();          // light -> dark
+  const dk = await page.evaluate(() => {
+    const cs = el => getComputedStyle(el);
+    const tab = cs(document.querySelector('.tab.on'));
+    const ts = cs(document.getElementById('tsFrom'));
+    const vt = cs(document.getElementById('vTimeIn'));
+    const lum = c => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c); return (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255; };
+    return {
+      tabBg: tab.backgroundColor, tabColor: tab.color,
+      tsBg: ts.backgroundColor, tsColor: ts.color,
+      vtBg: vt.backgroundColor,
+      contrast: Math.abs(lum(tab.backgroundColor) - lum(tab.color)),
+    };
+  });
+  check('dark: active tab is accent with white text (not white-on-white)',
+    dk.tabBg === 'rgb(77, 139, 255)' && dk.tabColor === 'rgb(255, 255, 255)' && dk.contrast > 0.3);
+  check('dark: time-window + go-to-time inputs are dark-filled',
+    dk.tsBg === 'rgb(13, 20, 27)' && dk.vtBg === 'rgb(13, 20, 27)');
+  await page.locator('#btnTheme').click();          // restore light
+  await page.locator('#tabBtnView').click();
 
   // ---------- 7. console errors ----------
   check('no page errors during flow', errors.length === 0);
