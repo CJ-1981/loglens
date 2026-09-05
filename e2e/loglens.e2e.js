@@ -96,12 +96,26 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   await page.locator('#vSearchClr').click();
   await page.locator('#vWrap').click();          // restore wrap for the remaining checks
 
+  // ---------- 4d. zebra striping: adjacent rows must render different backgrounds ----------
+  await page.locator('#vFile').selectOption('demo_sample.log');
+  await page.locator('#vBody .vrow').nth(9).waitFor({ timeout: 3000 });
+  const zebra = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#vBody .vrow')].slice(0, 3);
+    return rows.map(r => getComputedStyle(r).backgroundColor);
+  });
+  check('zebra: alternating row backgrounds', zebra[0] !== zebra[1] && zebra[0] === zebra[2]);
+
   // ---------- 5. logcat theme switch (viewer toolbar selector) ----------
   await page.locator('#vTheme').selectOption('dracula');
   const bodyTheme = await page.evaluate(() => document.body.getAttribute('data-logtheme'));
   check('logcat theme applies (dracula)', bodyTheme === 'dracula');
   const surf = await page.evaluate(() => getComputedStyle(document.getElementById('vBody')).backgroundColor);
   check('viewer surface restyled (dracula bg)', surf === 'rgb(40, 42, 54)');
+  const zebraD = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#vBody .vrow')].slice(0, 2);
+    return rows.map(r => getComputedStyle(r).backgroundColor);
+  });
+  check('zebra persists under theme presets', zebraD[0] !== zebraD[1]);
   await page.locator('#vTheme').selectOption('default');
 
   // ---------- 6. [Lnnn] toggle exists ----------

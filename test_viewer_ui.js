@@ -100,6 +100,14 @@ new Function(uiCode).call(global);
   check('nowrap focus ring pinned to exact content extent (vFitFocusRow)',
     html.includes('function vFitFocusRow') && html.includes('row.scrollWidth + 1'));
 
+  // zebra striping: rows carry .alt by line-number parity (not DOM order — rows
+  // are recycled while scrolling), so stripes stay put and match the gutter
+  const seq = [...body.matchAll(/<div class="(vrow(?: alt)?)" data-byte/g)].map(m => m[1].includes('alt'));
+  check('zebra stripes alternate across rendered rows (aligned to line parity)',
+    seq.length >= 10 && seq.some(Boolean) && seq.some(v => !v) && seq.slice(0, 6).every((c, i) => c === (i % 2 === 1)));
+  check('collapse keeps zebra parity (coll injected before alt)',
+    html.includes('/<div class="vrow( alt)?"/') && body.includes('class="vrow alt" data-byte'));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

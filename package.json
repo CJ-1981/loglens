@@ -1,6 +1,6 @@
 {
   "name": "loglens",
-  "version": "1.18.3",
+  "version": "1.18.4",
   "private": true,
   "description": "Single-file browser tool for log extraction & PII masking",
   "scripts": {

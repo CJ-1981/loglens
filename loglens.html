@@ -120,6 +120,10 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vthumb{position:absolute;left:1px;top:0;width:10px;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
 .vthumb:hover{background:var(--accent)}
 .vrow{display:flex;flex:0 0 auto}
+/* zebra: every other line, keyed to the line number's parity (not :nth-child —
+   rows are recycled while scrolling, so DOM parity would slide). One translucent
+   overlay composites over the default theme, dark mode and every logcat preset. */
+.vrow.alt{background:rgba(127,127,127,.09)}
 .vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:var(--vfs,12px);line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
 .vmain{display:flex;flex:1;min-height:0;position:relative}
 #vTgGrip{position:absolute;top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize;z-index:6;touch-action:none}
@@ -281,7 +285,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.3</span>
+  <h1>LogLens</h1><span class="ver">v1.18.4</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -573,7 +577,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.3 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback).
+  LogLens v1.18.4 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2317,6 +2321,7 @@ function vRender(mode, anchor){
     if (m == null){ m = vApplyMask(raw); V.disp[i] = m; }
     // stable per-line identity: byte offset — walkers/anchors survive buffer shifts
     const idAttr = ` data-byte="${byteCursor}" data-idx="${i}"`;
+    const rowCls = (firstEst + i) & 1 ? 'vrow alt' : 'vrow';   // zebra matches the gutter number
     if (h && h.ts){
       if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
@@ -2328,9 +2333,9 @@ function vRender(mode, anchor){
         dltHtml = `<span class="dlt${d >= 5000 ? ' gap' : ''}">${vFmtDlt(d)}</span>`;
       }
       prevMs = tms;
-      frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span>${dltHtml}<span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
+      frag[i] = `<div class="${rowCls}"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span>${dltHtml}<span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
     } else {
-      frag[i] = `<div class="vrow"${idAttr}><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
+      frag[i] = `<div class="${rowCls}"${idAttr}><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
     }
     byteCursor += V.blen[i] || 0;
   }
@@ -2344,7 +2349,7 @@ function vRender(mode, anchor){
     for (let i = 0, j; i < frag.length; i = j){
       for (j = i + 1; j < frag.length && sigs[j] === sigs[i]; j++);
       if (j - i >= 2 && !dnExp.has(String(fb[i]))){
-        const f = frag[i].replace('<div class="vrow"', '<div class="vrow coll"');
+        const f = frag[i].replace(/<div class="vrow( alt)?"/, '<div class="vrow coll$1"');
         shown.push(f.replace(/<\/div>$/, `<span class="runcount" data-run="${fb[i]}">× ${j - i}</span></div>`));
       } else for (let k = i; k < j; k++) shown.push(frag[k]);
     }
