@@ -16,7 +16,9 @@ function el(id){
   const e = {
     id, style: { setProperty(){} }, dataset: {}, children: [], value: '', textContent: '', innerHTML: '',
     disabled: false, checked: true, title: '', placeholder: '', scrollTop: 0, clientHeight: 300, className: '',
-    classList: { add(){}, remove(){}, toggle(){} },
+    classList: { _s: new Set(), add(c){ this._s.add(c); }, remove(c){ this._s.delete(c); },
+                 toggle(c,f){ if(f===undefined){ this._s.has(c)?this._s.delete(c):this._s.add(c); } else if(f) this._s.add(c); else this._s.delete(c); },
+                 contains(c){ return this._s.has(c); } },
     setAttribute(){}, appendChild(c){ this.children.push(c); },
     addEventListener(){}, removeEventListener(){},
     querySelector(sel){ return el(id + '>' + sel); },
@@ -72,7 +74,7 @@ new Function(uiCode).call(global);
     check('theme "' + t + '" applies and syncs both selectors',
       el('logThemeSel').value === t &&
       document.body.getAttribute('data-logtheme') === (t==='default' ? null : t) &&
-      el('vBody').className === ('vbody' + (t==='hc' ? ' hc' : '')));
+      el('vBody').classList.contains('hc') === (t==='hc'));
   }
   // the workbench selector drives the same applier
   el('logThemeSel').value = 'dracula';

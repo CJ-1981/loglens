@@ -100,16 +100,21 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vthumb:hover{background:var(--accent)}
 .vrow{display:flex;flex:0 0 auto}
 .vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
-.vmain{display:flex;flex:1;min-height:0}
+.vmain{display:flex;flex:1;min-height:0;position:relative}
+#vTgGrip{position:absolute;top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize;z-index:6;touch-action:none}
+#vTgGrip:hover,#vTgGrip.drag{background:rgba(77,139,255,.30)}
 .vrow .ln{flex:0 0 8ch;text-align:right;padding:0 8px 0 10px;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;line-height:1.9}
-.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch 1fr;grid-template-columns:18ch 3ch max(10ch,min(var(--tgw,16ch),24ch)) 1fr;gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
+.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch 1fr;grid-template-columns:18ch 3ch max(6ch,min(var(--tgw,16ch),80ch)) 1fr;gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
 .vrow .raw{flex:1;white-space:pre-wrap;word-break:break-all;padding-right:10px}
 .vrow .ts{color:var(--mut)}
 .vrow .tg{color:var(--ink);font-weight:600}
 .vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
-#vCase.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#vCase.on,#vWrap.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* wrap off: one line per log entry, horizontal scroll instead */
+#vBody.nowrap .cols,#vBody.nowrap .raw{white-space:pre;word-break:normal}
+#vBody.nowrap .tg{overflow:hidden;text-overflow:ellipsis}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -233,7 +238,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.14.2</span>
+  <h1>LogLens</h1><span class="ver">v1.14.3</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -452,6 +457,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   <div class="vtoolbar">
     <select id="vFile" title="file to browse"></select>
     <button class="btn sec" id="vCase" title="case-insensitive search (click for case-sensitive)">Aa</button>
+    <button class="btn sec on" id="vWrap" title="wrap long lines — click for one-line rows (scroll sideways)">wrap</button>
     <input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false">
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
@@ -469,10 +475,11 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   <div class="vmain">
     <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
     <div class="vbody" id="vBody" tabindex="0"></div>
+    <div id="vTgGrip" title="drag: tag column width · double-click: auto-fit"></div>
   </div>
   <div class="vfoot" id="vFoot"></div>
 </div>
-<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position</div>
+<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position · drag the tag/message edge to resize the tag column (double-click = auto-fit)</div>
 </div><!-- /tabView -->
 
 <!-- PII SCAN TAB -->
@@ -498,7 +505,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.14.2 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.14.3 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -1729,7 +1736,8 @@ function loadDemoFile(){
 // runs viewerEnsure at load, which touches V — keep it out of the TDZ) ----------
 const V = { file:null, anchor:0, lines:[], disp:[], hdr:[], blen:[], winStart:0, winEnd:0,
             total:0, est:0, maskCm:null, loading:false, lastHit:null, avgLen:80,
-            searchFrom:null, lastQ:null, seq:0 };
+            searchFrom:null, lastQ:null, seq:0, tgwUser:null };
+try{ const t = parseFloat(localStorage.getItem('loglens.tgw')); if (t > 0) V.tgwUser = t; }catch(e){}
 
 // ---------- tabs ----------
 function setTab(t){
@@ -1794,7 +1802,7 @@ function applyLogTheme(t){
   $('logThemeSel').value = t;
   // NOTE: attribute name must match the CSS selectors exactly: data-logtheme (no dash before "theme")
   if (t==='default') document.body.removeAttribute('data-logtheme'); else document.body.setAttribute('data-logtheme', t);
-  $('vBody').className = 'vbody' + (t==='hc' ? ' hc' : '');
+  $('vBody').classList.toggle('hc', t==='hc');   // classList, not className — never clobber other vBody classes
   try{ localStorage.setItem('loglens.logtheme', t); }catch(e){}
 }
 function vApplyTheme(){ applyLogTheme($('vTheme').value); }
@@ -1921,9 +1929,9 @@ function vRender(mode, anchor){
     }
   }
   body.innerHTML = frag.join('') || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
-  // tag column hugs the longest tag in the buffer (CSS clamps 10–24ch) instead
-  // of reserving a fixed width, so short tags don't leave a blank stretch
-  body.style.setProperty('--tgw', Math.max(1, maxTag) + 'ch');
+  // tag column: manual width wins; otherwise it hugs the longest tag in the
+  // buffer, so short tags don't leave a blank stretch before the message
+  body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
   if (mode === 'bottom') body.scrollTop = body.scrollHeight;
   else if (mode === 'keep') vRestoreScroll(body, anchor);
   else body.scrollTop = 0;
@@ -1932,6 +1940,7 @@ function vRender(mode, anchor){
   if (V.rx && V.lastQ != null && V.lastQ === $('vSearch').value.trim()) marked = vMarkRows();
   vStatus();
   vThumb();
+  vPlaceTgGrip();
   if (marked) $('vFoot').textContent = '🔍 "' + V.lastQ + '" — ' + marked + ' highlighted in current view';
   // chain/keep/bottom renders continue the edge-chain loop; a deliberate 'top'
   // seek (search jump, rail jump) must not re-render and clobber its own result
@@ -1942,10 +1951,12 @@ function vRender(mode, anchor){
 // (timers are throttled by Chromium in occluded/background windows). The low-rate
 // interval only covers content changes that no scroll event announces.
 let vScheduleEdgeCheck = () => {};
+let vPlaceTgGrip = () => {};
 (function(){
   const b = $('vBody');
   const edges = () => {
     if (!V.file || V.loading || !isFinite(b.scrollHeight) || !isFinite(b.scrollTop)) return;
+    vPlaceTgGrip();
     if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
     else if (b.scrollTop <= 120) vChainBackward();
   };
@@ -2116,6 +2127,64 @@ $('vBody').addEventListener('keydown', e=>{
 });
 // touch panning is native (overflow + edge chaining) — no custom handler needed
 $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCaptureAnchor()); };
+// ---- tag column resizer: drag the grip between tag and message ----
+(function(){
+  const grip = $('vTgGrip'), b = $('vBody');
+  const main = grip.parentElement;                        // .vmain
+  let drag = null;
+  vPlaceTgGrip = () => {
+    const tg = b.querySelector('.vrow .tg');
+    if (!tg || !tg.getBoundingClientRect){ grip.style.display = 'none'; return; }
+    grip.style.display = '';
+    grip.style.left = (tg.getBoundingClientRect().right - main.getBoundingClientRect().left) + 'px';
+  };
+  grip.addEventListener('pointerdown', e => {
+    if (!V.file) return;
+    const tg = b.querySelector('.vrow .tg');
+    if (!tg) return;
+    e.preventDefault();
+    drag = { x: e.clientX, w: tg.getBoundingClientRect().width };
+    grip.classList.add('drag');
+    try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  grip.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const w = Math.max(24, Math.min(720, drag.w + e.clientX - drag.x));
+    V.tgwUser = w;
+    b.style.setProperty('--tgw', w + 'px');
+    vPlaceTgGrip();
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag = null;
+    grip.classList.remove('drag');
+    try{ localStorage.setItem('loglens.tgw', String(V.tgwUser)); }catch(e){}
+  };
+  grip.addEventListener('pointerup', endDrag);
+  grip.addEventListener('pointercancel', endDrag);
+  grip.addEventListener('dblclick', () => {          // back to auto-fit
+    V.tgwUser = null;
+    try{ localStorage.removeItem('loglens.tgw'); }catch(e){}
+    vRender('keep', vCaptureAnchor());
+  });
+  window.addEventListener('resize', vPlaceTgGrip);
+})();
+// ---- wrap long lines on/off (persisted) ----
+(function(){
+  const apply = on => {
+    $('vBody').classList.toggle('nowrap', !on);
+    $('vWrap').title = on ? 'wrap long lines — click for one-line rows (scroll sideways)'
+                          : 'one-line rows — click to wrap long lines';
+  };
+  $('vWrap').onclick = () => {
+    const on = !$('vWrap').classList.contains('on');
+    $('vWrap').classList.toggle('on', on);
+    apply(on);
+    try{ localStorage.setItem('loglens.vwrap', on ? '1' : '0'); }catch(e){}
+  };
+  let w = null; try{ w = localStorage.getItem('loglens.vwrap'); }catch(e){}
+  if (w === '0'){ $('vWrap').classList.remove('on'); apply(false); }
+})();
 // search-jump: stream from current offset with the include-regex engine
 function vCaseSensitive(){ return $('vCase').classList.contains('on'); }   // Aa on = case-sensitive
 let vFindAbort = false;
