@@ -131,6 +131,15 @@ new Function(uiCode).call(global);
   check('warn note + mask header are classes, not inline styles',
     html.includes('<div id="truncNote" class="note warn" style="display:none"></div>') && html.includes('<div class="rule rulehdr">'));
 
+  // v1.18.9: tag + Δt columns need per-theme colors — .tg defaulted to var(--ink)
+  // (near-black in light body theme → illegible on the dark logcat presets)
+  check('logcat themes restyle tag column for legibility',
+    ['as','vscode','dracula','solarized'].every(t => html.includes('body[data-logtheme="' + t + '"] .vbody .tg{color:')) &&
+    html.includes('#vBody.hc .tg{color:#fff}'));
+  check('logcat themes restyle Δt column (matches each theme timestamp color)',
+    ['as','vscode','dracula','solarized'].every(t => html.includes('body[data-logtheme="' + t + '"] .vbody .dlt{color:')) &&
+    html.includes('#vBody.hc .dlt{color:#9aa7b4}'));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

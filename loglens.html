@@ -170,6 +170,9 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
 #vBody.hc .ln{color:#6f7d8c}
+#vBody.hc .tg{color:#fff}
+#vBody.hc .dlt{color:#9aa7b4}
+#vBody.hc .dlt.gap{color:#FF3333}
 #vBody.hc mark{background:#ffe066;color:#000}
 body[data-theme=dark] .vbody{background:var(--card)}
 body[data-theme=dark] .vsearch{background:#0d141b;color:var(--ink);border-color:var(--line)}
@@ -284,17 +287,31 @@ body[data-logtheme="hc"] .lvF{background:#fff;color:#000}
 body[data-logtheme="hc"] .errrow td{background:#2a0000}
 body[data-logtheme="hc"] .ctxrow td{background:#111;color:#bbb}
 /* viewer surfaces for each preset (hc uses #vBody.hc class) */
+/* tag (.tg) and Δt (.dlt) need explicit colors per preset: .tg defaults to
+   var(--ink) (near-black in the light body theme — illegible on these dark
+   surfaces) and .dlt inherits var(--mut) from the body palette */
 body[data-logtheme="as"] .vbody{background:#2B2B2B;color:#A9B7C6}
 body[data-logtheme="as"] .vbody .ts,body[data-logtheme="as"] .vbody .ln{color:#7f8b97}
+body[data-logtheme="as"] .vbody .tg{color:#A9B7C6}
+body[data-logtheme="as"] .vbody .dlt{color:#7f8b97}
+body[data-logtheme="as"] .vbody .dlt.gap{color:#FF6B68}
 body[data-logtheme="as"] .vbody mark{background:#BBB529;color:#2B2B2B}
 body[data-logtheme="vscode"] .vbody{background:#1E1E1E;color:#D4D4D4}
 body[data-logtheme="vscode"] .vbody .ts,body[data-logtheme="vscode"] .vbody .ln{color:#858585}
+body[data-logtheme="vscode"] .vbody .tg{color:#D4D4D4}
+body[data-logtheme="vscode"] .vbody .dlt{color:#858585}
+body[data-logtheme="vscode"] .vbody .dlt.gap{color:#F48771}
 body[data-logtheme="vscode"] .vbody mark{background:#DCDCAA;color:#1E1E1E}
 body[data-logtheme="dracula"] .vbody{background:#282A36;color:#F8F8F2}
 body[data-logtheme="dracula"] .vbody .ts,body[data-logtheme="dracula"] .vbody .ln{color:#6272A4}
+body[data-logtheme="dracula"] .vbody .tg{color:#F8F8F2}
+body[data-logtheme="dracula"] .vbody .dlt{color:#6272A4}
+body[data-logtheme="dracula"] .vbody .dlt.gap{color:#FF5555}
 body[data-logtheme="dracula"] .vbody mark{background:#FFB86C;color:#282A36}
 body[data-logtheme="solarized"] .vbody{background:#002B36;color:#93A1A1}
-body[data-logtheme="solarized"] .vbody .ts,body[data-logtheme="solarized"] .vbody .ln{color:#586E75}
+body[data-logtheme="solarized"] .vbody .ts,body[data-logtheme="solarized"] .vbody .ln,body[data-logtheme="solarized"] .vbody .dlt{color:#839496}
+body[data-logtheme="solarized"] .vbody .tg{color:#EEE8D5}
+body[data-logtheme="solarized"] .vbody .dlt.gap{color:#DC322F}
 body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 /* ==== team: denoise ==== *//* ==== team: denoise ==== */
 .runcount{cursor:pointer;font-weight:700;font-size:10px;line-height:1.5;color:var(--amber);background:rgba(160,107,0,.14);border:1px solid currentColor;border-radius:9px;padding:0 6px;margin-left:8px;align-self:center;white-space:nowrap;user-select:none}
@@ -313,7 +330,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.8</span>
+  <h1>LogLens</h1><span class="ver">v1.18.9</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -605,7 +622,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.8 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.18.9 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 

@@ -156,6 +156,27 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   });
   check('zebra: alternating row backgrounds', zebra[0] !== zebra[1] && zebra[0] === zebra[2]);
 
+  // ---------- 4e. tag/Δt legibility under dark logcat presets (v1.18.9) ----------
+  // in the light body theme, .tg used to render var(--ink) (near-black) on the
+  // dark preset surfaces — contrast ~1.1:1. WCAG-ish ratio must now be >= 4.5.
+  for (const theme of ['as', 'vscode', 'solarized']){
+    await page.locator('#vTheme').selectOption(theme);
+    await page.waitForTimeout(80);
+    const c = await page.evaluate(() => {
+      const lum = c2 => {
+        const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c2);
+        const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        return 0.2126 * f(+m[1]) + 0.7152 * f(+m[2]) + 0.0722 * f(+m[3]);
+      };
+      const tg = getComputedStyle(document.querySelector('#vBody .vrow .tg')).color;
+      const bg = getComputedStyle(document.getElementById('vBody')).backgroundColor;
+      const l1 = lum(tg), l2 = lum(bg);
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    });
+    check(`tag column legible on ${theme} (contrast ${c.toFixed(1)})`, c >= 4.5);
+  }
+  await page.locator('#vTheme').selectOption('dracula');
+
   // ---------- 5. logcat theme switch (viewer toolbar selector) ----------
   await page.locator('#vTheme').selectOption('dracula');
   const bodyTheme = await page.evaluate(() => document.body.getAttribute('data-logtheme'));
