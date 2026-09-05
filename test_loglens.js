@@ -246,7 +246,35 @@ check('generic formats bucketed', Object.keys(stT2.buckets).length === 2);
 const stT3 = CORE.newState();
 CORE.processText('Aug 24 15:00:01 host a: null-level myapp\n08-24 15:00:02.000  1  1 I T: logcat-level myapp', 'h.log',
   { ...opts, levels: new Set(['E']) }, stT3);
-check('null level bypasses level filter', stT3.matched === 1);
+check('ts-bearing null-level line still bypasses level filter (syslog usable)', stT3.matched === 1);
+
+console.log('== continuation-line level inheritance (level chips) ==');
+// include=[] so the level filter is the only gate; a stack/continuation line has no
+// header of its own and must inherit the level of the preceding parsed line.
+const lvlOpts = { ...opts, include: [] };
+const stL1 = CORE.newState();
+CORE.processText('08-24 15:00:01.000  1  1 D T: myapp start work\n    at com.example.Foo.bar(Foo.java:12)\n    at com.example.Baz.qux(Baz.java:9)', 'l1.log',
+  { ...lvlOpts, levels: new Set(['E']) }, stL1);
+check('continuation dropped when filtering E only', stL1.matched === 0);
+const stL2 = CORE.newState();
+CORE.processText('08-24 15:00:01.000  1  1 D T: myapp start work\n    at com.example.Foo.bar(Foo.java:12)', 'l2.log',
+  { ...lvlOpts, levels: new Set(['D']) }, stL2);
+check('continuation kept when filtering D only (inherits D)', stL2.matched === 2 && stL2.byLevel['D'] === 2 && stL2.matches[1].lvl === 'D');
+const stL3 = CORE.newState();
+CORE.processText('    orphan stack line before any header\n08-24 15:00:02.000  1  1 E T: myapp boom', 'l3.log',
+  { ...lvlOpts, levels: new Set(['E']) }, stL3);
+check('continuation with no previous level dropped while filtering', stL3.matched === 1 && stL3.total === 2);
+const stL4 = CORE.newState();
+CORE.processText('08-24 15:00:01.000  1  1 D T: myapp start work\n    at com.example.Foo.bar(Foo.java:12)', 'l4.log', lvlOpts, stL4);
+check('all six levels checked: old behavior, continuation passes', stL4.matched === 2);
+const stL5 = CORE.newState();
+CORE.processText('08-24 15:00:01.000  1  1 D T: myapp start work\n    at com.example.Foo.bar(Foo.java:12)', 'l5.log',
+  { ...lvlOpts, levels: new Set(['E']), include: opts.include }, stL5);
+check('continuation inherits level even when its header matched include rules', stL5.matched === 0);
+const stL6 = CORE.newState();
+CORE.processText('08-24 15:00:01.000  1  1 D F1: d line\n08-24 15:00:02.000  1  1 E F1: e line\n    stack under the E header', 'l6.log',
+  { ...lvlOpts, levels: new Set(['E']) }, stL6);
+check('inheritance follows the latest parsed header per file', stL6.matched === 2 && stL6.matches[1].lvl === 'E');
 
 console.log('== v1.8: adaptive time-window input ==');
 check('parseUserTs canonical minute', CORE.parseUserTs('08-24 15:37') === '08-24 15:37');

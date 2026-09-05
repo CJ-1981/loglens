@@ -245,7 +245,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.15.0</span>
+  <h1>LogLens</h1><span class="ver">v1.15.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -515,7 +515,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.15.0 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.15.1 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
@@ -644,7 +644,7 @@ const CORE = (function(){
       total:0, matched:0, errish:0, ctxCount:0, truncated:false,
       byLevel:{}, byTag:{}, buckets:{}, byFile:{},
       maskHits:{}, matches:[], firstTs:null, lastTs:null,
-      _ctxFile:null, _pendingAfter:0, _lastEmit:-1, _ring:[]
+      _ctxFile:null, _pendingAfter:0, _lastEmit:-1, _lastLvl:null, _ring:[]
     };
   }
 
@@ -665,7 +665,7 @@ const CORE = (function(){
   function processLine(line, lineno, file, state, opts){
     state.total++;
     // context state is per-file: never leak ±N windows across files
-    if (file !== state._ctxFile){ state._ctxFile=file; state._pendingAfter=0; state._lastEmit=-1; state._ring.length=0; }
+    if (file !== state._ctxFile){ state._ctxFile=file; state._pendingAfter=0; state._lastEmit=-1; state._lastLvl=null; state._ring.length=0; }
     const ctx = Math.max(0, opts.context|0);
 
     let excluded = false;
@@ -677,9 +677,13 @@ const CORE = (function(){
     const h = parseHeader(line);
     const lvl = h ? h.lvl : null;
     const ts = h ? h.ts : null;
+    if (lvl) state._lastLvl = lvl;
+    const filtering = opts.levels && opts.levels.size < 6;   // user unchecked at least one of the 6 chips
+    const ilvl = lvl || (filtering && !ts ? state._lastLvl : null);   // effective level: no ts = continuation line inherits its header's
     let isMatch = included && !excluded;
     if (isMatch){
-      if (opts.levels && lvl && !opts.levels.has(lvl)) isMatch = false;
+      if (filtering && !lvl && !ts){ if (!ilvl || !opts.levels.has(ilvl)) isMatch = false; }
+      else if (lvl && !opts.levels.has(lvl)) isMatch = false;
       // prefix-slice compare: 'to' includes its own boundary minute, 'from' its own second
       if (isMatch && opts.fromTs && ts && ts.slice(0, opts.fromTs.length) < opts.fromTs) isMatch = false;
       if (isMatch && opts.toTs && ts && ts.slice(0, opts.toTs.length) > opts.toTs) isMatch = false;
@@ -713,9 +717,9 @@ const CORE = (function(){
       const bk = bucketOf(ts, opts.bucketMin);
       state.buckets[bk] = (state.buckets[bk]||0)+1;
     }
-    if (lvl) state.byLevel[lvl] = (state.byLevel[lvl]||0)+1;
+    if (ilvl) state.byLevel[ilvl] = (state.byLevel[ilvl]||0)+1;
     if (h && h.tag) state.byTag[h.tag] = (state.byTag[h.tag]||0)+1;
-    const isErr = (opts.errishRe ? opts.errishRe.test(line) : ERRISH.test(line)) || lvl==='E' || lvl==='W' || lvl==='F';
+    const isErr = (opts.errishRe ? opts.errishRe.test(line) : ERRISH.test(line)) || ilvl==='E' || ilvl==='W' || ilvl==='F';
     if (isErr){ state.errish++; bf.errish++; }
     const m = opts.applyMask ? maskLine(line, opts.maskCompiled) : {line, hits:null};
     if (m.hits) for (const k in m.hits) state.maskHits[k] = (state.maskHits[k]||0) + m.hits[k];
@@ -730,7 +734,7 @@ const CORE = (function(){
       state._pendingAfter = ctx;
     }
     state._lastEmit = lineno;
-    emitRec(state, opts, {file, lineno, masked:m.line, ts, lvl, tag:h?h.tag:'', err:isErr, ctx:'match'});
+    emitRec(state, opts, {file, lineno, masked:m.line, ts, lvl:ilvl, tag:h?h.tag:'', err:isErr, ctx:'match'});
   }
 
   function autoBucket(firstTs, lastTs){
@@ -1064,10 +1068,16 @@ function renderLvls(){
   LV.forEach(l=>{
     const c=document.createElement('span'); c.className='chip'+(S.levels.has(l)?' on':'');
     c.textContent='level '+l;
-    c.onclick=()=>{ S.levels.has(l)?S.levels.delete(l):S.levels.add(l); renderLvls(); saveProfile(); };
+    c.onclick=()=>{ S.levels.has(l)?S.levels.delete(l):S.levels.add(l); renderLvls(); saveProfile(); rerunLvls(); };
     box.appendChild(c);
   });
   $('lvlWarn').style.display = S.levels.size ? 'none' : '';
+}
+let lvlRerun=0;                             // coalesces rapid chip toggles into one re-scan
+function rerunLvls(){                       // chips are scan-time — apply to the existing result right away
+  if (!S.result || S.running || S.mBusy || !S.files.some(f=>f.use!==false)) return;
+  clearTimeout(lvlRerun);
+  lvlRerun=setTimeout(()=>{ if (S.result && !S.running && !S.mBusy) run(); },350);
 }
 
 // extraction rule presets
