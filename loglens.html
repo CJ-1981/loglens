@@ -9,10 +9,10 @@
   --bg:#f6f7f9;--card:#fff;--ink:#1a2330;--mut:#6b7a89;--line:#e4e8ee;
   --accent:#2563eb;--red:#c93b3f;--amber:#a06b00;--green:#188a4c;--dark:#101726;
   --code:#0e1720;--codeink:#d8e4f0;
-  --mono:Consolas,'Cascadia Mono',Menlo,monospace;
+  --mono:Consolas,'Cascadia Mono',Menlo,'Liberation Mono','Courier New',NSimSun,monospace;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 "Segoe UI",system-ui,Arial,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 "Segoe UI",system-ui,Arial,sans-serif;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .wrap{max-width:1240px;margin:0 auto;padding:14px 16px 64px}
 header.top{display:flex;align-items:center;gap:10px;background:var(--dark);color:#fff;border-radius:7px;padding:9px 14px;margin-bottom:10px;position:sticky;top:0;z-index:50}
 header.top h1{margin:0;font-size:14px;font-weight:600;letter-spacing:.2px}
@@ -112,9 +112,11 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
 #vCase.on,#vWrap.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-/* wrap off: one line per log entry, horizontal scroll instead */
+/* wrap off: one line per log entry, horizontal scroll instead; fixed columns
+   never let their text bleed into the neighbor column (wide glyphs, fallback
+   fonts, or squeezed widths all get clipped with an ellipsis) */
 #vBody.nowrap .cols,#vBody.nowrap .raw{white-space:pre;word-break:normal}
-#vBody.nowrap .tg{overflow:hidden;text-overflow:ellipsis}
+#vBody.nowrap .ts,#vBody.nowrap .lv,#vBody.nowrap .tg{overflow:hidden;text-overflow:ellipsis}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -238,7 +240,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.14.3</span>
+  <h1>LogLens</h1><span class="ver">v1.14.4</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -505,7 +507,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.14.3 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
+  LogLens v1.14.4 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint).
 </div>
 </div>
 
