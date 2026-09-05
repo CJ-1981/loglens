@@ -384,6 +384,10 @@ check('merge 5min', m5['08-24 12:00'] === 2 && m5['08-24 12:05'] === 1 && m5['08
 const m10 = CORE.mergeBuckets(bm, 10);
 check('merge 10min', m10['08-24 12:00'] === 3 && m10['08-24 12:50'] === 4);
 check('no raw duplication in records', !('raw' in stT.matches[0]));
+// worker scan driver must scan per-minute like the in-page loop — without
+// bucketMin the worker produces "HH:NaN" bucket keys (v1.18.10 regression)
+check('worker scan driver sets bucketMin (NaN bucket guard)',
+  html.includes('hardCap: msg.hardCap, bucketMin: 1, onMatch: null'));
 
 console.log('== v1.13: GNSS coordinates ==');
 check('GNSS in DEFAULT_MASK', CORE.DEFAULT_MASK.some(r => r.name === 'GNSS coordinates'));

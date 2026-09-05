@@ -330,7 +330,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.18.9</span>
+  <h1>LogLens</h1><span class="ver">v1.18.10</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -622,7 +622,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.18.9 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.18.10 · single-file · no server · offline · workbench + viewer + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -1621,7 +1621,7 @@ function WORKER_DRIVER(self){
       fromTs: msg.fromTs, toTs: msg.toTs,
       applyMask: msg.applyMask, maskCompiled: mask,
       errishRe: msg.errish ? new RegExp(msg.errish,'i') : { test: () => false },
-      context: msg.context|0, hardCap: msg.hardCap, onMatch: null
+      context: msg.context|0, hardCap: msg.hardCap, bucketMin: 1, onMatch: null
     };
     const state = CORE.newState();
     let lastPost = 0;
