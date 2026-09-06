@@ -162,6 +162,11 @@ new Function(uiCode).call(global);
     html.includes('<th class="h-tg">tag</th>') && html.includes('<th class="h-msg">message</th>'));
   check('viewer table spans and scrolls like the search lister',
     html.includes('.vtable{width:100%') && html.includes('#vBody.nowrap .vtable{width:max-content}'));
+  // v1.20.1: the level cell must not carry the badge class on the td itself —
+  // .lv is display:inline-block and pulling a table-cell out of layout is what
+  // left the badges floating between columns
+  check('level cell is a plain td (badge on the inner span, not the cell)',
+    html.includes('<td class="lvl">') && !/td class="lv lv/.test(html));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

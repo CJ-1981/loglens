@@ -341,7 +341,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.20.0</span>
+  <h1>LogLens</h1><span class="ver">v1.20.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -663,7 +663,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.20.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.20.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2519,7 +2519,7 @@ function vRender(mode, anchor){
         dltCell = `<td class="dlt${d >= 5000 ? ' gap' : ''}">${vFmtDlt(d)}</td>`;
       }
       prevMs = tms;
-      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="ts">${esc(h.ts)}</td><td class="lv lv${h.lvl||''}">${h.lvl||''}</td>${dltCell}<td class="tg">${esc(h.tag)}</td><td class="vmsg">${msg}</td></tr>`;
+      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="ts">${esc(h.ts)}</td><td class="lvl">${h.lvl?`<span class="lv lv${h.lvl}">${h.lvl}</span>`:''}</td>${dltCell}<td class="tg">${esc(h.tag)}</td><td class="vmsg">${msg}</td></tr>`;
     } else {
       frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="raw" colspan="5">${esc(m)}</td></tr>`;
     }
