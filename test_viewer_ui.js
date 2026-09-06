@@ -166,6 +166,9 @@ new Function(uiCode).call(global);
     html.includes('title="drag the tag/message edge to resize">tag</span>') && html.includes('>message</span>'));
   check('viewer message column keeps a minimum width on narrow screens',
     html.includes('minmax(24ch,1fr)') && html.includes('minmax(14ch,1fr)'));
+  check('wrap-mode rows widen on horizontal overflow (vFitRows both modes)',
+    html.includes("widths[i] = rows[i] ? rows[i].scrollWidth + 1 : 0") &&
+    html.includes('const extent = body.scrollWidth;') && html.includes("r.style.minWidth = wide ? extent + 'px' : ''"));
   check('header inherits tag width (--tgw on wrapper) + syncs horizontal scroll',
     html.includes("body.parentElement.style.setProperty('--tgw'") && html.includes('function vHeadSync'));
 

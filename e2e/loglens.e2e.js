@@ -78,6 +78,22 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
     return Math.round(spans[spans.length - 1].getBoundingClientRect().width);
   });
   check('mobile: wrapped message column keeps a usable width', msgW >= 80);
+  // wrap-mode rows widen to cover the horizontally-scrolled tail (stripe included)
+  const mob = await page.evaluate(() => {
+    const b = document.getElementById('vBody');
+    b.scrollLeft = 999999;
+    const row = document.querySelector('#vBody .vrow');
+    const spans = [...row.querySelectorAll('.cols > span')];
+    const last = spans[spans.length - 1];
+    return {
+      rowW: Math.round(row.getBoundingClientRect().width),
+      clientW: b.clientWidth,
+      textRight: Math.round(last.getBoundingClientRect().right),
+      rowRight: Math.round(row.getBoundingClientRect().right),
+    };
+  });
+  check('wrap-mode rows widen to cover horizontal overflow (mobile)',
+    mob.rowW > mob.clientW && mob.textRight <= mob.rowRight || (console.log('WIDEN DEBUG:', JSON.stringify(mob)), false));
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForTimeout(200);
 

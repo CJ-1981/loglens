@@ -352,7 +352,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.19.4</span>
+  <h1>LogLens</h1><span class="ver">v1.19.5</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -677,7 +677,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.19.4 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.19.5 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2823,7 +2823,7 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
     try{ localStorage.removeItem('loglens.tgw'); }catch(e){}
     vRender('keep', vCaptureAnchor());
   });
-  window.addEventListener('resize', vPlaceTgGrip);
+  window.addEventListener('resize', () => { vPlaceTgGrip(); vFitRows(); vHeadSync(); });
 })();
 // ---- wrap long lines on/off (persisted) ----
 (function(){
@@ -2837,12 +2837,14 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
     $('vWrap').classList.toggle('on', on);
     apply(on);
     try{ localStorage.setItem('loglens.vwrap', on ? '1' : '0'); }catch(e){}
-    // rows may carry render-time pinned widths (nowrap) — re-fit for the new mode
-    if (on) document.querySelectorAll('#vBody .vrow').forEach(r => { r.style.width = ''; });
-    else vFitRows();
+    // rows may carry render-time pinned widths — vFitRows re-fits for the new
+    // mode: wrap clears pins on non-overflowing rows, nowrap re-pins them all
+    vFitRows();
   };
   let w = null; try{ w = localStorage.getItem('loglens.vwrap'); }catch(e){}
   if (w === '0'){ $('vWrap').classList.remove('on'); apply(false); }
+  // refit rows when the viewport changes (pinned widths are px, wrap width is %)
+  window.addEventListener('resize', () => { vFitRows(); vHeadSync(); });
 })();
 // ---- viewer font size A- / A+ (persisted) ----
 (function(){
@@ -3055,11 +3057,26 @@ function vFitFocusRow(row){
 // nowrap: pin EVERY row at render time (two passes — reads first, then writes —
 // so the whole buffer costs one layout, not one per row)
 function vFitRows(){
-  if (!$('vBody').classList.contains('nowrap')) return;
-  const rows = $('vBody').children;
-  const widths = new Array(rows.length);
-  for (let i = 0; i < rows.length; i++) widths[i] = rows[i].scrollWidth;
-  for (let i = 0; i < rows.length; i++) rows[i].style.width = (widths[i] + 1) + 'px';
+  const body = $('vBody');
+  const rows = body.children;
+  if (body.classList.contains('nowrap')){
+    // nowrap: pin every row to its content extent (measured per row)
+    const widths = new Array(rows.length);
+    for (let i = 0; i < rows.length; i++) widths[i] = rows[i] ? rows[i].scrollWidth + 1 : 0;
+    for (let i = 0; i < rows.length; i++){ const r = rows[i]; if (r) r.style.width = (widths[i] || 1) + 'px'; }
+    return;
+  }
+  // wrap: when the fixed columns + message minimum exceed the viewport (phone),
+  // extend every row to the container's scroll extent so stripes and row
+  // backgrounds cover the horizontally-scrolled tail; rows still wrap inside.
+  const extent = body.scrollWidth;
+  const wide = extent > body.clientWidth + 1;
+  for (let i = 0; i < rows.length; i++){
+    const r = rows[i];
+    if (!r) continue;
+    r.style.width = '';
+    r.style.minWidth = wide ? extent + 'px' : '';
+  }
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
 // continue with the byte scan (Enter / n semantics) into the rest of the file

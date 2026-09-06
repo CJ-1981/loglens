@@ -3,14 +3,14 @@
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
 ![version](https://img.shields.io/badge/version-v1.18-blue)
-![tests](https://img.shields.io/badge/assertions-413%20passing-green)
+![tests](https://img.shields.io/badge/assertions-414%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.19.4 · 413 automated assertions across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · multi-file search · zebra log viewer · mobile-responsive
+- **Current version**: v1.19.5 · 414 automated assertions across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · multi-file search · zebra log viewer · mobile-responsive
 
 ## Screenshots
 
