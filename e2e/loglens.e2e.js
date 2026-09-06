@@ -227,14 +227,14 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
 
   // ---------- 6c. multi-file search tab: combined results across all loaded files ----------
   await page.setInputFiles('#fpick', [
-    { name: 'one.log', mimeType: 'text/plain', buffer: Buffer.from('08-24 10:00:00.000  1  1 I Alpha: NEEDLE first file hit\n08-24 10:00:01.000  1  1 I Alpha: plain\n') },
+    { name: 'one.log', mimeType: 'text/plain', buffer: Buffer.from('08-24 10:00:00.000  1  1 I Alpha: NEEDLE first file hit vin=YV4AB9CD12EF34567\n08-24 10:00:01.000  1  1 I Alpha: plain\n') },
     { name: 'two.log', mimeType: 'text/plain', buffer: Buffer.from('08-24 11:00:00.000  2  2 W Beta: NEEDLE second file hit\n') },
   ]);
   await page.locator('#tabBtnSearch').click();
   await page.locator('#msq').fill('NEEDLE');
   await page.locator('#msRun').click();
-  await page.locator('#msBody tr').first().waitFor({ timeout: 10000 });
-  await page.waitForTimeout(150);
+  await page.locator('#msProg').waitFor({ state: 'hidden', timeout: 15000 });   // scan finished
+  await page.locator('#msBody tr').first().waitFor({ timeout: 5000 });
   const msFiles = await page.evaluate(() => [...new Set([...document.querySelectorAll('#msBody tr td:first-child')].map(td => td.textContent))]);
   check('multi-file search returns rows from the added files',
     msFiles.includes('one.log') && msFiles.includes('two.log'));
@@ -253,9 +253,33 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   await page.locator('#tabBtnSearch').click();
   await page.locator('#msq').fill('.');
   await page.locator('#msRun').click();
-  await page.locator('#msSummary').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#msProg').waitFor({ state: 'hidden', timeout: 15000 });   // scan finished
+  await page.locator('#msSummary').waitFor({ state: 'visible', timeout: 5000 });
   const allTotal = await page.locator('#msSummary').innerText();
   check('multi-file search totals every line of every file', /\b22\b/.test(allTotal.replace(/,/g, '')));
+  // zebra: adjacent result rows render different backgrounds (per-theme stripe var)
+  const msZebra = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#msBody tr')].slice(0, 2);
+    return rows.map(r => getComputedStyle(r.querySelector('td')).backgroundColor);
+  });
+  check('search table zebra striping', msZebra[0] !== msZebra[1]);
+  // mask/wrap toggles (v1.19.1): rows store raw text, display respects the toggle
+  await page.locator('#msq').fill('NEEDLE first');
+  await page.locator('#msRun').click();
+  await page.locator('#msProg').waitFor({ state: 'hidden', timeout: 15000 });   // scan finished
+  await page.locator('#msBody tr').first().waitFor({ timeout: 5000 });
+  const maskedTxt = await page.evaluate(() => document.querySelector('#msBody tr td:last-child').textContent);
+  check('mask on: VIN is masked in the row text', maskedTxt.includes('YV4**********4567') && !maskedTxt.includes('YV4AB9CD12EF34567'));
+  await page.locator('#msMask').click();          // mask off → raw text
+  const rawTxt = await page.evaluate(() => document.querySelector('#msBody tr td:last-child').textContent);
+  check('mask off: raw VIN shown', rawTxt.includes('YV4AB9CD12EF34567'));
+  await page.locator('#msWrapT').click();         // wrap off → one-line rows
+  const wrapState = await page.evaluate(() => ({
+    nowrap: document.getElementById('msWrap').classList.contains('nowrap'),
+    ws: getComputedStyle(document.querySelector('#msBody tr td:last-child')).whiteSpace,
+  }));
+  check('wrap toggle switches to one-line rows', wrapState.nowrap && wrapState.ws === 'pre');
+  await page.locator('#msWrapT').click();         // restore wrap
   await page.locator('#tabBtnView').click();
   await page.locator('#tabBtnWork').click();
 

@@ -158,6 +158,9 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
 #msCase.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* search results: zebra (per-theme stripe) + optional one-line rows */
+#msBody tr:nth-child(2n) td{background:var(--stripeT)}
+#msWrap.nowrap td,#msWrap.nowrap .mono{white-space:pre}
 /* wrap off: one line per log entry, horizontal scroll instead; fixed columns
    never let their text bleed into the neighbor column (wide glyphs, fallback
    fonts, or squeezed widths all get clipped with an ellipsis) */
@@ -330,7 +333,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.19.0</span>
+  <h1>LogLens</h1><span class="ver">v1.19.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -616,9 +619,11 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   <div id="msSummary" style="display:none;margin-top:8px;font-size:12px;color:var(--mut)"></div>
   <div id="msNote" class="note warn" style="display:none"></div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 6px">
+    <button class="btn sec on" id="msMask" title="display lines through the mask rules — click to show raw text (raw stays in memory only)">mask</button>
+    <button class="btn sec on" id="msWrapT" title="wrap long lines — click for one-line rows">wrap</button>
     <input type="text" id="msFilter" class="search" placeholder="filter results (regex over text)" style="max-width:320px;margin:0">
     <button class="btn sec" id="msCsv">results .csv</button>
-    <button class="btn sec" id="msCopy" title="copy all visible results as file:line: text">copy</button>
+    <button class="btn sec" id="msCopy" title="copy all visible results as file:line: text (respects the mask toggle)">copy</button>
     <span style="font-size:11px;color:var(--mut)">click a row to open it in the viewer</span>
   </div>
   <div class="reswrap" id="msWrap" style="max-height:480px"><table id="msTable"></table></div>
@@ -650,7 +655,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.19.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.19.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -1734,11 +1739,14 @@ function WORKER_DRIVER(self){
   // multi-file search: stream every file, keep matching lines up to the memory
   // caps, keep exact counts past the caps. per-file store cap = fair share of the
   // global cap (min 500) so late files always contribute.
+  // multi-file search: stream every file, keep matching lines up to the memory
+  // caps, keep exact counts past the caps. per-file store cap = fair share of the
+  // global cap (min 500) so late files always contribute. rows store the RAW
+  // line — masking happens at display time so the mask toggle can flip.
   async function driveSearch(self, msg){
     let rx;
     try { rx = new RegExp(msg.pattern, msg.flags); }
     catch(e){ self.postMessage({ type:'error', message:'bad regex: ' + e.message }); return; }
-    const mask = CORE.compile(msg.maskRules || [], 'mask');
     const enc = new TextEncoder(), nonAscii = /[^\x00-\x7F]/;
     const byteLen = s => nonAscii.test(s) ? enc.encode(s).length : s.length;
     const perFileCap = Math.max(500, Math.floor(msg.cap / Math.max(1, msg.files.length)));
@@ -1756,9 +1764,8 @@ function WORKER_DRIVER(self){
         pf.matches++; total++;
         if (matches.length >= msg.cap || pf.stored >= perFileCap){ pf.truncated = true; return; }
         const h = CORE.parseHeader(line2, msg.tsFamily || null);
-        const m = mask.length ? CORE.maskLine(line2, mask) : { line: line2 };
         matches.push({ f: fi, ln: lineno, b, ts: (h && h.ts) || '', lvl: (h && h.lvl) || '',
-                       t: m.line.length > 500 ? m.line.slice(0, 500) : m.line });
+                       t: line2.length > 500 ? line2.slice(0, 500) : line2 });
         pf.stored++;
       };
       while (true){
@@ -1894,7 +1901,7 @@ function searchViaWorker(files, q){
       else { alert('Search worker failed — results may be incomplete.'); resolve({ ok:false, fallback:false }); }
     };
     w.postMessage({ type:'search', files:files.map(f=>f.file), names:files.map(f=>f.name),
-      pattern:q.pattern, flags:q.flags, cap:q.cap, tsFamily:q.tsFamily, maskRules:q.maskRules });
+      pattern:q.pattern, flags:q.flags, cap:q.cap, tsFamily:q.tsFamily });
   });
 }
 
@@ -3302,7 +3309,6 @@ async function msRun(){
     }
     // in-page fallback loop (same semantics as the worker's driveSearch)
     let rx; try{ rx = new RegExp(pattern, flags); }catch(e){ alert('Invalid search regex: ' + e.message); msSetBusy(false); return; }
-    const mask = CORE.compile(S.maskRules, 'mask');
     const enc = new TextEncoder(), nonAscii = /[^\x00-\x7F]/;
     const byteLen = s => nonAscii.test(s) ? enc.encode(s).length : s.length;
     const perFileCap = Math.max(500, Math.floor(cap / files.length));
@@ -3320,9 +3326,8 @@ async function msRun(){
         pf.matches++; total++;
         if (matches.length >= cap || pf.stored >= perFileCap){ pf.truncated = true; return; }
         const h = CORE.parseHeader(line2, S.tsFamily || null);
-        const m = mask.length ? CORE.maskLine(line2, mask) : { line: line2 };
         matches.push({ f: fi, ln: lineno, b, ts: (h && h.ts) || '', lvl: (h && h.lvl) || '',
-                       t: m.line.length > 500 ? m.line.slice(0, 500) : m.line });
+                       t: line2.length > 500 ? line2.slice(0, 500) : line2 });
         pf.stored++;
       };
       while (true){
@@ -3383,11 +3388,23 @@ function msRows(){
   if (q){ let rx; try{ rx = new RegExp(q, 'i'); }catch(e){ return rows; } rows = rows.filter(r => rx.test(r.t)); }
   return rows;
 }
-const MS_HEAD = '<thead><tr><th style="width:22%">file</th><th style="width:64px">line</th><th style="width:104px">time</th><th style="width:34px">lvl</th><th>text (masked)</th></tr></thead>';
+const MS_HEAD = '<thead><tr><th style="width:22%">file</th><th style="width:64px">line</th><th style="width:104px">time</th><th style="width:34px">lvl</th><th>text</th></tr></thead>';
+// rows store the raw line (capped); masking happens at display time so the
+// mask toggle can flip without rescanning
+let msMaskCm = null, msMaskKey = '';
+function msMaskCompiled(){
+  const key = JSON.stringify(S.maskRules);
+  if (msMaskKey !== key || !msMaskCm){ msMaskKey = key; msMaskCm = CORE.compile(S.maskRules, 'mask'); }
+  return msMaskCm;
+}
+function msDisplayText(r){
+  if (!$('msMask').classList.contains('on')) return r.t;
+  return CORE.maskLine(r.t, msMaskCompiled()).line;
+}
 function msRowHTML(r, i){
   const pf = MS.res.perFile[r.f];
   const name = pf ? pf.name : ('file ' + r.f);
-  return `<tr data-i="${i}"><td class="mono" title="${esc(name)}">${esc(name.length>26?'…'+name.slice(-25):name)}</td><td class="mono">${r.ln}</td><td class="mono">${esc(r.ts ? r.ts.substr(6,11) : '')}</td><td>${r.lvl?`<span class="lv lv${r.lvl}">${r.lvl}</span>`:''}</td><td class="mono">${esc(r.t)}</td></tr>`;
+  return `<tr data-i="${i}"><td class="mono" title="${esc(name)}">${esc(name.length>26?'…'+name.slice(-25):name)}</td><td class="mono">${r.ln}</td><td class="mono">${esc(r.ts ? r.ts.substr(6,11) : '')}</td><td>${r.lvl?`<span class="lv lv${r.lvl}">${r.lvl}</span>`:''}</td><td class="mono">${esc(msDisplayText(r))}</td></tr>`;
 }
 function msRenderResults(reset){
   MS.filtered = msRows();
@@ -3407,19 +3424,60 @@ function msRenderResults(reset){
 let msFilterT = 0;
 $('msFilter').addEventListener('input', ()=>{ clearTimeout(msFilterT); msFilterT = setTimeout(()=>msRenderResults(true), 180); });
 $('msMore').onclick = ()=>msRenderResults(false);
+// re-render only the already-shown rows (mask/wrap toggles must not reset pagination)
+function msRerenderShown(){
+  if (!MS.res) return;
+  MS.filtered = msRows();
+  const shown = Math.min(MS.shown, MS.filtered.length);
+  $('msTable').innerHTML = MS_HEAD + '<tbody id="msBody"></tbody>';
+  const frag = [];
+  for (let i = 0; i < shown; i++) frag.push(msRowHTML(MS.filtered[i], i));
+  if (frag.length) $('msBody').insertAdjacentHTML('beforeend', frag.join(''));
+  MS.shown = shown;
+  $('msMore').style.display = shown < MS.filtered.length ? '' : 'none';
+  $('msMore').textContent = `Show more rows (${shown.toLocaleString()} / ${MS.filtered.length.toLocaleString()})`;
+}
+// mask on/off (persisted) — raw text stays in memory only, display respects the toggle
+(function(){
+  const apply = () => { const on = $('msMask').classList.contains('on');
+    $('msMask').title = on ? 'display lines through the mask rules — click to show raw text (raw stays in memory only)'
+                           : 'raw text shown — click to display lines through the mask rules'; };
+  $('msMask').onclick = () => {
+    const on = $('msMask').classList.toggle('on');
+    apply();
+    try{ localStorage.setItem('loglens.msmask', on ? '1' : '0'); }catch(e){}
+    msRerenderShown();
+  };
+  try{ if (localStorage.getItem('loglens.msmask') === '0') $('msMask').classList.remove('on'); }catch(e){}
+  apply();
+})();
+// wrap on/off (persisted) — one-line rows scroll horizontally like the viewer
+(function(){
+  const apply = () => { const on = $('msWrapT').classList.contains('on');
+    $('msWrap').classList.toggle('nowrap', !on);
+    $('msWrapT').title = on ? 'wrap long lines — click for one-line rows (scroll sideways)'
+                            : 'one-line rows — click to wrap long lines'; };
+  $('msWrapT').onclick = () => {
+    const on = $('msWrapT').classList.toggle('on');
+    apply();
+    try{ localStorage.setItem('loglens.mswrap', on ? '1' : '0'); }catch(e){}
+  };
+  try{ if (localStorage.getItem('loglens.mswrap') === '0') $('msWrapT').classList.remove('on'); }catch(e){}
+  apply();
+})();
 $('msCsv').onclick = ()=>{
   if (!MS.res){ alert('Run a search first.'); return; }
   const rows = MS.filtered;
   const q = v => '"' + String(v==null?'':v).substr(0,1000).replace(/"/g,'""') + '"';
   const csv = ['file,line,time,level,text', ...rows.map(r=>{
     const pf = MS.res.perFile[r.f];
-    return [q(pf?pf.name:'file '+r.f), r.ln, q(r.ts), q(r.lvl), q(r.t)].join(',');
+    return [q(pf?pf.name:'file '+r.f), r.ln, q(r.ts), q(r.lvl), q(msDisplayText(r))].join(',');
   })].join('\n');
   dl('loglens_search_results.csv', csv, 'text/csv');
 };
 $('msCopy').onclick = ()=>{
   if (!MS.res){ alert('Run a search first.'); return; }
-  const txt = MS.filtered.map(r => (MS.res.perFile[r.f]?MS.res.perFile[r.f].name:'') + ':' + r.ln + ': ' + r.t).join('\n');
+  const txt = MS.filtered.map(r => (MS.res.perFile[r.f]?MS.res.perFile[r.f].name:'') + ':' + r.ln + ': ' + msDisplayText(r)).join('\n');
   (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
     .then(()=>toast(MS.filtered.length + ' results copied ✓'), ()=>toast('clipboard blocked — use the .csv export'));
 };

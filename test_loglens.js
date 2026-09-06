@@ -432,7 +432,7 @@ check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilte
   const mkFile = (txt, name) => new File([txt], name, { type: 'text/plain' });
   const f1 = mkFile('08-24 10:00:00.000  1  1 I TagA: alpha NEEDLE one\n08-24 10:00:01.000  1  1 I TagA: beta\n', 'a.log');
   const f2 = mkFile('08-24 11:00:00.000  2  2 W TagB: gamma NEEDLE two\nno match here\n08-24 11:00:02.000  2  2 E TagB: NEEDLE three\n', 'b.log');
-  const q = cap => ({ type: 'search', files: [f1, f2], names: ['a.log', 'b.log'], pattern: 'NEEDLE', flags: 'i', cap, tsFamily: null, maskRules: [] });
+  const q = cap => ({ type: 'search', files: [f1, f2], names: ['a.log', 'b.log'], pattern: 'NEEDLE', flags: 'i', cap, tsFamily: null });
 
   { // full search across both files
     const { self, msgs } = makeSelf();
@@ -459,11 +459,11 @@ check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilte
     const done = await waitDone(msgs, 5000);
     check('search: case-sensitive mode works', done.total === 0);
   }
-  { // masking applies to stored rows
+  { // stored rows keep the RAW line — masking happens at display time (mask toggle)
     const { self, msgs } = makeSelf();
-    self.onmessage({ data: { ...q(100), maskRules: [{ name: 'n', pattern: 'NEEDLE', replace: '[N]', flags: 'g', enabled: true }] } });
+    self.onmessage({ data: q(100) });
     const done = await waitDone(msgs, 5000);
-    check('search: stored rows are masked', done.matches.length === 3 && done.matches.every(m => m.t.includes('[N]') && !m.t.includes('NEEDLE')));
+    check('search: stored rows keep raw text (mask at display)', done.matches.length === 3 && done.matches.every(m => m.t.includes('NEEDLE')));
   }
   { // abort mid-scan (chunked stream gives the abort a boundary to land on —
     // Node's File stream hands out one giant chunk, unlike browser readers)
@@ -479,7 +479,7 @@ check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilte
           await new Promise(r => setTimeout(r, 2));
         } }); } };
     const { self, msgs } = makeSelf();
-    self.onmessage({ data: { type: 'search', files: [chunked], names: ['big.log'], pattern: 'NEEDLE', flags: 'i', cap: 100000, tsFamily: null, maskRules: [] } });
+    self.onmessage({ data: { type: 'search', files: [chunked], names: ['big.log'], pattern: 'NEEDLE', flags: 'i', cap: 100000, tsFamily: null } });
     self.onmessage({ data: { type: 'abort' } });
     const done = await waitDone(msgs, 10000);
     check('search: abort stops the scan early', done.stopped === true && done.total < 20000);

@@ -146,6 +146,11 @@ new Function(uiCode).call(global);
   check('search results plumbing wired', html.includes('function msRenderResults') && html.includes('msRenderResults(true)') &&
     html.includes("msTable').addEventListener('click'") && html.includes('vSeekTo(rec.b)') && html.includes('vSetFocusMark(row)'));
   check('search worker messages wired', html.includes("type:'search'") && html.includes("type:'searchDone'") && html.includes('function searchViaWorker'));
+  check('search mask/wrap toggles + zebra present',
+    html.includes('id="msMask"') && html.includes('id="msWrapT"') &&
+    html.includes('#msBody tr:nth-child(2n) td{background:var(--stripeT)}') &&
+    html.includes('#msWrap.nowrap td') && html.includes('function msRerenderShown') &&
+    html.includes('function msDisplayText'));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
