@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
-![version](https://img.shields.io/badge/version-v1.20.3-blue)
-![tests](https://img.shields.io/badge/assertions-468%20passing-green)
+![version](https://img.shields.io/badge/version-v1.21.0-blue)
+![tests](https://img.shields.io/badge/assertions-505%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.20.3 · 468 automated assertions (415 unit + 53 e2e) across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · multi-file search · zebra log viewer · mobile-responsive
+- **Current version**: v1.21.0 · 505 automated assertions (448 unit across 9 suites + 57 e2e) across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · multi-file search · zebra log viewer · mobile-responsive
 
 ## Screenshots
 
@@ -304,6 +304,16 @@ Find unmasked personal data in loaded logs and turn findings into mask rules.
 - **Findings table**: per-detector counts + truncated **shape** samples (`YV4…4371`, `someone@example.com` → never the raw value); tick detectors to convert into mask rules with one click (**apply as mask rules**).
 - **send to AI wizard**: prepares the requirement prompt with the findings summary + shape samples and pre-checks "send current rules", so the model writes targeted rules for exactly what was found.
 - **Download findings .json** for offline review.
+- **Deep scan (optional, opt-in)**: an enrichment pass for *residual* PII the regexes miss — free-text names, hostnames, addresses, whatever your rules don't cover. It samples the loaded files locally (worker-offloaded; error/warn/errish lines first, a reservoir over the rest), **masks every sampled line with your current rules before anything is sent**, then hands the masked sample to the engine you pick under **deep scan**:
+  - **Presidio analyzer endpoint** — any Presidio-compatible `POST /analyze` service. Easiest setup: the bundled [`presidio_bridge.py`](presidio_bridge.py) runs Presidio in-process with CORS enabled:
+    ```
+    pip install presidio-analyzer fastapi "uvicorn[standard]"
+    python -m spacy download en_core_web_lg   # for PERSON/LOCATION NER
+    python presidio_bridge.py                 # http://localhost:8699
+    ```
+    (The stock `presidio-analyzer` Docker image also works if you front it with any CORS proxy.)
+  - **LLM** — reuses the AI wizard connection (step 5 · advanced; any OpenAI-compatible endpoint incl. Ollama/LM Studio). A dedicated system prompt asks for residual findings as JSON with suggested patterns; `parseDeepFindings` validates every suggested regex before it can become a rule.
+- Nothing is sent until you pick an engine **and** tick **allow sending masked samples** (session-only — never persisted); the target endpoint is shown next to the checkbox. Findings render grouped by type with samples and counts — structured entities (IP, email, phone, URL, card, IBAN, SSN) carry a one-click suggested pattern, fuzzy ones (person, location) stay **report-only** (a global regex built from a name shape would mask ordinary text — use **→ draft rules in AI wizard** for those instead). **apply as mask rules** validates and appends `deep: <type>` rules to your profile; **download deep findings .json** exports the raw report.
 
 ## Relationship to scripted pipelines
 
@@ -312,8 +322,8 @@ LogLens is tool-agnostic: its `[Lnnn] <masked line>` extract format and stats JS
 ## Development & testing
 
 ```
-npm test          # 8 suites — 371 assertions (engine, regression, viewer UI/search, team features)
-npm run test:e2e  # real-Chromium end-to-end (Playwright, demo→run→viewer→search→theme)
+npm test          # 9 suites — 448 assertions (engine, regression, viewer UI/search, team features, deep scan)
+npm run test:e2e  # real-Chromium end-to-end (Playwright, demo→run→viewer→search→theme→deep scan)
 npm run perf      # throughput benchmark (~600k lines synthetic)
 ```
 
@@ -357,7 +367,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.20.3 (current)** — **the Δt column header really hides now**. v1.20.2's hide rule was scoped to `#vTable` — an id no element carries (the viewer table only has `class="vtable"`), so the CSS never matched and an orphaned "Δt" label stayed visible over the hidden column. The hide/show rules are now class-scoped (`.vtable thead .h-dlt` hidden by default, `#vBody.hasdlt …` shows header + cells when the toggle is on). Verified by a computed-style probe (the th flips `none` ↔ `table-cell` with the toggle), on/off screenshots, three new e2e checks (off hides the th, off hides the td, on restores the th) and a strengthened structural check
+- **v1.21.0 (current)** — **new: deep scan in the pii-scan tab** — an opt-in residual-PII audit that goes beyond the built-in regexes. It samples the loaded files locally (worker-offloaded: error/warn/errish lines first, reservoir over the rest), **masks every sampled line with your current rules before anything leaves the page**, then sends the masked sample to a user-configured engine: a **Presidio analyzer endpoint** (e.g. the new `presidio_bridge.py`, a ~40-line CORS-enabled FastAPI wrapper) or **any OpenAI-compatible LLM** (reuses the AI wizard connection; consent checkbox + visible target required — engine off / nothing sent by default). Findings render grouped by type with samples and counts (structured Presidio entities carry suggested patterns; fuzzy ones stay report-only), one click validates and appends them as mask rules (`deep: <type>`), and everything exports to JSON or hands off to the AI wizard. 19 engine checks (parser validation, presidio offset mapping, masked+bias sampling driver, abort) + 13 UI checks (consent gate, stubbed-fetch LLM/presidio runs, apply, busy gating) + 4 e2e checks (routed endpoints, apply-to-profile)
+- **v1.20.3** — **the Δt column header really hides now**. v1.20.2's hide rule was scoped to `#vTable` — an id no element carries (the viewer table only has `class="vtable"`), so the CSS never matched and an orphaned "Δt" label stayed visible over the hidden column. The hide/show rules are now class-scoped (`.vtable thead .h-dlt` hidden by default, `#vBody.hasdlt …` shows header + cells when the toggle is on). Verified by a computed-style probe (the th flips `none` ↔ `table-cell` with the toggle), on/off screenshots, three new e2e checks (off hides the th, off hides the td, on restores the th) and a strengthened structural check
 - **v1.20.2** — the **theme dropdown lists LogLens default first** in the viewer and the workbench results selector, with LogLens default as the fallback theme for fresh sessions (previously the viewer silently started on High Contrast). Also shipped an id-scoped Δt-header hide rule that turned out to be dead (see v1.20.3)
 - **v1.20.1** — viewer fix: the **level badges sat outside the table column flow** (floating between TIME and Δt, misaligned across rows). Root cause: the cell carried the `.lv` badge class — `display:inline-block` — which pulls a table-cell out of table layout. The cell is now a plain `td.lvl` with the colored badge as an inner span, so badges align in the LVL column under every theme. Geometric probe (badge/cell left edges per row) + structural check
 - **v1.20.0** — **the log viewer's lister is now the search tab's table**. Rows render as real `<tr>/<td>` table rows (line · time · lvl · Δt · tag · message) under a sticky, themed column header that is aligned *by construction* — the header is part of the same table, so the whole class of stripe-coverage/width/alignment issues from the div-grid rows is gone: zebra stripes cover the full row in both wrap and nowrap at any scroll depth, wrapped text always keeps a usable column width on any screen, and the tag-column resize still works. The streaming/virtualization engine (byte windows, edge chaining, seeks, marks, collapse, click-to-copy) is unchanged. Header/rows alignment asserted in e2e (±1px) + structural checks

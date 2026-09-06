@@ -343,7 +343,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.20.3</span>
+  <h1>LogLens</h1><span class="ver">v1.21.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -659,13 +659,41 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
     <button class="btn sec" id="piiToAi">→ send to AI wizard</button>
     <button class="btn sec" id="piiDl">download findings .json</button>
   </div>
+  <details id="dsCfg" class="adv" style="margin-top:10px">
+    <summary title="optional: send a small ALREADY-MASKED sample to a Presidio analyzer or an LLM to find residual PII the regexes missed">deep scan — presidio / LLM residual audit (optional)</summary>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0">
+      <select id="dsEngine" title="engine used to analyze the masked sample">
+        <option value="off">deep scan off (regex only)</option>
+        <option value="presidio">presidio analyzer endpoint</option>
+        <option value="llm">LLM — AI wizard connection</option>
+      </select>
+      <input id="dsUrl" class="mono" spellcheck="false" style="width:250px" placeholder="presidio URL — e.g. http://localhost:3000">
+      <label style="font-size:11px;color:var(--mut)">sample <input type="number" id="dsSample" value="1000" min="100" max="5000" step="100" style="width:74px"> lines</label>
+      <button class="btn sec" id="dsRun" disabled>deep scan</button>
+      <button class="btn sec" id="dsStop" disabled>stop</button>
+      <span id="dsStatus" style="font-size:11px;color:var(--mut)"></span>
+    </div>
+    <div class="note">
+      <label title="required consent — nothing is sent while unchecked"><input type="checkbox" id="dsAllow"> allow sending masked samples</label>
+      — only lines your mask rules already cleaned (≤ <span id="dsMaxChars">400</span> chars each, ≤ <span id="dsSampleN">1000</span> lines) go directly from your browser to <span id="dsTarget" class="mono">no endpoint configured</span>; no file names, no raw values.
+      Presidio needs a CORS-enabled endpoint (see <span class="mono">presidio_bridge.py</span> in the repo) · LLM engines reuse the AI wizard connection — <button class="btn sec" id="dsAiJump" style="padding:1px 6px;font-size:10px">open step 5</button>
+    </div>
+    <div class="progress" id="dsProg" style="display:none"><div class="bar" id="dsProgBar"></div></div>
+    <div class="ptext" id="dsProgText" style="display:none"></div>
+  </details>
+  <div id="dsFindings" style="display:none;margin-top:10px"></div>
+  <div id="dsActs" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+    <button class="btn sec" id="dsApply">→ apply as mask rules</button>
+    <button class="btn sec" id="dsToAi">→ draft rules in AI wizard</button>
+    <button class="btn sec" id="dsDl">download deep findings .json</button>
+  </div>
   <div class="note" style="margin-top:10px">Findings are <b>potential</b> identifiers — review before adding rules. Unique values are sampled (shape only, e.g. <span style="font-family:var(--mono)">YV4…4371</span>); raw values never leave this page.</div>
 </div>
 </div><!-- /tabPii -->
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.20.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.21.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -1054,6 +1082,104 @@ const CORE = (function(){
     return { extract, mask, errors };
   }
 
+  // ---------- deep scan (opt-in external enrichment: Presidio / LLM) ----------
+  // The deep scan sends a small, ALREADY-MASKED sample of the logs to an
+  // external analyzer and asks it to find residual PII the regex rules
+  // missed. Nothing is sent unless the user consents, and only masked lines
+  // ever leave the page.
+  const DEEP_SYSTEM_PROMPT = [
+    'You are a PII auditor for LogLens, a log-filtering + masking tool.',
+    'You will receive numbered log lines that have ALREADY been masked by regex rules.',
+    'Report ONLY residual sensitive data the regex rules missed — e.g. free-text person names,',
+    'usernames, street addresses, birthdates, internal hostnames, license plates, employee ids,',
+    'or any identifier that looks personal.',
+    'Do NOT report: timestamps, versions, byte counts, pids/tids, log levels, latency numbers,',
+    'or the masked placeholders themselves (like YV4**********4567, 192.168.x.x or [redacted]).',
+    'Reply with ONLY one JSON object — no prose, no code fences — matching this schema exactly:',
+    '{"findings":[{"type":string,"description":string,"examples":[string],',
+    ' "suggestedPattern":string,"suggestedReplace":string}]}',
+    '"examples" are short verbatim excerpts (≤80 chars) from the lines; keep at most 3.',
+    '"suggestedPattern" is a JavaScript regex (string) matching that residual data class in',
+    'similar logs; it must NOT match the masked placeholders, timestamps or ordinary words.',
+    '"suggestedReplace" defaults to "[redacted]".',
+    'If nothing residual looks sensitive, return {"findings":[]}.'
+  ].join('\n');
+
+  // validate a deep-scan model response: {findings, errors}. findings without a
+  // usable suggestedPattern are kept (report-only) but flagged via errors.
+  function parseDeepFindings(text){
+    const errors = [], findings = [], byType = new Map();
+    let obj;
+    try { obj = JSON.parse(extractJSON(text)); }
+    catch(e){ return { findings, errors:[String(e.message || e)] }; }
+    if (!obj || typeof obj !== 'object' || !Array.isArray(obj.findings)){
+      return { findings, errors:['model output has no "findings" array'] };
+    }
+    obj.findings.forEach((f,i)=>{
+      if (!f || typeof f !== 'object'){ errors.push('findings['+i+']: not an object'); return; }
+      const type = String(f.type || '').trim();
+      if (!type){ errors.push('findings['+i+']: missing "type"'); return; }
+      const ex = (Array.isArray(f.examples) ? f.examples : [f.example].filter(Boolean))
+        .map(x=>String(x).slice(0,120)).filter(Boolean).slice(0,5);
+      if (!ex.length){ errors.push(type + ': no examples'); return; }
+      const prev = byType.get(type);
+      if (prev){
+        ex.forEach(x=>{ if (prev.examples.indexOf(x) < 0 && prev.examples.length < 5) prev.examples.push(x); });
+        prev.count = (prev.count||0) + 1;
+        return;
+      }
+      let pattern = String(f.suggestedPattern || '').trim(), rxErr = null;
+      if (pattern){ try { new RegExp(pattern, 'gi'); } catch(e){ rxErr = e.message; pattern = ''; } }
+      if (rxErr) errors.push(type + ': invalid suggestedPattern — ' + rxErr + ' (kept as report-only)');
+      const g = { type, description: String(f.description || '').slice(0,200), count: 1,
+                  examples: ex, pattern, replace: String(f.suggestedReplace || '[redacted]').slice(0,80) };
+      byType.set(type, g);
+      findings.push(g);
+    });
+    return { findings, errors };
+  }
+
+  // Presidio /analyze offsets map back onto the masked lines that were joined
+  // with '\n' for submission. Structured entity types get a suggested pattern;
+  // fuzzy ones (PERSON, LOCATION, …) stay report-only — a global regex built
+  // from a name shape would mask far too much ordinary text.
+  const PRESIDIO_PATTERNS = {
+    IP_ADDRESS: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b',
+    EMAIL_ADDRESS: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}',
+    PHONE_NUMBER: '\\+?\\d[\\d\\s().-]{5,}\\d',
+    URL: '\\bhttps?://[^\\s]+',
+    CREDIT_CARD: '\\b(?:\\d[ -]*?){13,19}\\b',
+    IBAN_CODE: '\\b[A-Z]{2}\\d{2}[A-Z0-9]{10,30}\\b',
+    US_SSN: '\\b\\d{3}-\\d{2}-\\d{4}\\b'
+  };
+  function presidioToFindings(entities, lines){
+    const out = [], byType = new Map();
+    const starts = []; let off = 0;
+    for (const l of lines){ starts.push(off); off += l.length + 1; }
+    (Array.isArray(entities) ? entities : []).forEach(en=>{
+      if (!en || typeof en.start !== 'number') return;
+      let li = 0;
+      for (let k = starts.length - 1; k >= 0; k--){ if (en.start >= starts[k]){ li = k; break; } }
+      const line = lines[li] || '';
+      const s = Math.max(0, en.start - starts[li]);
+      const e = (en.end != null ? en.end : en.start + 60) - starts[li];
+      const ex = line.slice(s, Math.max(s + 1, Math.min(line.length, e))).trim().slice(0, 120);
+      const type = String(en.entity_type || 'UNKNOWN').toUpperCase();
+      let g = byType.get(type);
+      if (!g){
+        const score = typeof en.score === 'number' ? en.score.toFixed(2) : '?';
+        g = { type, description: 'presidio ' + type + ' (score ' + score + ')', count: 0,
+              examples: [], pattern: PRESIDIO_PATTERNS[type] || '',
+              replace: PRESIDIO_PATTERNS[type] ? ('[redacted: ' + type + ']') : '' };
+        byType.set(type, g); out.push(g);
+      }
+      if (ex && g.examples.indexOf(ex) < 0 && g.examples.length < 5) g.examples.push(ex);
+      g.count++;
+    });
+    out.sort((a,b)=>b.count - a.count);
+    return out;
+  }
+
   function processText(text, file, opts, state){
     const lines = text.split('\n');
     // pre-pass for bucket sizing on small texts; streaming uses per-file two-pass for accuracy
@@ -1168,6 +1294,7 @@ const CORE = (function(){
            autoBucket, mergeBuckets, pickBucketSize, readiness, validTs,
            windowFromBuffer, estimateLineCount,
            PII_DETECTORS, scanLinePII, luhnOK,
+           DEEP_SYSTEM_PROMPT, parseDeepFindings, presidioToFindings, PRESIDIO_PATTERNS,
            DEFAULT_MASK, DEFAULT_EXTRACT, DEMO, SYSTEM_PROMPT, extractJSON, validateProfile };
 })();
 if (typeof window!=='undefined') window.CORE = CORE;
@@ -1435,7 +1562,7 @@ $('btnDemo').onclick=()=>{
 $('btnRun').onclick=run;
 $('btnStop').onclick=()=>{ S.aborted=true; if (S.worker) S.worker.postMessage({type:'abort'}); };
 async function run(){
-  if (S.running || S.mBusy || P.running || MS.running) return;
+  if (S.running || S.mBusy || P.running || MS.running || DS.running) return;
   const files = S.files.filter(f=>f.use!==false);
   if (!files.length){ alert('Load at least one file (or click “Load demo sample”).'); return; }
 
@@ -1653,6 +1780,7 @@ function WORKER_DRIVER(self){
       if (msg.type === 'scan') await driveScan(self, msg);
       else if (msg.type === 'pii') await drivePii(self, msg);
       else if (msg.type === 'search') await driveSearch(self, msg);
+      else if (msg.type === 'deep') await driveDeep(self, msg);
     }catch(e){
       self.postMessage({ type:'error', message:String(e && e.message || e) });
     }
@@ -1745,6 +1873,60 @@ function WORKER_DRIVER(self){
     }
     self.postMessage({ type:'piiDone', scannedLines:lines, hits,
       detectors:[...agg.values()].sort((a,b)=>b.count-a.count), files:msg.names, stopped:self.__abort });
+  }
+  // deep scan sampling: stream every file and build a SMALL sample for external
+  // analysis — error/warn/errish lines take priority, the rest go through a
+  // reservoir so the sample still represents the whole file. Every kept line is
+  // MASKED here (before leaving the page) and truncated to DEEP_LINE_MAX.
+  async function driveDeep(self, msg){
+    const cap = Math.max(1, Math.min(5000, msg.sample|0 || 1000));
+    const mask = CORE.compile(msg.maskRules || [], 'mask').filter(c=>!c.error);
+    const errish = msg.errish ? new RegExp(msg.errish, 'i') : null;
+    const pri = [], res = [];
+    let lines = 0, seen = 0, lastPost = 0;
+    for (let fi = 0; fi < msg.files.length; fi++){
+      const file = msg.files[fi], name = msg.names[fi];
+      const reader = file.stream().getReader();
+      const dec = new TextDecoder();
+      let buf = '', read = 0;
+      while (true){
+        if (self.__abort) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        read += value.byteLength;
+        buf += dec.decode(value, { stream:true });
+        let pos = 0, i;
+        while ((i = buf.indexOf('\n', pos)) >= 0){
+          const line = chomp(buf.slice(pos, i)); pos = i + 1;
+          lines++;
+          const h = CORE.parseHeader(line, msg.tsFamily || null);
+          const hot = (h && (h.lvl === 'E' || h.lvl === 'W')) || (errish && errish.test(line));
+          if (hot && pri.length < cap){
+            pri.push({ ln: lines, ts: (h && h.ts) || '', text: line });
+          } else if (!hot){
+            seen++;
+            const cand = { ln: lines, ts: (h && h.ts) || '', text: line };
+            if (res.length < cap) res.push(cand);
+            else { const j = Math.floor(Math.random() * seen); if (j < cap) res[j] = cand; }
+          }
+        }
+        buf = buf.slice(pos);
+        if (read - lastPost > 8*1048576){
+          lastPost = read;
+          self.postMessage({ type:'deepProg', name, read, size:file.size, lines, kept:pri.length + Math.min(res.length, cap - pri.length) });
+        }
+      }
+      if (reader.releaseLock) reader.releaseLock();
+    }
+    const take = Math.max(0, cap - pri.length);
+    const sample = pri.slice(0, cap).concat(res.slice(0, take))
+      .map(r => {
+        let m = r.text;
+        if (mask.length) m = CORE.maskLine(m, mask).line;
+        const h2 = CORE.parseHeader(r.text, msg.tsFamily || null);
+        return { ln: r.ln, ts: (h2 && h2.ts) || '', text: m.length > 400 ? m.slice(0, 400) : m };
+      });
+    self.postMessage({ type:'deepDone', sample, scannedLines:lines, files:msg.names, stopped:self.__abort });
   }
   // multi-file search: stream every file, keep matching lines up to the memory
   // caps, keep exact counts past the caps. per-file store cap = fair share of the
@@ -1880,6 +2062,36 @@ function piiViaWorker(files){
     w.onerror = () => { if (settled) return; stop(); resolve({ ok:false, fallback:true }); };
     w.postMessage({ type:'pii', files:files.map(f=>f.file), names:files.map(f=>f.name),
       detectors: CORE.PII_DETECTORS.filter(d=>d.enabled).map(d=>d.name) });
+  });
+}
+// deep-scan sampling bridge — same contract as piiViaWorker.
+function deepViaWorker(files, sampleN){
+  return new Promise(resolve => {
+    let w;
+    try { w = new Worker(scanWorkerUrl); } catch(e){ resolve({ ok:false, fallback:true }); return; }
+    S.worker = w;
+    const t0 = performance.now();
+    let alive = false, settled = false;
+    const stop = () => { try{ w.terminate(); }catch(e){} if (S.worker === w) S.worker = null; };
+    w.onmessage = ev => {
+      const m = ev.data;
+      if (m.type === 'deepProg'){
+        alive = true;
+        const el = (performance.now()-t0)/1000, rate = m.read/1048576/Math.max(el,0.001);
+        const eta = m.read < m.size ? (m.size-m.read)/1048576/Math.max(rate,0.01) : 0;
+        $('dsProgBar').style.width = Math.min(99, 100*m.read/m.size)+'%';
+        $('dsProgText').textContent = `sampling ${m.name} — ${(m.read/1048576).toFixed(0)}/${(m.size/1048576).toFixed(0)} MB · ${rate.toFixed(0)} MB/s · ETA ${eta<1?'<1':eta.toFixed(0)} s · ${m.lines.toLocaleString()} lines · ${m.kept.toLocaleString()} kept`;
+      } else if (m.type === 'deepDone'){
+        alive = true; settled = true; stop(); resolve({ ok:true, sample:m });
+      } else if (m.type === 'error'){
+        alive = true; settled = true; stop(); resolve({ ok:false, fallback:false });
+      }
+    };
+    w.onerror = () => { if (settled) return; stop(); resolve({ ok:false, fallback:true }); };
+    w.postMessage({ type:'deep', files:files.map(f=>f.file), names:files.map(f=>f.name),
+      sample:sampleN, maskRules:S.maskRules,
+      errish:$('errishRx').value.trim() || CORE.ERRISH_SOURCE,
+      tsFamily:S.tsFamily || null });
   });
 }
 // resolves { ok:true, res } | { ok:false, fallback:true } | { ok:false, fallback:false }
@@ -2161,7 +2373,7 @@ function updateReady(){
   const r = CORE.readiness(files, inc, exc, mk);
   const el = $('readyInfo'); if (el) el.textContent = r.text;
   const b = $('btnRun');
-  b.disabled = S.running || S.mBusy || P.running || MS.running || !r.ok;
+  b.disabled = S.running || S.mBusy || P.running || MS.running || DS.running || !r.ok;
   b.title = r.ok ? '' : 'load at least one file in section 1 first';
   wfUpdate();
 }
@@ -2249,7 +2461,7 @@ window.addEventListener('beforeunload', ()=>{ clearTimeout(profT); store.save(bu
 $('errishRx').addEventListener('input',()=>{ saveProfile(); scheduleRerun(); });
 function syncErrish(){ $('errishRx').disabled = !$('optErrish').checked; }
 $('optErrish').addEventListener('change',()=>{ syncErrish(); saveProfile(); scheduleRerun(); });
-window.addEventListener('beforeunload',e=>{ if (S.running || S.mBusy || P.running || MS.running){ e.preventDefault(); e.returnValue=''; } });
+    window.addEventListener('beforeunload',e=>{ if (S.running || S.mBusy || P.running || MS.running || DS.running){ e.preventDefault(); e.returnValue=''; } });
 
 // click a row -> copy the full masked line
 $('resTable').addEventListener('click',e=>{
@@ -3105,15 +3317,16 @@ function piiRefreshFiles(){
 }
 function piiSetBusy(b){
   P.running = b; P.abort = b ? false : P.abort;
-  $('piiRun').disabled = b || S.running || S.mBusy || MS.running;
-  $('msRun').disabled = b || S.running || S.mBusy || MS.running;
+  $('piiRun').disabled = b || S.running || S.mBusy || MS.running || DS.running;
+  $('msRun').disabled = b || S.running || S.mBusy || MS.running || DS.running;
   $('piiStop').disabled = !b;
   $('btnRun').disabled = b || S.running; $('mRun').disabled = b || S.mBusy;
   $('piiProg').style.display = b ? 'block' : 'none';
+  dsUpdateUi();
 }
 $('piiStop').onclick = ()=>{ P.abort = true; if (S.worker) S.worker.postMessage({type:'abort'}); };
 $('piiRun').onclick = async ()=>{
-  if (P.running || MS.running || S.running || S.mBusy) return;
+  if (P.running || MS.running || S.running || S.mBusy || DS.running) return;
   const files = S.files.filter(f=>f.use!==false);
   if (!files.length){ alert('Load at least one file first (section 1).'); return; }
   const dets = CORE.PII_DETECTORS.filter(d=>d.enabled);
@@ -3235,6 +3448,280 @@ $('piiToAi').onclick = ()=>{
   toast('context prepared in the AI wizard ✓');
 };
 
+// ---------- deep scan (opt-in external enrichment: presidio / LLM) ----------
+// Samples the loaded files LOCALLY (worker, masked), then — only with the
+// user's consent — sends the masked sample to the chosen engine and renders
+// residual-PII findings as (validatable) mask-rule suggestions.
+const DS = { running:false, abort:null, findings:null };
+const DEEP_LINE_MAX = 400;
+
+function dsTarget(){
+  const eng = $('dsEngine').value;
+  if (eng === 'presidio') return ($('dsUrl').value.trim() || 'presidio URL not set');
+  if (eng === 'llm'){ const c = AIZ.cfg(); return (c.base || 'no base URL') + ' · model ' + (c.model || 'NOT SET'); }
+  return 'no endpoint configured';
+}
+function dsUpdateUi(){
+  const eng = $('dsEngine').value;
+  $('dsUrl').disabled = eng !== 'presidio';
+  const busyOthers = S.running || S.mBusy || P.running || MS.running || DS.running;
+  $('dsRun').disabled = eng === 'off' || busyOthers || !$('dsAllow').checked;
+  $('dsStop').disabled = !DS.running;
+  $('dsTarget').textContent = dsTarget();
+  const n = Math.max(100, Math.min(5000, parseInt($('dsSample').value, 10) || 1000));
+  $('dsSampleN').textContent = n.toLocaleString();
+}
+function dsSavePrefs(){
+  try{ localStorage.setItem('loglens.deep', JSON.stringify({
+    engine:$('dsEngine').value, url:$('dsUrl').value.trim(),
+    sample:parseInt($('dsSample').value, 10) || 1000 })); }catch(e){}
+}
+(function dsLoadPrefs(){
+  try{
+    const p = JSON.parse(localStorage.getItem('loglens.deep') || '{}');
+    if (p.engine === 'presidio' || p.engine === 'llm' || p.engine === 'off') $('dsEngine').value = p.engine;
+    if (p.url) $('dsUrl').value = p.url;
+    if (p.sample) $('dsSample').value = p.sample;
+  }catch(e){}
+  $('dsAllow').checked = false;                    // consent is session-only — never persisted
+})();
+['dsEngine','dsUrl','dsAllow','dsSample'].forEach(id=>{
+  $(id).addEventListener('change', ()=>{ dsUpdateUi(); dsSavePrefs(); });
+  $(id).addEventListener('input', ()=>{ dsUpdateUi(); dsSavePrefs(); });
+});
+$('dsCfg').addEventListener('toggle', ()=>{ AIZ.load(); dsUpdateUi(); });
+$('dsAiJump').onclick = ()=>{
+  document.getElementById('advTools').open = true;
+  setTab('work');
+  $('wizCard').scrollIntoView({behavior:'smooth', block:'start'});
+};
+function dsSetBusy(b){
+  DS.running = b;
+  $('dsStop').disabled = !b;
+  $('dsProg').style.display = b ? 'block' : 'none';
+  $('dsProgText').style.display = b ? 'block' : 'none';
+  $('piiRun').disabled = b || S.running || S.mBusy || MS.running || P.running;
+  $('msRun').disabled = b || S.running || S.mBusy || MS.running || P.running;
+  $('btnRun').disabled = b || S.running; $('mRun').disabled = b || S.mBusy;
+  dsUpdateUi();
+}
+$('dsStop').onclick = ()=>{
+  if (DS.abort) DS.abort.abort();
+  if (S.worker) S.worker.postMessage({type:'abort'});
+};
+// in-page fallback mirror of the worker's driveDeep (same bias + masking)
+async function deepSampleInPage(files, sampleN){
+  const mask = CORE.compile(S.maskRules, 'mask').filter(c=>!c.error);
+  let errishRe = null;
+  const errishSrc = $('errishRx').value.trim() || CORE.ERRISH_SOURCE;
+  try{ errishRe = new RegExp(errishSrc, 'i'); }catch(e){}
+  const pri = [], res = [];
+  let lines = 0, seen = 0;
+  for (const f of files){
+    if (DS.abort.signal.aborted) break;
+    const reader = f.file.stream().getReader();
+    const dec = new TextDecoder();
+    let buf = '', read = 0, lastYield = 0;
+    while (true){
+      if (DS.abort.signal.aborted) break;
+      const {done, value} = await reader.read();
+      if (done) break;
+      read += value.byteLength;
+      buf += dec.decode(value, {stream:true});
+      let pos = 0, i;
+      while ((i = buf.indexOf('\n', pos)) >= 0){
+        const line = chomp(buf.slice(pos, i)); pos = i + 1; lines++;
+        const h = CORE.parseHeader(line, S.tsFamily || null);
+        const hot = (h && (h.lvl === 'E' || h.lvl === 'W')) || (errishRe && errishRe.test(line));
+        if (hot && pri.length < sampleN) pri.push({ln:lines, ts:(h&&h.ts)||'', text:line});
+        else if (!hot){
+          seen++;
+          const cand = {ln:lines, ts:(h&&h.ts)||'', text:line};
+          if (res.length < sampleN) res.push(cand);
+          else { const j = Math.floor(Math.random() * seen); if (j < sampleN) res[j] = cand; }
+        }
+      }
+      buf = buf.slice(pos);
+      if (read - lastYield > 8*1048576){
+        lastYield = read;
+        $('dsProgBar').style.width = Math.min(99, 100*read/f.file.size) + '%';
+        $('dsProgText').textContent = `sampling ${f.name} — ${(read/1048576).toFixed(0)} MB · ${lines.toLocaleString()} lines · ${(pri.length + Math.min(res.length, sampleN)).toLocaleString()} kept`;
+        await new Promise(r=>setTimeout(r));
+      }
+    }
+    try{ await reader.cancel(); }catch(e){}
+  }
+  const take = Math.max(0, sampleN - pri.length);
+  const rows = pri.slice(0, sampleN).concat(res.slice(0, take)).map(r=>{
+    let m = mask.length ? CORE.maskLine(r.text, mask).line : r.text;
+    if (m.length > DEEP_LINE_MAX) m = m.slice(0, DEEP_LINE_MAX);
+    const h2 = CORE.parseHeader(r.text, S.tsFamily || null);
+    return { ln:r.ln, ts:(h2&&h2.ts)||'', text:m };
+  });
+  return { rows, scannedLines: lines };
+}
+function dsMergeFindings(acc, next){
+  const byType = new Map(acc.map(f=>[f.type, f]));
+  next.forEach(f=>{
+    const g = byType.get(f.type);
+    if (g){
+      f.examples.forEach(x=>{ if (g.examples.indexOf(x) < 0 && g.examples.length < 5) g.examples.push(x); });
+      g.count = (g.count || 0) + (f.count || 1);
+      if (!g.pattern && f.pattern){ g.pattern = f.pattern; g.replace = f.replace; }
+    } else { acc.push(f); byType.set(f.type, f); }
+  });
+  return acc.sort((a,b)=>(b.count||0) - (a.count||0));
+}
+async function dsRunLlm(rows){
+  const out = [], errors = [];
+  const BATCH = 40;
+  for (let i = 0; i < rows.length; i += BATCH){
+    if (DS.abort.signal.aborted) break;
+    const chunk = rows.slice(i, i + BATCH);
+    $('dsProgBar').style.width = Math.round(100 * i / Math.max(rows.length, 1)) + '%';
+    $('dsProgText').textContent = `LLM batch ${Math.floor(i/BATCH)+1}/${Math.ceil(rows.length/BATCH)} — ${Math.min(rows.length, i+BATCH)} / ${rows.length} lines…`;
+    const userMsg = 'Log lines (numbered):\n' + chunk.map((r,k)=>(i+k+1) + ': ' + r.text).join('\n');
+    try{
+      const parsed = CORE.parseDeepFindings(await AIZ.chat([
+        {role:'system', content:CORE.DEEP_SYSTEM_PROMPT},
+        {role:'user', content:userMsg}
+      ], {signal: DS.abort.signal}));
+      errors.push(...parsed.errors);
+      dsMergeFindings(out, parsed.findings);
+    }catch(e){
+      if (DS.abort.signal.aborted) break;
+      errors.push('batch ' + (Math.floor(i/BATCH)+1) + ': ' + e.message);
+    }
+  }
+  return { findings: out, errors };
+}
+async function dsRunPresidio(rows){
+  const base = ($('dsUrl').value.trim() || 'http://localhost:3000').replace(/\/+$/, '');
+  const out = [], errors = [];
+  const BATCH = 200;
+  for (let i = 0; i < rows.length; i += BATCH){
+    if (DS.abort.signal.aborted) break;
+    const chunk = rows.slice(i, i + BATCH);
+    $('dsProgBar').style.width = Math.round(100 * i / Math.max(rows.length, 1)) + '%';
+    $('dsProgText').textContent = `presidio batch ${Math.floor(i/BATCH)+1}/${Math.ceil(rows.length/BATCH)} — ${Math.min(rows.length, i+BATCH)} / ${rows.length} lines…`;
+    try{
+      const res = await fetch(base + '/analyze', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ text: chunk.map(r=>r.text).join('\n'), language:'en', score_threshold: 0.4 }),
+        signal: DS.abort.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' — ' + (await res.text()).slice(0,200));
+      const d = await res.json();
+      dsMergeFindings(out, CORE.presidioToFindings(d && d.results, chunk.map(r=>r.text)));
+    }catch(e){
+      if (DS.abort.signal.aborted) break;
+      if (i === 0) throw e;                       // first batch failed — surface it (CORS/URL) instead of an empty report
+      errors.push('batch ' + (Math.floor(i/BATCH)+1) + ': ' + e.message);
+    }
+  }
+  return { findings: out, errors };
+}
+function dsRenderFindings(){
+  const R = DS.findings; if (!R) return;
+  const box = $('dsFindings'); box.style.display = '';
+  const head = '<h3 class="mini" style="margin-top:0">deep findings — ' + esc(R.engine) + ' · ' +
+    (R.sent || 0).toLocaleString() + ' masked line(s) sent · ' + R.findings.length + ' residual type(s)' +
+    (R.stopped ? ' <i>(stopped early)</i>' : '') + '</h3>';
+  if (!R.findings.length){
+    box.innerHTML = head + '<b>✓ no residual PII reported</b> in the masked sample.' +
+      (R.errors.length ? '<div class="note" style="margin-top:6px;color:var(--amber)">' + R.errors.map(esc).join('<br>') + '</div>' : '');
+    $('dsActs').style.display = 'flex';
+    return;
+  }
+  box.innerHTML = head +
+    '<table><tr><th>type</th><th>description</th><th>samples</th><th>count</th><th>mask</th></tr>' +
+    R.findings.map((f,i)=>
+      '<tr><td class="mono">' + esc(f.type) + '</td>' +
+      '<td>' + esc(f.description || '') + '</td>' +
+      '<td class="mono">' + f.examples.slice(0,3).map(esc).join('<br>') + '</td>' +
+      '<td>' + (f.count || 1).toLocaleString() + '</td>' +
+      '<td>' + (f.pattern ? '<input type="checkbox" class="dsPick" data-i="' + i + '" checked>'
+                         : '<i style="color:var(--mut)">report only</i>') + '</td></tr>').join('') +
+    '</table>' +
+    (R.errors.length ? '<div class="note" style="margin-top:6px;color:var(--amber)">' + R.errors.map(esc).join('<br>') + '</div>' : '') +
+    '<div style="font-size:11px;color:var(--mut);margin-top:6px">rows marked "report only" have no safe pattern — use → draft rules in AI wizard for those</div>';
+  $('dsActs').style.display = 'flex';
+}
+$('dsApply').onclick = ()=>{
+  const R = DS.findings; if (!R || !R.findings.length){ alert('Run a deep scan first.'); return; }
+  const picked = [...document.querySelectorAll('.dsPick:checked')].map(cb=>+cb.dataset.i);
+  if (!picked.length){ alert('Tick at least one finding row first.'); return; }
+  const prof = CORE.validateProfile({ mask: picked.map(i=>({
+    name:'deep: ' + R.findings[i].type, pattern: R.findings[i].pattern,
+    replace: R.findings[i].replace || ('[redacted: ' + R.findings[i].type + ']'), ci:true, enabled:true })) });
+  if (!prof.mask.length){ alert('No applicable patterns among the picked rows.\n' + prof.errors.join('\n')); return; }
+  S.maskRules.push(...prof.mask);
+  renderMaskRules(); pv(); saveProfile();
+  toast(prof.mask.length + ' deep-scan mask rule(s) appended ✓' + (prof.errors.length ? ' (' + prof.errors.length + ' skipped)' : ''));
+};
+$('dsDl').onclick = ()=>{
+  const R = DS.findings; if (!R){ alert('Run a deep scan first.'); return; }
+  dl('loglens_deep_findings.json', JSON.stringify(R, null, 2), 'application/json');
+};
+$('dsToAi').onclick = ()=>{
+  const R = DS.findings; if (!R || !R.findings.length){ alert('Run a deep scan first.'); return; }
+  document.getElementById('advTools').open = true;
+  setTab('work');
+  const summary = R.findings.map(f=>'- ' + f.type + ': ' + (f.count||1).toLocaleString() + ' hit(s)' +
+    (f.examples.length ? ' (e.g. ' + f.examples[0].slice(0,40) + ')' : '')).join('\n');
+  $('aiReq').value = 'A deep scan (masked sample via ' + R.engine + ') found residual sensitive data my regex rules miss:\n' + summary +
+    '\n\nWrite mask rules that reliably cover each of them (order: specific before generic). Avoid false positives on timestamps, versions and ordinary words.';
+  $('aiSamples').value = R.findings.slice(0,8).map(f=>f.examples[0]).filter(Boolean).join('\n');
+  $('aiIncRules').checked = true;
+  $('wizCard').scrollIntoView({behavior:'smooth', block:'start'});
+  toast('context prepared in the AI wizard ✓');
+};
+$('dsRun').onclick = async ()=>{
+  if (DS.running || P.running || MS.running || S.running || S.mBusy) return;
+  const files = S.files.filter(f=>f.use!==false);
+  if (!files.length){ alert('Load at least one file first (workbench or demo).'); return; }
+  const engine = $('dsEngine').value;
+  if (engine === 'off'){ alert('Pick an engine first (presidio or LLM).'); return; }
+  if (!$('dsAllow').checked){ alert('Tick the consent checkbox first — deep scan sends masked sample lines to an external endpoint.'); return; }
+  if (engine === 'llm' && !AIZ.cfg().model){ alert('Set a model in the AI wizard connection first (step 5 · advanced).'); return; }
+  const sampleN = Math.max(100, Math.min(5000, parseInt($('dsSample').value, 10) || 1000));
+  DS.abort = new AbortController();
+  dsSetBusy(true);
+  $('dsFindings').style.display = 'none'; $('dsActs').style.display = 'none';
+  $('dsStatus').innerHTML = '<span style="color:var(--mut)">sampling…</span>';
+  try{
+    let smp = null;
+    if (workerAvailable()){
+      const r = await deepViaWorker(files, sampleN);
+      if (r.ok) smp = { rows: r.sample.sample, scannedLines: r.sample.scannedLines, stopped: r.sample.stopped };
+      else if (!r.fallback) throw new Error('sampling worker failed mid-scan');
+    }
+    if (!smp) smp = await deepSampleInPage(files, sampleN);
+    if (DS.abort.signal.aborted){ $('dsStatus').textContent = 'stopped'; dsSetBusy(false); return; }
+    if (!smp.rows.length){
+      DS.findings = { engine, findings:[], errors:[], sent:0, scannedLines:smp.scannedLines,
+                      files:files.map(f=>f.name), stopped:!!smp.stopped, when:new Date().toISOString() };
+      dsRenderFindings();
+      $('dsStatus').textContent = 'nothing sampled';
+      dsSetBusy(false);
+      return;
+    }
+    $('dsProgBar').style.width = '0%';
+    $('dsStatus').innerHTML = '<span style="color:var(--mut)">analyzing ' + smp.rows.length.toLocaleString() + ' masked line(s)…</span>';
+    const r2 = engine === 'llm' ? await dsRunLlm(smp.rows) : await dsRunPresidio(smp.rows);
+    DS.findings = { engine, findings:r2.findings, errors:r2.errors, sent:smp.rows.length,
+                    scannedLines:smp.scannedLines, files:files.map(f=>f.name),
+                    stopped:DS.abort.signal.aborted, when:new Date().toISOString() };
+    dsRenderFindings();
+    $('dsStatus').textContent = 'done — ' + r2.findings.length + ' residual type(s)';
+  }catch(e){
+    $('dsStatus').innerHTML = '<span class="bad">failed: ' + esc(e.message) + '</span>';
+    const corsHint = /fetch|network|Failed|load/i.test(e.message)
+      ? '\nIf this is a CORS/network error: Presidio needs a CORS-enabled endpoint (presidio_bridge.py in the repo); LLM endpoints follow the AI wizard CORS note.' : '';
+    alert('Deep scan failed: ' + e.message + corsHint);
+  }
+  dsSetBusy(false);
+};
+
 // ---------- multi-file search tab ----------
 const MS = { running:false, abort:false, res:null, shown:0, filtered:[] };
 
@@ -3274,7 +3761,7 @@ function msFinish(res){
   msRenderSummary(); msRenderResults(true);
 }
 async function msRun(){
-  if (MS.running || S.running || S.mBusy || P.running) return;
+  if (MS.running || S.running || S.mBusy || P.running || DS.running) return;
   const files = S.files.filter(f=>f.use!==false);
   if (!files.length){ alert('Load at least one file first (workbench, section 1).'); return; }
   const pattern = $('msq').value;
@@ -3540,12 +4027,12 @@ const AIZ = {
   load(){ try{ const c=JSON.parse(localStorage.getItem('loglens.ai')||'{}');
       if(c.base) $('aiBase').value=c.base; if(c.model) $('aiModel').value=c.model;
       $('aiRemember').checked=!!c.remember; if(c.remember&&c.key) $('aiKey').value=c.key; }catch(e){} },
-  async chat(messages){
+  async chat(messages,opts){
     const c=this.cfg();
     if(!c.model) throw new Error('set a model name first');
     const headers={'Content-Type':'application/json'}; if(c.key) headers.Authorization='Bearer '+c.key;
     const res=await fetch(c.base+'/chat/completions',{method:'POST',headers,
-      body:JSON.stringify({model:c.model,messages,temperature:0.2})});
+      body:JSON.stringify({model:c.model,messages,temperature:0.2}),signal:opts&&opts.signal});
     if(!res.ok) throw new Error('HTTP '+res.status+' — '+(await res.text()).slice(0,200));
     const d=await res.json();
     const t=d&&d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
@@ -3662,7 +4149,7 @@ async function maskOnlyRun(){
     return;
   }
   if (!useFS && wantGz){ alert('Gzip output requires the disk-streaming path (Chromium browser).'); return; }
-  if (S.running || S.mBusy || P.running || MS.running) return;
+  if (S.running || S.mBusy || P.running || MS.running || DS.running) return;
   S.mBusy=true; $('btnRun').disabled=true; $('msRun').disabled=true;
   S.mAbort=false; $('mRun').disabled=true; $('mStop').disabled=false;
   $('mProg').style.display='block'; $('mProgText').style.display='block'; $('mSummary').style.display='none';

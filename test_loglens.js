@@ -410,6 +410,43 @@ check('search tab markup + wiring', html.includes('id="tabBtnSearch"') && html.i
 check('worker driver handles search messages', html.includes("type:'search'") && html.includes('driveSearch') && html.includes("type:'searchDone'"));
 check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilter','msTable','msMore','msCsv','msCopy','msSummary','msNote'].every(id => html.includes('id="' + id + '"')));
 
+console.log('== v1.21: deep scan (presidio / LLM residual audit) ==');
+check('deep scan markup + ids present',
+  ['dsCfg','dsEngine','dsUrl','dsSample','dsAllow','dsRun','dsStop','dsStatus','dsProg','dsProgBar','dsFindings','dsActs','dsApply','dsDl','dsToAi','dsTarget','dsAiJump']
+    .every(id => html.includes('id="' + id + '"')));
+check('worker driver handles deep messages',
+  html.includes("type:'deep'") && html.includes('driveDeep') && html.includes("type:'deepDone'") && html.includes("type:'deepProg'"));
+check('deep system prompt asks for the findings schema',
+  CORE.DEEP_SYSTEM_PROMPT.includes('"findings"') && CORE.DEEP_SYSTEM_PROMPT.includes('suggestedPattern') &&
+  CORE.DEEP_SYSTEM_PROMPT.includes('ALREADY been masked'));
+check('consent gate present as checkbox',
+  html.includes('id="dsAllow"') && /<input type="checkbox" id="dsAllow">/.test(html));
+{
+  const ok = CORE.parseDeepFindings('{"findings":[{"type":"person name","description":"free text","examples":["Alice Smith"],"suggestedPattern":"\\\\b[A-Z][a-z]+ [A-Z][a-z]+\\\\b","suggestedReplace":"[name]"}]}');
+  check('deep: plain JSON parses', ok.findings.length === 1 && ok.errors.length === 0 && ok.findings[0].type === 'person name');
+  const fenced = CORE.parseDeepFindings('```json\n{"findings":[{"type":"t1","examples":["x"],"suggestedPattern":"("}]}\n```');
+  check('deep: fenced JSON + bad regex → report-only with error', fenced.findings.length === 1 && fenced.findings[0].pattern === '' && fenced.errors.length === 1);
+  check('deep: replace defaults to [redacted]', CORE.parseDeepFindings('{"findings":[{"type":"t2","examples":["y"]}]}').findings[0].replace === '[redacted]');
+  const dup = CORE.parseDeepFindings('{"findings":[{"type":"t","examples":["a"]},{"type":"t","examples":["b"]}]}');
+  check('deep: duplicate types merge examples + counts', dup.findings.length === 1 && dup.findings[0].examples.join(',') === 'a,b' && dup.findings[0].count === 2);
+  check('deep: examples are capped (≤5, ≤120 chars)', (() => {
+    const many = Array.from({length:9}, (_,i)=>'x'.repeat(200)+i);
+    const r = CORE.parseDeepFindings(JSON.stringify({findings:[{type:'t',examples:many}]}));
+    return r.findings[0].examples.length === 5 && r.findings[0].examples.every(x=>x.length<=120);
+  })());
+  check('deep: no findings array → error', CORE.parseDeepFindings('{"nope":1}').errors.length === 1);
+  check('deep: prose-only garbage → error, no crash', CORE.parseDeepFindings('utter nonsense').errors.length === 1);
+  check('deep: missing type rejected', CORE.parseDeepFindings('{"findings":[{"examples":["x"]}]}').errors.length === 1);
+}
+{
+  const lines = ['aaaa', 'bob@example.com signed in', 'x'];
+  const f = CORE.presidioToFindings([{start:5, end:20, entity_type:'EMAIL_ADDRESS', score:0.99}], lines);
+  check('deep: presidio offsets map back to the right line', f.length === 1 && f[0].type === 'EMAIL_ADDRESS' &&
+    f[0].examples[0] === 'bob@example.com' && f[0].count === 1 && f[0].description.includes('0.99'));
+  check('deep: structured presidio type gets a pattern; PERSON stays report-only',
+    !!f[0].pattern && CORE.presidioToFindings([{start:6, end:8, entity_type:'PERSON', score:0.8}], lines)[0].pattern === '');
+}
+
 (async () => {
   if (typeof global.File === 'undefined') global.File = class extends Blob { constructor(parts, name){ super(parts); this.name = name; } };
   global.CORE = CORE;
@@ -428,6 +465,15 @@ check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilte
       await new Promise(r => setTimeout(r, 10));
     }
     throw new Error('searchDone timeout');
+  };
+  const waitMsg = async (msgs, type, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms){
+      const d = msgs.find(m => m.type === type);
+      if (d) return d;
+      await new Promise(r => setTimeout(r, 10));
+    }
+    throw new Error(type + ' timeout');
   };
   const mkFile = (txt, name) => new File([txt], name, { type: 'text/plain' });
   const f1 = mkFile('08-24 10:00:00.000  1  1 I TagA: alpha NEEDLE one\n08-24 10:00:01.000  1  1 I TagA: beta\n', 'a.log');
@@ -483,6 +529,41 @@ check('search ui ids present', ['msq','msCase','msCap','msRun','msStop','msFilte
     self.onmessage({ data: { type: 'abort' } });
     const done = await waitDone(msgs, 10000);
     check('search: abort stops the scan early', done.stopped === true && done.total < 20000);
+  }
+
+  // ---------- v1.21: deep-scan sampling driver ----------
+  const maskRules = [{ name:'m1', pattern:'SECRET\\d+', replace:'[S]', flags:'g', enabled:true }];
+  {
+    const { self, msgs } = makeSelf();
+    const lines = [];
+    for (let i = 0; i < 50; i++) lines.push('08-24 10:00:00.000  1  1 I T: normal line SECRET' + i + ' alpha' + i);
+    for (let i = 0; i < 5; i++)  lines.push('08-24 10:01:00.000  1  1 E T: error line SECRET' + i + ' boom');
+    const f = mkFile(lines.join('\n') + '\n', 'deep.log');
+    self.onmessage({ data: { type:'deep', files:[f], names:['deep.log'], sample:20, maskRules, errish:'', tsFamily:null } });
+    const done = await waitMsg(msgs, 'deepDone', 5000);
+    check('deep: sample respects the cap (5 hot + 15 reservoir)', done.sample.length === 20);
+    check('deep: error lines take priority (all 5 E-lines present)', done.sample.filter(r => r.text.includes('error line')).length === 5);
+    check('deep: sample lines are MASKED before leaving', done.sample.every(r => !/SECRET\d+/.test(r.text) && r.text.includes('[S]')));
+    check('deep: scannedLines counts every line', done.scannedLines === 55);
+    check('deep: no driver errors', msgs.every(m => m.type !== 'error'));
+  }
+  { // abort mid-sample (chunked stream gives the abort a boundary to land on)
+    const big = Array.from({ length: 20000 }, (_, i) => '08-24 12:00:00.000  1  1 I T: line ' + i + ' SECRET' + i).join('\n') + '\n';
+    const enc = new TextEncoder();
+    const chunked = { name: 'big.log', size: big.length, stream(){ let off = 0; return new ReadableStream({
+        async pull(ctrl){
+          if (off >= big.length){ ctrl.close(); return; }
+          const nl = big.indexOf('\n', off + 6000);
+          const end = nl < 0 ? big.length : nl + 1;
+          ctrl.enqueue(enc.encode(big.slice(off, end)));
+          off = end;
+          await new Promise(r => setTimeout(r, 2));
+        } }); } };
+    const { self, msgs } = makeSelf();
+    self.onmessage({ data: { type:'deep', files:[chunked], names:['big.log'], sample:100, maskRules:[], errish:'', tsFamily:null } });
+    self.onmessage({ data: { type:'abort' } });
+    const done = await waitMsg(msgs, 'deepDone', 10000);
+    check('deep: abort stops sampling early', done.stopped === true && done.scannedLines < 20000);
   }
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

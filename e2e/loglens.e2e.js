@@ -367,7 +367,58 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   await page.locator('#tabBtnView').click();
   await page.locator('#tabBtnWork').click();
 
-  // ---------- 7. console errors ----------
+  // ---------- 7. deep scan (v1.21): sampled masked lines → stub engines ----------
+  // LLM path: route the AI wizard connection, run deep scan, apply the rule.
+  await page.route('**/chat/completions*', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ findings: [
+      { type: 'person name', description: 'customer full name', examples: ['Alice Smith'],
+        suggestedPattern: '\\bAlice Smith\\b', suggestedReplace: '[name]' },
+      { type: 'internal hostname', description: 'dev box name', examples: ['devbox-04'] } ] }) } }] }),
+  }));
+  await page.locator('#tabBtnPii').click();
+  await page.locator('#dsCfg summary').click();          // open the deep-scan panel
+  await page.locator('#dsEngine').selectOption('llm');
+  await page.locator('#dsAllow').check();
+  await page.locator('#dsSample').fill('100');
+  await page.locator('#tabBtnWork').click();             // the LLM connection lives in step 5 · advanced
+  await page.evaluate(() => { document.getElementById('advTools').open = true; });
+  await page.locator('#aiBase').fill('http://llm.test/v1');
+  await page.locator('#aiModel').fill('test-model');
+  await page.locator('#tabBtnPii').click();
+  await page.locator('#dsRun').click();
+  await page.waitForFunction(() => document.getElementById('dsStatus').textContent.startsWith('done'), null, { timeout: 15000 });
+  const dsHtml = await page.evaluate(() => document.getElementById('dsFindings').innerHTML);
+  check('deep scan (LLM): findings render with pattern + report-only rows',
+    dsHtml.includes('person name') && dsHtml.includes('Alice Smith') && dsHtml.includes('internal hostname') &&
+    dsHtml.includes('report only'));
+  const dsSent = await page.evaluate(() => document.getElementById('dsTarget').textContent);
+  check('deep scan target names the endpoint', dsSent.includes('http://llm.test/v1') && dsSent.includes('test-model'));
+  await page.locator('.dsPick').first().check();
+  await page.locator('#dsApply').click();
+  await page.waitForTimeout(450);                        // debounced profile save
+  const profDeep = await page.evaluate(() => {
+    const p = JSON.parse(localStorage.getItem('loglens.profile') || '{}');
+    return (p.mask || []).some(r => r.name === 'deep: person name' && r.pattern === '\\bAlice Smith\\b');
+  });
+  check('deep scan: applied rule lands in the persisted profile', profDeep);
+
+  // Presidio path: route /analyze, verify offset-mapped findings render.
+  await page.route('**/analyze*', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ results: [
+      { start: 0, end: 15, entity_type: 'EMAIL_ADDRESS', score: 0.93 } ] }),
+  }));
+  await page.locator('#dsEngine').selectOption('presidio');
+  await page.locator('#dsUrl').fill('http://localhost:3000');
+  await page.locator('#dsRun').click();
+  await page.waitForFunction(() => document.getElementById('dsFindings').innerHTML.includes('presidio EMAIL_ADDRESS'), null, { timeout: 15000 });
+  const dsP = await page.evaluate(() => document.getElementById('dsFindings').innerHTML);
+  check('deep scan (presidio): offset-mapped findings render with a suggested pattern',
+    dsP.includes('EMAIL_ADDRESS') && dsP.includes('presidio EMAIL_ADDRESS') &&
+    dsP.includes('class="dsPick"') && !dsP.includes('>report only</i>'));
+
+  // ---------- 8. console errors ----------
   check('no page errors during flow', errors.length === 0);
   if (errors.length) console.log(errors.join('\n'));
 
