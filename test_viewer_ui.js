@@ -154,6 +154,10 @@ new Function(uiCode).call(global);
   check('inline × clear on text fields (msq/msFilter/resFilter)',
     html.includes("function addInputClear") &&
     html.includes("addInputClear('msq')") && html.includes("addInputClear('msFilter')") && html.includes("addInputClear('resFilter')"));
+  check('search mask/wrap toggles get accent color like the viewer',
+    html.includes('#msCase.on,#msMask.on,#msWrapT.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent)'));
+  check('search column header reflects mask state + Enter runs the search',
+    html.includes('MS_HEAD = () =>') && html.includes("' (masked)' : ' (raw)'") && html.includes("msq').addEventListener('keydown'"));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

@@ -270,9 +270,25 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   await page.locator('#msBody tr').first().waitFor({ timeout: 5000 });
   const maskedTxt = await page.evaluate(() => document.querySelector('#msBody tr td:last-child').textContent);
   check('mask on: VIN is masked in the row text', maskedTxt.includes('YV4**********4567') && !maskedTxt.includes('YV4AB9CD12EF34567'));
+  // toggles light up accent like the viewer's (v1.19.3 consistency pass)
+  const accentOn = await page.evaluate(() => ['msMask', 'msWrapT'].map(id => getComputedStyle(document.getElementById(id)).backgroundColor));
+  check('search toggles light up accent when on', accentOn.every(c => c === 'rgb(37, 99, 235)'));
+  await page.locator('#msCase').click();          // case-sensitive mode
+  const caseOn = await page.evaluate(() => getComputedStyle(document.getElementById('msCase')).backgroundColor);
+  await page.locator('#msCase').click();          // back to insensitive
+  const caseOff = await page.evaluate(() => getComputedStyle(document.getElementById('msCase')).backgroundColor);
+  check('case toggle lights up accent when case-sensitive', caseOn === 'rgb(37, 99, 235)' && caseOff === 'rgba(0, 0, 0, 0)');
+  const headMasked = await page.evaluate(() => document.querySelector('#msTable thead th:last-child').textContent);
+  check('column header shows (masked) while mask is on', headMasked === 'text (masked)');
   await page.locator('#msMask').click();          // mask off → raw text
-  const rawTxt = await page.evaluate(() => document.querySelector('#msBody tr td:last-child').textContent);
-  check('mask off: raw VIN shown', rawTxt.includes('YV4AB9CD12EF34567'));
+  const rawTxt = await page.evaluate(() => {
+    const head = document.querySelector('#msTable thead th:last-child').textContent;
+    const td = document.querySelector('#msBody tr td:last-child').textContent;
+    return { head, td };
+  });
+  check('mask off: raw VIN shown + header flips to (raw)',
+    rawTxt.td.includes('YV4AB9CD12EF34567') && rawTxt.head === 'text (raw)');
+  await page.locator('#msMask').click();          // restore mask
   await page.locator('#msWrapT').click();         // wrap off → one-line rows
   const wrapState = await page.evaluate(() => ({
     nowrap: document.getElementById('msWrap').classList.contains('nowrap'),

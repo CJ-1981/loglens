@@ -157,7 +157,7 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 #vBody.nowrap .vrow{width:max-content;min-width:100%}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
-#msCase.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#msCase.on,#msMask.on,#msWrapT.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* search results: zebra (per-theme stripe) + optional one-line rows */
 #msBody tr:nth-child(2n) td{background:var(--stripeT)}
 #msWrap.nowrap td,#msWrap.nowrap .mono{white-space:pre}
@@ -333,7 +333,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.19.2</span>
+  <h1>LogLens</h1><span class="ver">v1.19.3</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -655,7 +655,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.19.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.19.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -3271,6 +3271,9 @@ $('msq').addEventListener('input', e=>{
   const ok = validRe(e.target.value);
   e.target.style.borderColor = ok ? '' : 'var(--red)';
 });
+$('msq').addEventListener('keydown', e=>{
+  if (e.key === 'Enter'){ e.preventDefault(); if (!$('msRun').disabled) msRun(); }
+});
 $('msCase').onclick = ()=>{
   const b = $('msCase');
   b.classList.toggle('on');
@@ -3388,7 +3391,7 @@ function msRows(){
   if (q){ let rx; try{ rx = new RegExp(q, 'i'); }catch(e){ return rows; } rows = rows.filter(r => rx.test(r.t)); }
   return rows;
 }
-const MS_HEAD = '<thead><tr><th style="width:22%">file</th><th style="width:64px">line</th><th style="width:104px">time</th><th style="width:34px">lvl</th><th>text</th></tr></thead>';
+const MS_HEAD = () => '<thead><tr><th style="width:22%">file</th><th style="width:64px">line</th><th style="width:104px">time</th><th style="width:34px">lvl</th><th>text' + ($('msMask').classList.contains('on') ? ' (masked)' : ' (raw)') + '</th></tr></thead>';
 // rows store the raw line (capped); masking happens at display time so the
 // mask toggle can flip without rescanning
 let msMaskCm = null, msMaskKey = '';
@@ -3410,7 +3413,7 @@ function msRenderResults(reset){
   MS.filtered = msRows();
   if (reset || MS.shown === 0){
     MS.shown = 0;
-    $('msTable').innerHTML = MS_HEAD + '<tbody id="msBody"></tbody>';
+    $('msTable').innerHTML = MS_HEAD() + '<tbody id="msBody"></tbody>';
     const w = $('msWrap'); if (w) w.scrollTop = 0;
   }
   const N = Math.min(MS.shown + 500, MS.filtered.length);
@@ -3429,7 +3432,7 @@ function msRerenderShown(){
   if (!MS.res) return;
   MS.filtered = msRows();
   const shown = Math.min(MS.shown, MS.filtered.length);
-  $('msTable').innerHTML = MS_HEAD + '<tbody id="msBody"></tbody>';
+  $('msTable').innerHTML = MS_HEAD() + '<tbody id="msBody"></tbody>';
   const frag = [];
   for (let i = 0; i < shown; i++) frag.push(msRowHTML(MS.filtered[i], i));
   if (frag.length) $('msBody').insertAdjacentHTML('beforeend', frag.join(''));
