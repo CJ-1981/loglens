@@ -170,8 +170,9 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 /* search results: zebra (per-theme stripe) + optional one-line rows */
 #msBody tr:nth-child(2n) td{background:var(--stripeT)}
 #msWrap.nowrap td,#msWrap.nowrap .mono{white-space:pre}
-#vTable .dlt,#vTable thead .dlt{display:none}
-#vBody.hasdlt .dlt{display:table-cell}
+#vTable td.dlt,#vTable thead .h-dlt{display:none}
+#vBody.hasdlt .dlt,#vBody.hasdlt thead .h-dlt{display:table-cell}
+#vTable thead .h-dlt{display:table-cell}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -341,7 +342,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.20.1</span>
+  <h1>LogLens</h1><span class="ver">v1.20.2</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -582,8 +583,8 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
     <label class="tgl" title="display lines through the mask rules"><input type="checkbox" id="vMask" checked> mask</label>
     <select id="vTheme" title="logcat color theme">
-      <option value="hc">High Contrast</option>
       <option value="default">LogLens default</option>
+      <option value="hc">High Contrast</option>
       <option value="as">Android Studio</option>
       <option value="vscode">VS Code Dark+</option>
       <option value="dracula">Dracula</option>
@@ -663,7 +664,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.20.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.20.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2392,7 +2393,7 @@ async function vOpen(f){
   V.est = CORE.estimateLineCount(head, V.total);
   V.avgLen = Math.max(20, V.total / V.est);
   let t=null; try{ t = localStorage.getItem('loglens.logtheme') || localStorage.getItem('loglens.vtheme'); }catch(e){}
-  applyLogTheme(t || 'hc');   // viewer defaults to high contrast; single shared key
+  applyLogTheme(t || 'default');   // fresh sessions start on LogLens default
   await vWindow(0, 'forward');
 }
 // ---- window readers (exact UTF-8 byte accounting) ----

@@ -167,6 +167,13 @@ new Function(uiCode).call(global);
   // left the badges floating between columns
   check('level cell is a plain td (badge on the inner span, not the cell)',
     html.includes('<td class="lvl">') && !/td class="lv lv/.test(html));
+  // v1.20.2: the Δt header hides with the column (hasdlt), matching the body cells
+  check('Δt header hides with the column (hasdlt)',
+    html.includes('#vTable td.dlt,#vTable thead .h-dlt{display:none}') &&
+    html.includes('#vBody.hasdlt .dlt,#vBody.hasdlt thead .h-dlt{display:table-cell}'));
+  check('theme dropdown lists LogLens default first (viewer + results)',
+    /<select id="vTheme" title="logcat color theme">\s*<option value="default">/.test(html) &&
+    /<select id="logThemeSel">\s*<option value="default">/.test(html));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
