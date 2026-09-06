@@ -122,7 +122,6 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 .vscroll:active{cursor:grabbing}
 .vthumb{position:absolute;left:1px;top:0;width:10px;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
 .vthumb:hover{background:var(--accent)}
-.vrow{display:flex;flex:0 0 auto}
 /* zebra: every other line, keyed to the line number's parity (not :nth-child —
    rows are recycled while scrolling, so DOM parity would slide). Stripe strength
    is a per-theme variable: one fixed alpha is either invisible or glaring
@@ -139,46 +138,40 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
    :not() keeps error/context row tinting on top */
 #resBody tr:nth-child(2n):not(.errrow):not(.ctxrow) td{background:var(--stripeT)}
 .vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:var(--vfs,12px);line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
-.vbodywrap{flex:1;display:flex;flex-direction:column;min-width:0}
-.vhead{display:flex;flex:0 0 auto;overflow:hidden;background:#f2f5f9;border-bottom:1px solid var(--line);color:#3a4a5a;user-select:none;scrollbar-width:none}
-.vhead::-webkit-scrollbar{display:none}
-/* the header's ch-based tracks must resolve with the same font metrics as the
-   rows or the columns drift out of alignment */
-.vhead .ln{flex:0 0 8ch;font:700 10.5px/1.9 var(--mono);text-align:right;padding:0 8px 0 10px;opacity:.75}
-.vhead .cols{flex:1;display:grid;font:700 var(--vfs,12px)/1.55 var(--mono);letter-spacing:.5px;text-transform:uppercase;grid-template-columns:18ch 3ch 16ch minmax(24ch,1fr);grid-template-columns:18ch 3ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr);gap:0 8px;padding:4px 10px 3px 0}
-.vhead .dlt{display:none}
-.vbodywrap:has(.hasdlt) .vhead .dlt{display:block}
 .vmain{display:flex;flex:1;min-height:0;position:relative}
 #vTgGrip{position:absolute;top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize;z-index:6;touch-action:none}
 #vTgGrip:hover,#vTgGrip.drag{background:rgba(77,139,255,.30)}
-.vrow .ln{flex:0 0 8ch;text-align:right;padding:0 8px 0 10px;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;line-height:1.9}
-.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch minmax(24ch,1fr);grid-template-columns:18ch 3ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr);gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
-.vrow .raw{flex:1;white-space:pre-wrap;word-break:break-all;padding-right:10px}
-.vrow .ts{color:var(--mut)}
-.vrow .tg{color:var(--ink);font-weight:600}
+/* viewer list as a real table (the search tab's lister): native column sizing
+   keeps text readable at any width and the sticky header always aligns */
+.vtable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--vfs,12px);line-height:1.55;color:inherit}
+.vtable th{position:sticky;top:0;z-index:3;background:#f2f5f9;border-bottom:1px solid var(--line);padding:4px 7px;font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#3a4a5a;text-align:left;user-select:none;white-space:nowrap}
+.vtable td{border-bottom:1px solid var(--line);padding:2px 7px;vertical-align:top}
+.vtable td.ln{text-align:right;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;white-space:nowrap}
+.vtable td.ts{color:var(--mut);white-space:nowrap}
+.vtable td.tg{color:var(--ink);font-weight:600}
+.vtable td.vmsg{word-break:break-all;min-width:24ch}
+.vtable td.raw{white-space:pre-wrap;word-break:break-all}
+.vtable td.dlt{color:var(--mut);text-align:right;font-size:10.5px;white-space:nowrap}
+.vtable td.dlt.gap{color:var(--red);font-weight:700}
+.vtable .dlt,.vtable thead .dlt{display:none}
+#vBody.hasdlt .dlt,#vBody.hasdlt thead .dlt{display:table-cell}
+#vTable .tg{min-width:min(var(--tgw,16ch),80ch)}
 .vrow mark{background:#ffe066;color:#111;border-radius:2px;padding:0 1px}
-.vrow.mfocus{box-shadow:inset 0 0 0 2px #e8a200}
-/* nowrap: rows must be as wide as their content — the message text overflows a
-   viewport-wide row into the horizontal scroll, and everything past the row's
-   right edge (tag/message area included) would sit on the unstriped vbody.
-   width:max-content is only the base — the flex→grid intrinsic chain undersizes
-   it by ~2 characters, so vFitRows() pins every row to its exact content extent. */
-#vBody.nowrap .vrow{width:max-content;min-width:100%}
+#vBody tr.mfocus td{border-top:2px solid #e8a200;border-bottom:2px solid #e8a200}
+#vBody tr.mfocus td:first-child{border-left:2px solid #e8a200}
+#vBody tr.mfocus td:last-child{border-right:2px solid #e8a200}
+/* wrap off: one line per log entry, horizontal scroll instead; the table is
+   content-sized so stripes and row backgrounds cover the full scrolled width */
+#vBody.nowrap .vtable{width:max-content}
+#vBody.nowrap td{white-space:pre;word-break:normal}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
 #msCase.on,#msMask.on,#msWrapT.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* search results: zebra (per-theme stripe) + optional one-line rows */
 #msBody tr:nth-child(2n) td{background:var(--stripeT)}
 #msWrap.nowrap td,#msWrap.nowrap .mono{white-space:pre}
-/* wrap off: one line per log entry, horizontal scroll instead; fixed columns
-   never let their text bleed into the neighbor column (wide glyphs, fallback
-   fonts, or squeezed widths all get clipped with an ellipsis) */
-#vBody.nowrap .cols,#vBody.nowrap .raw{white-space:pre;word-break:normal}
-#vBody.nowrap .ts,#vBody.nowrap .lv,#vBody.nowrap .tg{overflow:hidden;text-overflow:ellipsis}
-.dlt{display:none;color:var(--mut);text-align:right;font-size:10.5px;line-height:1.9}
-#vBody.hasdlt .dlt{display:block}
-#vBody.hasdlt .cols{grid-template-columns:18ch 3ch 7ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr)}
-.vbodywrap:has(.hasdlt) .vhead .cols{grid-template-columns:18ch 3ch 7ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr)}
+#vTable .dlt,#vTable thead .dlt{display:none}
+#vBody.hasdlt .dlt{display:table-cell}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -205,10 +198,6 @@ body[data-theme=dark] .vscroll{background:#1a2330}
   #runCard{position:static}
   table{font-size:11px}
   .vtoolbar select{max-width:130px}
-  .vrow .cols{grid-template-columns:11ch 3ch 12ch minmax(14ch,1fr);grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr);gap:0 6px}
-  #vBody.hasdlt .cols{grid-template-columns:11ch 3ch 6ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr)}
-  .vhead .cols{grid-template-columns:11ch 3ch 12ch minmax(14ch,1fr);grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr);gap:0 6px}
-  .vbodywrap:has(.hasdlt) .vhead .cols{grid-template-columns:11ch 3ch 6ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr)}
 }
 /* dark theme (toggle in header; persisted) */
 body[data-theme=dark]{--bg:#0d1218;--card:#151c24;--ink:#d7e3ee;--mut:#8ba1b5;--line:#263140;
@@ -352,7 +341,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.19.5</span>
+  <h1>LogLens</h1><span class="ver">v1.20.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -613,10 +602,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
   </div>
   <div class="vmain">
     <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
-    <div class="vbodywrap">
-      <div class="vhead" id="vHead"><span class="ln" title="line">#</span><span class="cols"><span class="ts">time</span><span class="lv">lvl</span><span class="dlt">Δt</span><span class="tg" title="drag the tag/message edge to resize">tag</span><span>message</span></span></div>
-      <div class="vbody" id="vBody" tabindex="0"></div>
-    </div>
+    <div class="vbody" id="vBody" tabindex="0"></div>
     <div id="vTgGrip" title="drag: tag column width · double-click: auto-fit"></div>
   </div>
   <div class="vfoot" id="vFoot"></div>
@@ -677,7 +663,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.19.5 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.20.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2526,16 +2512,16 @@ function vRender(mode, anchor){
       if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
       const tms = h.ts ? (((+h.ts.slice(0,2))*86400 + (+h.ts.slice(6,8))*3600 + (+h.ts.slice(9,11))*60 + (+h.ts.slice(12,14)))*1000 + (h.ts.slice(15,18)===''?0:+h.ts.slice(15,18)) || 0) : null;
-      let dltHtml = '<span class="dlt"></span>';
+      let dltCell = '<td class="dlt"></td>';
       if (prevMs !== null){
         let d = tms - prevMs;
         if (d < 0) d += 86400000;   // midnight rollover
-        dltHtml = `<span class="dlt${d >= 5000 ? ' gap' : ''}">${vFmtDlt(d)}</span>`;
+        dltCell = `<td class="dlt${d >= 5000 ? ' gap' : ''}">${vFmtDlt(d)}</td>`;
       }
       prevMs = tms;
-      frag[i] = `<div class="${rowCls}"${idAttr}><span class="ln">${firstEst+i}</span><span class="cols"><span class="ts">${esc(h.ts)}</span><span class="lv lv${h.lvl||''}">${h.lvl||''}</span>${dltHtml}<span class="tg">${esc(h.tag)}</span><span>${msg}</span></span></div>`;
+      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="ts">${esc(h.ts)}</td><td class="lv lv${h.lvl||''}">${h.lvl||''}</td>${dltCell}<td class="tg">${esc(h.tag)}</td><td class="vmsg">${msg}</td></tr>`;
     } else {
-      frag[i] = `<div class="${rowCls}"${idAttr}><span class="ln">${firstEst+i}</span><span class="raw">${esc(m)}</span></div>`;
+      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="raw" colspan="5">${esc(m)}</td></tr>`;
     }
     byteCursor += V.blen[i] || 0;
   }
@@ -2549,19 +2535,16 @@ function vRender(mode, anchor){
     for (let i = 0, j; i < frag.length; i = j){
       for (j = i + 1; j < frag.length && sigs[j] === sigs[i]; j++);
       if (j - i >= 2 && !dnExp.has(String(fb[i]))){
-        const f = frag[i].replace(/<div class="vrow( alt)?"/, '<div class="vrow coll$1"');
-        shown.push(f.replace(/<\/div>$/, `<span class="runcount" data-run="${fb[i]}">× ${j - i}</span></div>`));
+        const f = frag[i].replace(/<tr class="vrow( alt)?"/, '<tr class="vrow coll$1"');
+        shown.push(f.replace(/<\/tr>$/, `<td><span class="runcount" data-run="${fb[i]}">× ${j - i}</span></td></tr>`));
       } else for (let k = i; k < j; k++) shown.push(frag[k]);
     }
     html = shown.join('');
   }
-  body.innerHTML = html || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
+  body.innerHTML = '<table class="vtable"><thead class="vhead"><tr><th class="h-ln">#</th><th class="h-ts">time</th><th class="h-lv">lvl</th><th class="h-dlt">Δt</th><th class="h-tg">tag</th><th class="h-msg">message</th></tr></thead><tbody>' + (html || '<tr><td class="ln">—</td><td colspan="5" class="raw">(end of file)</td></tr>') + '</tbody></table>';
   // tag column: manual width wins; otherwise it hugs the longest tag in the
-  // buffer, so short tags don't leave a blank stretch before the message.
-  // --tgw goes on the wrapper so the column header inherits it too
-  if (body.parentElement) body.parentElement.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
-  vFitRows();
-  vHeadSync();
+  // buffer, so short tags don't leave a blank stretch before the message
+  body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
   if (mode === 'bottom') body.scrollTop = body.scrollHeight;
   else if (mode === 'keep') vRestoreScroll(body, anchor);
   else body.scrollTop = 0;
@@ -2576,7 +2559,6 @@ function vRender(mode, anchor){
     const focusRow = cur || (V.markByte == null ? markRows[0] : null);
     if (focusRow){
       focusRow.classList.add('mfocus');
-      vFitFocusRow(focusRow);
       const dispIdx = markRows.indexOf(focusRow) + 1;
       $('vFoot').textContent = '🔍 "' + V.lastQ + '" — ' + (marked > 1 ? 'match ' + dispIdx + '/' + marked + ' in view' : '1 match in view');
     }
@@ -2603,7 +2585,6 @@ let vPlaceTgGrip = () => {};
   const edges = () => {
     if (!V.file || V.loading || !isFinite(b.scrollHeight) || !isFinite(b.scrollTop)) return;
     vPlaceTgGrip();
-    vHeadSync();
     if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
     else if (b.scrollTop <= 120) vChainBackward();
   };
@@ -2611,11 +2592,6 @@ let vPlaceTgGrip = () => {};
   b.addEventListener('scroll', edges, { passive:true });
   setInterval(edges, 500);
 })();
-// keep the column header aligned with the rows when the log scrolls horizontally
-function vHeadSync(){
-  const h = $('vHead'), b = $('vBody');
-  if (h && b) h.scrollLeft = b.scrollLeft;
-}
 function vStatus(){
   const pct = V.total ? (100*V.winStart/V.total).toFixed(1) : 0;
   const mb = n => (n/1048576).toFixed(2) + ' MB';
@@ -2823,7 +2799,7 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
     try{ localStorage.removeItem('loglens.tgw'); }catch(e){}
     vRender('keep', vCaptureAnchor());
   });
-  window.addEventListener('resize', () => { vPlaceTgGrip(); vFitRows(); vHeadSync(); });
+  window.addEventListener('resize', vPlaceTgGrip);
 })();
 // ---- wrap long lines on/off (persisted) ----
 (function(){
@@ -2837,21 +2813,16 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
     $('vWrap').classList.toggle('on', on);
     apply(on);
     try{ localStorage.setItem('loglens.vwrap', on ? '1' : '0'); }catch(e){}
-    // rows may carry render-time pinned widths — vFitRows re-fits for the new
-    // mode: wrap clears pins on non-overflowing rows, nowrap re-pins them all
-    vFitRows();
   };
   let w = null; try{ w = localStorage.getItem('loglens.vwrap'); }catch(e){}
   if (w === '0'){ $('vWrap').classList.remove('on'); apply(false); }
-  // refit rows when the viewport changes (pinned widths are px, wrap width is %)
-  window.addEventListener('resize', () => { vFitRows(); vHeadSync(); });
 })();
 // ---- viewer font size A- / A+ (persisted) ----
 (function(){
   let n = 12; try{ n = parseInt(localStorage.getItem('loglens.vfs'), 10); }catch(e){}
   if (!Number.isFinite(n)) n = 12;
   n = Math.min(28, Math.max(9, n));
-  const apply = () => { const s = $('vBody').style; if (s.setProperty) s.setProperty('--vfs', n + 'px'); if (typeof vFitRows === 'function') vFitRows(); };
+  const apply = () => { const s = $('vBody').style; if (s.setProperty) s.setProperty('--vfs', n + 'px'); };
   apply();
   $('vFontUp').onclick = () => { n = Math.min(28, n + 1); apply(); try{ localStorage.setItem('loglens.vfs', String(n)); }catch(e){} toast('viewer font ' + n + 'px'); };
   $('vFontDn').onclick = () => { n = Math.max(9, n - 1); apply(); try{ localStorage.setItem('loglens.vfs', String(n)); }catch(e){} toast('viewer font ' + n + 'px'); };
@@ -3002,12 +2973,11 @@ function vMarkRows(){
   let hrx; try{ hrx = new RegExp(q, 'g' + (vCaseSensitive() ? '' : 'i')); }catch(e){ return []; }
   const marked = [];
   b.querySelectorAll('.vrow').forEach(row=>{
-    const spans = [...row.querySelectorAll('.cols > span')];
-    const raw = row.querySelector('.raw');
-    if (raw) spans.push(raw);
+    const cells = [...row.querySelectorAll('td')].filter(td =>
+      !td.classList.contains('ln') && !td.querySelector('.runcount'));
     let hit = false;
-    spans.forEach(span=>{
-      const txt = span.textContent;
+    cells.forEach(td=>{
+      const txt = td.textContent;
       hrx.lastIndex = 0;                    // matchAll's internal clone inherits lastIndex
       let frag = null, last = 0;
       for (const m of txt.matchAll(hrx)){
@@ -3020,7 +2990,7 @@ function vMarkRows(){
         last = m.index + m[0].length;
         hit = true;
       }
-      if (frag){ frag.append(txt.slice(last)); span.replaceChildren(frag); }
+      if (frag){ frag.append(txt.slice(last)); td.replaceChildren(frag); }
     });
     if (hit){ row.dataset.hit = '1'; marked.push(row); }
   });
@@ -3040,43 +3010,11 @@ function vHighlightAndFocus(rx, matchLine){
 // put the match focus ring on a marked row (and scroll it into view unless asked not to)
 function vSetFocusMark(el, scroll){
   const b = $('vBody');
-  // rows keep their render-time pinned width on blur — it matches their content
   b.querySelectorAll('.vrow.mfocus').forEach(r => r.classList.remove('mfocus'));
   if (!el) return;
   el.classList.add('mfocus');
   V.markByte = el.dataset.byte;   // stable line identity — survives buffer shifts
-  vFitFocusRow(el);
   if (scroll !== false) el.scrollIntoView({behavior:'smooth', block:'center'});
-}
-// nowrap: pin the focused row to its exact content extent — intrinsic max-content
-// of the flex→grid chain falls a couple of characters short of the rendered text
-function vFitFocusRow(row){
-  if (!row) return;
-  row.style.width = $('vBody').classList.contains('nowrap') ? (row.scrollWidth + 1) + 'px' : '';
-}
-// nowrap: pin EVERY row at render time (two passes — reads first, then writes —
-// so the whole buffer costs one layout, not one per row)
-function vFitRows(){
-  const body = $('vBody');
-  const rows = body.children;
-  if (body.classList.contains('nowrap')){
-    // nowrap: pin every row to its content extent (measured per row)
-    const widths = new Array(rows.length);
-    for (let i = 0; i < rows.length; i++) widths[i] = rows[i] ? rows[i].scrollWidth + 1 : 0;
-    for (let i = 0; i < rows.length; i++){ const r = rows[i]; if (r) r.style.width = (widths[i] || 1) + 'px'; }
-    return;
-  }
-  // wrap: when the fixed columns + message minimum exceed the viewport (phone),
-  // extend every row to the container's scroll extent so stripes and row
-  // backgrounds cover the horizontally-scrolled tail; rows still wrap inside.
-  const extent = body.scrollWidth;
-  const wide = extent > body.clientWidth + 1;
-  for (let i = 0; i < rows.length; i++){
-    const r = rows[i];
-    if (!r) continue;
-    r.style.width = '';
-    r.style.minWidth = wide ? extent + 'px' : '';
-  }
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
 // continue with the byte scan (Enter / n semantics) into the rest of the file

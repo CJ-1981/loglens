@@ -56,26 +56,27 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
 
   // ---------- 3b. column header: labels + alignment with the row columns ----------
   const head = await page.evaluate(() => {
-    const h = document.getElementById('vHead');
+    const ths = [...document.querySelectorAll('#vBody thead.vhead th')];
     const row = document.querySelector('#vBody .vrow');
-    const left = (root, cls) => root.querySelector('.cols .' + cls).getBoundingClientRect().left;
+    const tds = [...row.querySelectorAll('td')];
+    const left = el => el.getBoundingClientRect().left;
     return {
-      labels: [...h.querySelectorAll('.cols > span')].map(s => s.textContent),
-      tsDelta: +(left(h, 'ts') - left(row, 'ts')).toFixed(1),
-      tgDelta: +(left(h, 'tg') - left(row, 'tg')).toFixed(1),
-      dltShown: getComputedStyle(h.querySelector('.dlt')).display !== 'none',
+      labels: ths.map(t => t.textContent),
+      tsDelta: +(left(ths[1]) - left(tds[1])).toFixed(1),
+      tgDelta: +(left(ths[4]) - left(tds[4])).toFixed(1),
+      dltShown: getComputedStyle(ths[3]).display !== 'none',
     };
   });
   check('column header labels align with row columns',
-    head.labels.join(',') === 'time,lvl,Δt,tag,message' && Math.abs(head.tsDelta) <= 1 && Math.abs(head.tgDelta) <= 1);
+    head.labels.join(',') === '#,time,lvl,Δt,tag,message' && Math.abs(head.tsDelta) <= 1 && Math.abs(head.tgDelta) <= 1);
   check('column header shows the Δt column (toggle default on)', head.dltShown);
   // mobile: wrapped message column keeps a usable width (no 1-char lines)
   await page.setViewportSize({ width: 360, height: 700 });
   await page.waitForTimeout(200);
   const msgW = await page.evaluate(() => {
     const row = document.querySelector('#vBody .vrow');
-    const spans = [...row.querySelectorAll('.cols > span')];
-    return Math.round(spans[spans.length - 1].getBoundingClientRect().width);
+    const tds = [...row.querySelectorAll('td')];
+    return Math.round(tds[tds.length - 1].getBoundingClientRect().width);
   });
   check('mobile: wrapped message column keeps a usable width', msgW >= 80);
   // wrap-mode rows widen to cover the horizontally-scrolled tail (stripe included)
@@ -83,12 +84,11 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
     const b = document.getElementById('vBody');
     b.scrollLeft = 999999;
     const row = document.querySelector('#vBody .vrow');
-    const spans = [...row.querySelectorAll('.cols > span')];
-    const last = spans[spans.length - 1];
+    const tds = [...row.querySelectorAll('td')];
     return {
       rowW: Math.round(row.getBoundingClientRect().width),
       clientW: b.clientWidth,
-      textRight: Math.round(last.getBoundingClientRect().right),
+      textRight: Math.round(tds[tds.length - 1].getBoundingClientRect().right),
       rowRight: Math.round(row.getBoundingClientRect().right),
     };
   });
@@ -145,11 +145,12 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
     await page.locator('#vBody .vrow.mfocus').waitFor({ timeout: 5000 });
     const covers = await page.evaluate(() => {
       const row = document.querySelector('#vBody .vrow.mfocus');
-      const cols = row.querySelector('.cols') || row.querySelector('.raw');
       let textRight = -Infinity;
-      const spans = cols.querySelectorAll(':scope > span');
-      if (spans.length) for (const s of spans){ const r = s.getBoundingClientRect(); if (r.right > textRight) textRight = r.right; }
-      else textRight = cols.getBoundingClientRect().right - 10;   // .raw keeps 10px padding-right
+      for (const td of row.querySelectorAll('td')){
+        if (td.classList.contains('ln') || td.querySelector('.runcount')) continue;
+        const r = td.getBoundingClientRect();
+        if (r.right > textRight) textRight = r.right;
+      }
       return { ringRight: row.getBoundingClientRect().right, textRight };
     });
     check(`focus ring covers the rendered text edge (${q})`, covers.ringRight >= covers.textRight - 0.5);
@@ -180,10 +181,8 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   const tails = await page.evaluate(() => {
     const out = [];
     for (const row of document.querySelectorAll('#vBody .vrow.alt')){
-      const cols = row.querySelector('.cols') || row.querySelector('.raw');
-      const last = [...cols.querySelectorAll(':scope > span')].pop() || cols;
       const range = document.createRange();
-      range.selectNodeContents(last);
+      range.selectNodeContents(row.querySelector('td.vmsg') || row.querySelector('td.raw'));
       out.push({ rowRight: row.getBoundingClientRect().right, textRight: range.getBoundingClientRect().right });
     }
     return out;

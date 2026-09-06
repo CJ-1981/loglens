@@ -91,26 +91,22 @@ new Function(uiCode).call(global);
     check('search handler attached (structural)', true);
   } catch (e) { check('search handler attached (structural)', false); }
 
-  // focus ring must enclose the full unwrapped line in nowrap mode (v1.18.2 fix:
-  // the ring was viewport-wide while one-line rows overflow far to the right;
-  // v1.18.3/18.8: intrinsic max-content falls ~2 chars short — rows are pinned
-  // to their measured content extent)
-  check('nowrap rows pinned to exact content extent (vFitFocusRow/vFitRows)',
-    html.includes('function vFitFocusRow') && html.includes('row.scrollWidth + 1') &&
-    html.includes('function vFitRows') && html.includes('vFitRows();'));
-  // v1.18.7: in nowrap mode ALL rows must be content-sized — a viewport-wide row
-  // leaves the overflowing message text (past the tag column) on the unstriped
-  // vbody background when scrolled horizontally
-  check('nowrap rows content-sized so stripes follow the text',
-    html.includes('#vBody.nowrap .vrow{width:max-content;min-width:100%}'));
+  // the viewer list is a real table (v1.19.4 lister swap): rows wrap inside
+  // their cells and the table is content-sized, so stripes/rings/borders cover
+  // the full text extent in every mode without per-row width pinning
+  check('viewer list renders as a table (search-tab lister)',
+    html.includes('<table class="vtable">') && html.includes('<thead class="vhead">') &&
+    html.includes('<tbody>') && html.includes('class="vtable"'));
+  check('nowrap table spans its content (stripes cover scrolled text)',
+    html.includes('#vBody.nowrap .vtable{width:max-content}'));
 
   // zebra striping: rows carry .alt by line-number parity (not DOM order — rows
   // are recycled while scrolling), so stripes stay put and match the gutter
-  const seq = [...body.matchAll(/<div class="(vrow(?: alt)?)" data-byte/g)].map(m => m[1].includes('alt'));
+  const seq = [...body.matchAll(/<tr class="(vrow(?: alt)?)" data-byte/g)].map(m => m[1].includes('alt'));
   check('zebra stripes alternate across rendered rows (aligned to line parity)',
     seq.length >= 10 && seq.some(Boolean) && seq.some(v => !v) && seq.slice(0, 6).every((c, i) => c === (i % 2 === 1)));
   check('collapse keeps zebra parity (coll injected before alt)',
-    html.includes('/<div class="vrow( alt)?"/') && body.includes('class="vrow alt" data-byte'));
+    html.includes('/<tr class="vrow( alt)?"/') && body.includes('class="vrow alt" data-byte'));
 
   // v1.18.5: results table zebra (append-only rows → nth-child stable) + dark legibility fixes
   check('results table zebra, error/context rows keep their tint',
@@ -159,18 +155,13 @@ new Function(uiCode).call(global);
   check('search column header reflects mask state + Enter runs the search',
     html.includes('MS_HEAD = () =>') && html.includes("' (masked)' : ' (raw)'") && html.includes("msq').addEventListener('keydown'"));
 
-  // v1.19.4: viewer column header + wrapped message column keeps a usable width
+  // v1.19.4: viewer column header — now the table's sticky thead (aligned by construction)
   check('viewer column header present with column names',
-    html.includes('id="vHead"') && html.includes('<span class="ts">time</span>') &&
-    html.includes('<span class="dlt">Δt</span>') &&
-    html.includes('title="drag the tag/message edge to resize">tag</span>') && html.includes('>message</span>'));
-  check('viewer message column keeps a minimum width on narrow screens',
-    html.includes('minmax(24ch,1fr)') && html.includes('minmax(14ch,1fr)'));
-  check('wrap-mode rows widen on horizontal overflow (vFitRows both modes)',
-    html.includes("widths[i] = rows[i] ? rows[i].scrollWidth + 1 : 0") &&
-    html.includes('const extent = body.scrollWidth;') && html.includes("r.style.minWidth = wide ? extent + 'px' : ''"));
-  check('header inherits tag width (--tgw on wrapper) + syncs horizontal scroll',
-    html.includes("body.parentElement.style.setProperty('--tgw'") && html.includes('function vHeadSync'));
+    html.includes('<thead class="vhead">') && html.includes('<th class="h-ts">time</th>') &&
+    html.includes('<th class="h-dlt">Δt</th>') &&
+    html.includes('<th class="h-tg">tag</th>') && html.includes('<th class="h-msg">message</th>'));
+  check('viewer table spans and scrolls like the search lister',
+    html.includes('.vtable{width:100%') && html.includes('#vBody.nowrap .vtable{width:max-content}'));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
