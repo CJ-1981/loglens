@@ -29,6 +29,7 @@ jobs:
           cp loglens.html _site/index.html
           cp loglens.html _site/loglens.html
           cp README.md _site/README.md
+          cp presidio_bridge.py _site/presidio_bridge.py
 
       - uses: actions/configure-pages@v5
 
