@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
-![version](https://img.shields.io/badge/version-v1.21.1-blue)
-![tests](https://img.shields.io/badge/assertions-508%20passing-green)
+![version](https://img.shields.io/badge/version-v1.21.2-blue)
+![tests](https://img.shields.io/badge/assertions-510%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.21.1 · 508 automated assertions (451 unit across 9 suites + 57 e2e) across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · multi-file search · zebra log viewer · mobile-responsive
+- **Current version**: v1.21.2 · 510 automated assertions (453 unit across 9 suites + 57 e2e) across 8 suites (`test_loglens.js` + `test_loglens_v15.js` + `test_viewer_ui.js` + `test_viewer_search.js` + `test_team_nav.js` + `test_team_denoise.js` + `test_team_workbench.js` + `test_team_marks.js`) · worker-accelerated scans · multi-file search · zebra log viewer · mobile-responsive
 
 ## Screenshots
 
@@ -305,15 +305,31 @@ Find unmasked personal data in loaded logs and turn findings into mask rules.
 - **send to AI wizard**: prepares the requirement prompt with the findings summary + shape samples and pre-checks "send current rules", so the model writes targeted rules for exactly what was found.
 - **Download findings .json** for offline review.
 - **Deep scan (optional, opt-in)**: an enrichment pass for *residual* PII the regexes miss — free-text names, hostnames, addresses, whatever your rules don't cover. It samples the loaded files locally (worker-offloaded; error/warn/errish lines first, a reservoir over the rest), **masks every sampled line with your current rules before anything is sent**, then hands the masked sample to the engine you pick under **deep scan**:
-  - **Presidio analyzer endpoint** — any Presidio-compatible `POST /analyze` service. Easiest setup: the bundled [`presidio_bridge.py`](presidio_bridge.py) runs Presidio in-process with CORS enabled:
+  - **Presidio analyzer endpoint** — any Presidio-compatible `POST /analyze` service. Easiest setup: the bundled [`presidio_bridge.py`](presidio_bridge.py) runs Presidio in-process with CORS enabled, **pre-tuned for in-vehicle / telematics logs** (see *Tuning Presidio for IVI logs* below):
     ```
     pip install presidio-analyzer fastapi "uvicorn[standard]"
-    python -m spacy download en_core_web_lg   # for PERSON/LOCATION NER
+    python -m spacy download en_core_web_lg   # default NER model
     python presidio_bridge.py                 # http://localhost:8699
     ```
-    (The stock `presidio-analyzer` Docker image also works if you front it with any CORS proxy.)
+    (The stock `presidio-analyzer` Docker image also works if you front it with any CORS proxy — plain, without the IVI tuning.)
   - **LLM** — reuses the AI wizard connection (step 5 · advanced; any OpenAI-compatible endpoint incl. Ollama/LM Studio). A dedicated system prompt asks for residual findings as JSON with suggested patterns; `parseDeepFindings` validates every suggested regex before it can become a rule.
-- Nothing is sent until you pick an engine **and** tick **allow sending masked samples** (session-only — never persisted); the target endpoint is shown next to the checkbox. Findings render grouped by type with samples and counts — structured entities (IP, email, phone, URL, card, IBAN, SSN) carry a one-click suggested pattern, fuzzy ones (person, location) stay **report-only** (a global regex built from a name shape would mask ordinary text — use **→ draft rules in AI wizard** for those instead). **apply as mask rules** validates and appends `deep: <type>` rules to your profile; **download deep findings .json** exports the raw report.
+- Nothing is sent until you pick an engine **and** tick **allow sending masked samples** (session-only — never persisted); the target endpoint is shown next to the checkbox. Findings render grouped by type with samples and counts — structured entities (IP, email, phone, URL, card, IBAN, SSN, and the bridge's VIN/IMEI/MAC/GNSS types) carry a one-click suggested pattern, fuzzy ones (person, location) stay **report-only** (a global regex built from a name shape would mask ordinary text — use **→ draft rules in AI wizard** for those instead). **apply as mask rules** validates and appends `deep: <type>` rules to your profile; **download deep findings .json** exports the raw report.
+
+### Tuning Presidio for in-vehicle / telematics logs
+
+IVI logs are mostly machine tokens plus a thin layer of genuinely human data — pick the recognizer per PII kind, not one model for everything:
+
+- **Identifiers stay pattern-based.** The bundled bridge ships custom recognizers for the shapes telematics logs actually carry: **VIN (ISO 3779 check-digit validated)**, **IMEI (Luhn-validated)**, **GNSS lat/lon pairs** (≥3 decimals, so version/benchmark numbers don't match), and **MAC/BT addresses** — each with IVI context words (`vin`, `imei`, `bssid`, `paired_device`, `position`…) so labeled fields score higher. Presidio has no built-in VIN recognizer at all, and NER can't tell a VIN from any 17-char token; the check digit can, deterministically. A license-plate recognizer is included but **off by default** (formats are jurisdiction-specific — enable `LICENSE_PLATE` and tune the pattern per market).
+- **NER is allow-listed to PERSON / LOCATION / ORG.** CoNLL-style models fire `DATE_TIME` on *every log timestamp* and on version strings — restricting the entity set is the single biggest precision win and cuts latency.
+- **Model choice** (env vars on the bridge: `PRESIDIO_NLP_ENGINE`, `PRESIDIO_NLP_MODEL`):
+  | goal | engine / model |
+  | --- | --- |
+  | balanced default | `spacy` / `en_core_web_lg` |
+  | better PERSON recall on noisy log text | `transformers` / `dslim/bert-base-NER` (speed) or `Jean-Baptiste/roberta-large-ner-english` (accuracy, GPU-friendly) |
+  | global fleets, non-Latin contact names | `transformers` / `Davlan/xlm-roberta-base-ner-hrl` |
+  Avoid `en_core_web_sm` (noticeably weak); reserve `en_core_web_trf` for accuracy-critical passes — too slow for routine CPU sampling.
+- **Sample, don't sweep** — deep scan already masks + samples; run NER over thousands of lines, not gigabytes.
+- **Spot-check on your own platform**: CoNLL F1 scores don't transfer to log text (expect over-firing on CamelCase and package names like `com.android.*` — mitigate with `score_threshold` 0.5–0.6, and reject candidates containing digits/dots). Grade ~100 real lines by hand before trusting the numbers.
 
 ## Relationship to scripted pipelines
 
@@ -367,7 +383,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.21.1 (current)** — **deep scan / pii scan: the final line of files without a trailing newline is no longer dropped**. `driveDeep`, `drivePii` and the in-page deep fallback only processed lines terminated by `\n`, so a 15-line file ending without a newline sampled/scanned 14 lines (spotted live: the demo reported "14 masked line(s) sent"). All three paths now flush the trailing buffer (plus the same 8 MB pathological-single-line valve the scan path already had). Regression-tested in the driver suite (deep + pii) and the UI suite (demo tail line reaches the LLM sample)
+- **v1.21.2 (current)** — **the bundled presidio_bridge.py is now pre-tuned for in-vehicle / telematics logs**, and LogLens knows its entity types. The bridge registers custom validated recognizers for the identifiers IVI logs carry — **VIN (ISO 3779 check digit), IMEI (Luhn), GNSS lat/lon pairs (≥3 decimals), MAC/BT addresses** (each with telematics context words: `vin`, `imei`, `bssid`, `paired_device`, `position`…), plus an optional license-plate recognizer (off by default; jurisdiction-specific) — and allow-lists the NER to **PERSON / LOCATION / ORG**, because stock `DATE_TIME` recognizers fire on every log timestamp. The NLP engine/model is env-configurable (`PRESIDIO_NLP_ENGINE`, `PRESIDIO_NLP_MODEL`) with a README model-selection table (spaCy lg default; dslim/bert-base-NER or roberta-large-ner-english for PERSON recall; xlm-roberta for global fleets). LogLens's `PRESIDIO_PATTERNS` gained the VIN/IMEI/MAC/GNSS types, so their findings get one-click suggested patterns in the deep-scan report instead of rendering report-only
+- **v1.21.1** — **deep scan / pii scan: the final line of files without a trailing newline is no longer dropped**. `driveDeep`, `drivePii` and the in-page deep fallback only processed lines terminated by `\n`, so a 15-line file ending without a newline sampled/scanned 14 lines (spotted live: the demo reported "14 masked line(s) sent"). All three paths now flush the trailing buffer (plus the same 8 MB pathological-single-line valve the scan path already had). Regression-tested in the driver suite (deep + pii) and the UI suite (demo tail line reaches the LLM sample)
 - **v1.21.0** — **new: deep scan in the pii-scan tab** — an opt-in residual-PII audit that goes beyond the built-in regexes. It samples the loaded files locally (worker-offloaded: error/warn/errish lines first, reservoir over the rest), **masks every sampled line with your current rules before anything leaves the page**, then sends the masked sample to a user-configured engine: a **Presidio analyzer endpoint** (e.g. the new `presidio_bridge.py`, a ~40-line CORS-enabled FastAPI wrapper) or **any OpenAI-compatible LLM** (reuses the AI wizard connection; consent checkbox + visible target required — engine off / nothing sent by default). Findings render grouped by type with samples and counts (structured Presidio entities carry suggested patterns; fuzzy ones stay report-only), one click validates and appends them as mask rules (`deep: <type>`), and everything exports to JSON or hands off to the AI wizard. 19 engine checks (parser validation, presidio offset mapping, masked+bias sampling driver, abort) + 13 UI checks (consent gate, stubbed-fetch LLM/presidio runs, apply, busy gating) + 4 e2e checks (routed endpoints, apply-to-profile)
 - **v1.20.3** — **the Δt column header really hides now**. v1.20.2's hide rule was scoped to `#vTable` — an id no element carries (the viewer table only has `class="vtable"`), so the CSS never matched and an orphaned "Δt" label stayed visible over the hidden column. The hide/show rules are now class-scoped (`.vtable thead .h-dlt` hidden by default, `#vBody.hasdlt …` shows header + cells when the toggle is on). Verified by a computed-style probe (the th flips `none` ↔ `table-cell` with the toggle), on/off screenshots, three new e2e checks (off hides the th, off hides the td, on restores the th) and a strengthened structural check
 - **v1.20.2** — the **theme dropdown lists LogLens default first** in the viewer and the workbench results selector, with LogLens default as the fallback theme for fresh sessions (previously the viewer silently started on High Contrast). Also shipped an id-scoped Δt-header hide rule that turned out to be dead (see v1.20.3)

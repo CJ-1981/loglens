@@ -343,7 +343,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.21.1</span>
+  <h1>LogLens</h1><span class="ver">v1.21.2</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -693,7 +693,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.21.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.21.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -1150,7 +1150,12 @@ const CORE = (function(){
     URL: '\\bhttps?://[^\\s]+',
     CREDIT_CARD: '\\b(?:\\d[ -]*?){13,19}\\b',
     IBAN_CODE: '\\b[A-Z]{2}\\d{2}[A-Z0-9]{10,30}\\b',
-    US_SSN: '\\b\\d{3}-\\d{2}-\\d{4}\\b'
+    US_SSN: '\\b\\d{3}-\\d{2}-\\d{4}\\b',
+    // IVI-tuned presidio_bridge.py entity types
+    VIN: '\\b[A-HJ-NPR-Z0-9]{17}\\b',
+    IMEI: '\\b\\d{15}\\b',
+    MAC_ADDRESS: '\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b',
+    GNSS_COORDINATE: '(?<![\\d.])-?(?:[0-8]?\\d|90)\\.\\d{3,7}\\s*\u00b0?\\s*[NS]?\\s*,?\\s*-?(?:1?[0-7]?\\d|180)\\.\\d{3,7}(?:\\s*\u00b0?\\s*[EW])?(?![\\d.])'
   };
   function presidioToFindings(entities, lines){
     const out = [], byType = new Map();

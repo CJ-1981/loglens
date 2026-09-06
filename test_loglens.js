@@ -445,6 +445,18 @@ check('consent gate present as checkbox',
     f[0].examples[0] === 'bob@example.com' && f[0].count === 1 && f[0].description.includes('0.99'));
   check('deep: structured presidio type gets a pattern; PERSON stays report-only',
     !!f[0].pattern && CORE.presidioToFindings([{start:6, end:8, entity_type:'PERSON', score:0.8}], lines)[0].pattern === '');
+  {
+    const iviLine = 'YV4AB9CD12EF34567 bt=00:11:22:33:44:55';
+    const ivi = CORE.presidioToFindings([
+      {start:0, end:17, entity_type:'VIN', score:0.9},
+      {start:21, end:38, entity_type:'MAC_ADDRESS', score:0.8},
+      {start:22, end:26, entity_type:'PERSON', score:0.7},
+    ], [iviLine]);
+    const by = Object.fromEntries(ivi.map(x=>[x.type, x]));
+    check('deep: IVI entity types (VIN, MAC_ADDRESS) map to one-click patterns',
+      ivi.length === 3 && by.VIN.pattern.includes('[A-HJ-NPR-Z0-9]{17}') && by.MAC_ADDRESS.pattern.includes('{5}'));
+    check('deep: PERSON from the tuned bridge stays report-only', by.PERSON.pattern === '');
+  }
 }
 
 (async () => {
