@@ -70,6 +70,21 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   check('column header labels align with row columns',
     head.labels.join(',') === '#,time,lvl,Δt,tag,message' && Math.abs(head.tsDelta) <= 1 && Math.abs(head.tgDelta) <= 1);
   check('column header shows the Δt column (toggle default on)', head.dltShown);
+  // ---------- 3c. Δt toggle: the header cell hides with the column (v1.20.3) ----------
+  await page.locator('#vDlt').click();
+  await page.waitForTimeout(150);
+  const dltOff = await page.evaluate(() => {
+    const th = [...document.querySelectorAll('#vBody thead.vhead th')][3];
+    const td = document.querySelector('#vBody td.dlt');
+    return { th: getComputedStyle(th).display, td: td ? getComputedStyle(td).display : 'absent' };
+  });
+  check('Δt off hides the header cell', dltOff.th === 'none');
+  check('Δt off hides the body cells', dltOff.td === 'none' || dltOff.td === 'absent');
+  await page.locator('#vDlt').click();
+  await page.waitForTimeout(150);
+  const dltOn = await page.evaluate(() =>
+    getComputedStyle([...document.querySelectorAll('#vBody thead.vhead th')][3]).display);
+  check('Δt on restores the header cell', dltOn === 'table-cell');
   // mobile: wrapped message column keeps a usable width (no 1-char lines)
   await page.setViewportSize({ width: 360, height: 700 });
   await page.waitForTimeout(200);

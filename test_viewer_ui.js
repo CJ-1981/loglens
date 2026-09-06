@@ -167,9 +167,12 @@ new Function(uiCode).call(global);
   // left the badges floating between columns
   check('level cell is a plain td (badge on the inner span, not the cell)',
     html.includes('<td class="lvl">') && !/td class="lv lv/.test(html));
-  // v1.20.2: the Δt header hides with the column (hasdlt), matching the body cells
+  // v1.20.3: the Δt header hides with the column (hasdlt) — the hide must be
+  // class-scoped (.vtable): #vTable is an id no element carries, so the old
+  // id-scoped rules were dead and the header stayed visible
   check('Δt header hides with the column (hasdlt)',
-    html.includes('#vTable td.dlt,#vTable thead .h-dlt{display:none}') &&
+    html.includes('.vtable thead .h-dlt,#vTable thead .h-dlt{display:none}') &&
+    html.includes('.vtable td.dlt{display:none}') &&
     html.includes('#vBody.hasdlt .dlt,#vBody.hasdlt thead .h-dlt{display:table-cell}'));
   check('theme dropdown lists LogLens default first (viewer + results)',
     /<select id="vTheme" title="logcat color theme">\s*<option value="default">/.test(html) &&

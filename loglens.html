@@ -170,9 +170,10 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 /* search results: zebra (per-theme stripe) + optional one-line rows */
 #msBody tr:nth-child(2n) td{background:var(--stripeT)}
 #msWrap.nowrap td,#msWrap.nowrap .mono{white-space:pre}
-#vTable td.dlt,#vTable thead .h-dlt{display:none}
+/* viewer table: Δt column hidden unless the Δt toggle is on */
+.vtable thead .h-dlt,#vTable thead .h-dlt{display:none}
+.vtable td.dlt{display:none}
 #vBody.hasdlt .dlt,#vBody.hasdlt thead .h-dlt{display:table-cell}
-#vTable thead .h-dlt{display:table-cell}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -342,7 +343,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.20.2</span>
+  <h1>LogLens</h1><span class="ver">v1.20.3</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -664,7 +665,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.20.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.20.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
