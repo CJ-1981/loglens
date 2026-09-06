@@ -54,6 +54,33 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   check('viewer masks VIN on display', !vText.includes('YV4DEM0123AB34567'));
   check('viewer shows the service tag', vText.includes('MyApp'));
 
+  // ---------- 3b. column header: labels + alignment with the row columns ----------
+  const head = await page.evaluate(() => {
+    const h = document.getElementById('vHead');
+    const row = document.querySelector('#vBody .vrow');
+    const left = (root, cls) => root.querySelector('.cols .' + cls).getBoundingClientRect().left;
+    return {
+      labels: [...h.querySelectorAll('.cols > span')].map(s => s.textContent),
+      tsDelta: +(left(h, 'ts') - left(row, 'ts')).toFixed(1),
+      tgDelta: +(left(h, 'tg') - left(row, 'tg')).toFixed(1),
+      dltShown: getComputedStyle(h.querySelector('.dlt')).display !== 'none',
+    };
+  });
+  check('column header labels align with row columns',
+    head.labels.join(',') === 'time,lvl,Δt,tag,message' && Math.abs(head.tsDelta) <= 1 && Math.abs(head.tgDelta) <= 1);
+  check('column header shows the Δt column (toggle default on)', head.dltShown);
+  // mobile: wrapped message column keeps a usable width (no 1-char lines)
+  await page.setViewportSize({ width: 360, height: 700 });
+  await page.waitForTimeout(200);
+  const msgW = await page.evaluate(() => {
+    const row = document.querySelector('#vBody .vrow');
+    const spans = [...row.querySelectorAll('.cols > span')];
+    return Math.round(spans[spans.length - 1].getBoundingClientRect().width);
+  });
+  check('mobile: wrapped message column keeps a usable width', msgW >= 80);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(200);
+
   // ---------- 4. viewer search-jump (demo file: whole file is in the window —
   //              a scan that starts past the view would find nothing: strict!) ----------
   await page.locator('#vSearch').fill('Auth');

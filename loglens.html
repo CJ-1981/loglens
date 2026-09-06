@@ -139,11 +139,20 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
    :not() keeps error/context row tinting on top */
 #resBody tr:nth-child(2n):not(.errrow):not(.ctxrow) td{background:var(--stripeT)}
 .vbody{flex:1;overflow:auto;font-family:var(--mono);font-size:var(--vfs,12px);line-height:1.55;background:#fff;color:var(--ink);min-height:320px;max-height:70vh;outline:none;padding:2px 0;overscroll-behavior:contain}
+.vbodywrap{flex:1;display:flex;flex-direction:column;min-width:0}
+.vhead{display:flex;flex:0 0 auto;overflow:hidden;background:#f2f5f9;border-bottom:1px solid var(--line);color:#3a4a5a;user-select:none;scrollbar-width:none}
+.vhead::-webkit-scrollbar{display:none}
+/* the header's ch-based tracks must resolve with the same font metrics as the
+   rows or the columns drift out of alignment */
+.vhead .ln{flex:0 0 8ch;font:700 10.5px/1.9 var(--mono);text-align:right;padding:0 8px 0 10px;opacity:.75}
+.vhead .cols{flex:1;display:grid;font:700 var(--vfs,12px)/1.55 var(--mono);letter-spacing:.5px;text-transform:uppercase;grid-template-columns:18ch 3ch 16ch minmax(24ch,1fr);grid-template-columns:18ch 3ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr);gap:0 8px;padding:4px 10px 3px 0}
+.vhead .dlt{display:none}
+.vbodywrap:has(.hasdlt) .vhead .dlt{display:block}
 .vmain{display:flex;flex:1;min-height:0;position:relative}
 #vTgGrip{position:absolute;top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize;z-index:6;touch-action:none}
 #vTgGrip:hover,#vTgGrip.drag{background:rgba(77,139,255,.30)}
 .vrow .ln{flex:0 0 8ch;text-align:right;padding:0 8px 0 10px;color:var(--mut);opacity:.75;user-select:none;font-size:10.5px;line-height:1.9}
-.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch 1fr;grid-template-columns:18ch 3ch max(6ch,min(var(--tgw,16ch),80ch)) 1fr;gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
+.vrow .cols{flex:1;display:grid;grid-template-columns:18ch 3ch 16ch minmax(24ch,1fr);grid-template-columns:18ch 3ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr);gap:0 8px;white-space:pre-wrap;word-break:break-all;padding-right:10px}
 .vrow .raw{flex:1;white-space:pre-wrap;word-break:break-all;padding-right:10px}
 .vrow .ts{color:var(--mut)}
 .vrow .tg{color:var(--ink);font-weight:600}
@@ -168,7 +177,8 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
 #vBody.nowrap .ts,#vBody.nowrap .lv,#vBody.nowrap .tg{overflow:hidden;text-overflow:ellipsis}
 .dlt{display:none;color:var(--mut);text-align:right;font-size:10.5px;line-height:1.9}
 #vBody.hasdlt .dlt{display:block}
-#vBody.hasdlt .cols{grid-template-columns:18ch 3ch 7ch max(6ch,min(var(--tgw,16ch),80ch)) 1fr}
+#vBody.hasdlt .cols{grid-template-columns:18ch 3ch 7ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr)}
+.vbodywrap:has(.hasdlt) .vhead .cols{grid-template-columns:18ch 3ch 7ch max(6ch,min(var(--tgw,16ch),80ch)) minmax(24ch,1fr)}
 /* viewer dark / theme surfaces — hc default look */
 #vBody.hc{background:#000;color:#fff}
 #vBody.hc .ts{color:#9aa7b4}
@@ -195,13 +205,16 @@ body[data-theme=dark] .vscroll{background:#1a2330}
   #runCard{position:static}
   table{font-size:11px}
   .vtoolbar select{max-width:130px}
-  .vrow .cols{grid-template-columns:11ch 3ch 12ch 1fr;grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) 1fr;gap:0 6px}
-  #vBody.hasdlt .cols{grid-template-columns:11ch 3ch 6ch max(8ch,min(var(--tgw,12ch),14ch)) 1fr}
+  .vrow .cols{grid-template-columns:11ch 3ch 12ch minmax(14ch,1fr);grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr);gap:0 6px}
+  #vBody.hasdlt .cols{grid-template-columns:11ch 3ch 6ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr)}
+  .vhead .cols{grid-template-columns:11ch 3ch 12ch minmax(14ch,1fr);grid-template-columns:11ch 3ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr);gap:0 6px}
+  .vbodywrap:has(.hasdlt) .vhead .cols{grid-template-columns:11ch 3ch 6ch max(8ch,min(var(--tgw,12ch),14ch)) minmax(14ch,1fr)}
 }
 /* dark theme (toggle in header; persisted) */
 body[data-theme=dark]{--bg:#0d1218;--card:#151c24;--ink:#d7e3ee;--mut:#8ba1b5;--line:#263140;
   --accent:#4d8bff;--red:#ff6b6e;--amber:#e0a52e;--green:#3fbf6f;--dark:#0a1017;--code:#0a0f15;--codeink:#c9d8e6}
 body[data-theme=dark] .stat,body[data-theme=dark] .hbox,body[data-theme=dark] .reswrap{background:var(--card)}
+body[data-theme=dark] .vhead{background:#1a2330;color:#a9bccd;border-bottom-color:var(--line)}
 body[data-theme=dark] .rule{background:#10171f}
 body[data-theme=dark] .rule input[type=text],body[data-theme=dark] .search,body[data-theme=dark] textarea,
 body[data-theme=dark] select,body[data-theme=dark] input[type=number],body[data-theme=dark] input[type=password],
@@ -316,6 +329,12 @@ body[data-logtheme="solarized"] .vbody .ts,body[data-logtheme="solarized"] .vbod
 body[data-logtheme="solarized"] .vbody .tg{color:#EEE8D5}
 body[data-logtheme="solarized"] .vbody .dlt.gap{color:#DC322F}
 body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
+/* search…viewer column header inherits each preset's surface + dim color */
+body[data-logtheme="hc"] .vhead{background:#000;color:#9aa7b4;border-bottom-color:#444}
+body[data-logtheme="as"] .vhead{background:#2B2B2B;color:#7f8b97;border-bottom-color:#3c3f41}
+body[data-logtheme="vscode"] .vhead{background:#1E1E1E;color:#858585;border-bottom-color:#333}
+body[data-logtheme="dracula"] .vhead{background:#282A36;color:#6272A4;border-bottom-color:#3a3f4d}
+body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-bottom-color:#0a3d4a}
 /* ==== team: denoise ==== *//* ==== team: denoise ==== */
 .runcount{cursor:pointer;font-weight:700;font-size:10px;line-height:1.5;color:var(--amber);background:rgba(160,107,0,.14);border:1px solid currentColor;border-radius:9px;padding:0 6px;margin-left:8px;align-self:center;white-space:nowrap;user-select:none}
 .vrow.coll{opacity:.6}
@@ -333,7 +352,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.19.3</span>
+  <h1>LogLens</h1><span class="ver">v1.19.4</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -594,7 +613,10 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
   </div>
   <div class="vmain">
     <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
-    <div class="vbody" id="vBody" tabindex="0"></div>
+    <div class="vbodywrap">
+      <div class="vhead" id="vHead"><span class="ln" title="line">#</span><span class="cols"><span class="ts">time</span><span class="lv">lvl</span><span class="dlt">Δt</span><span class="tg" title="drag the tag/message edge to resize">tag</span><span>message</span></span></div>
+      <div class="vbody" id="vBody" tabindex="0"></div>
+    </div>
     <div id="vTgGrip" title="drag: tag column width · double-click: auto-fit"></div>
   </div>
   <div class="vfoot" id="vFoot"></div>
@@ -655,7 +677,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.19.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.19.4 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2535,9 +2557,11 @@ function vRender(mode, anchor){
   }
   body.innerHTML = html || '<div class="vrow"><span class="ln">—</span><span class="raw">(end of file)</span></div>';
   // tag column: manual width wins; otherwise it hugs the longest tag in the
-  // buffer, so short tags don't leave a blank stretch before the message
-  body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
+  // buffer, so short tags don't leave a blank stretch before the message.
+  // --tgw goes on the wrapper so the column header inherits it too
+  if (body.parentElement) body.parentElement.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
   vFitRows();
+  vHeadSync();
   if (mode === 'bottom') body.scrollTop = body.scrollHeight;
   else if (mode === 'keep') vRestoreScroll(body, anchor);
   else body.scrollTop = 0;
@@ -2579,6 +2603,7 @@ let vPlaceTgGrip = () => {};
   const edges = () => {
     if (!V.file || V.loading || !isFinite(b.scrollHeight) || !isFinite(b.scrollTop)) return;
     vPlaceTgGrip();
+    vHeadSync();
     if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
     else if (b.scrollTop <= 120) vChainBackward();
   };
@@ -2586,6 +2611,11 @@ let vPlaceTgGrip = () => {};
   b.addEventListener('scroll', edges, { passive:true });
   setInterval(edges, 500);
 })();
+// keep the column header aligned with the rows when the log scrolls horizontally
+function vHeadSync(){
+  const h = $('vHead'), b = $('vBody');
+  if (h && b) h.scrollLeft = b.scrollLeft;
+}
 function vStatus(){
   const pct = V.total ? (100*V.winStart/V.total).toFixed(1) : 0;
   const mb = n => (n/1048576).toFixed(2) + ' MB';
@@ -2777,7 +2807,7 @@ $('vMask').onchange = ()=>{ V.disp = V.disp.map(()=>null); vRender('keep', vCapt
     if (!drag) return;
     const w = Math.max(24, Math.min(720, drag.w + e.clientX - drag.x));
     V.tgwUser = w;
-    b.style.setProperty('--tgw', w + 'px');
+    b.parentElement.style.setProperty('--tgw', w + 'px');   // wrapper: header inherits too
     vPlaceTgGrip();
   });
   const endDrag = () => {

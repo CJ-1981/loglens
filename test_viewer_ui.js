@@ -159,6 +159,16 @@ new Function(uiCode).call(global);
   check('search column header reflects mask state + Enter runs the search',
     html.includes('MS_HEAD = () =>') && html.includes("' (masked)' : ' (raw)'") && html.includes("msq').addEventListener('keydown'"));
 
+  // v1.19.4: viewer column header + wrapped message column keeps a usable width
+  check('viewer column header present with column names',
+    html.includes('id="vHead"') && html.includes('<span class="ts">time</span>') &&
+    html.includes('<span class="dlt">Δt</span>') &&
+    html.includes('title="drag the tag/message edge to resize">tag</span>') && html.includes('>message</span>'));
+  check('viewer message column keeps a minimum width on narrow screens',
+    html.includes('minmax(24ch,1fr)') && html.includes('minmax(14ch,1fr)'));
+  check('header inherits tag width (--tgw on wrapper) + syncs horizontal scroll',
+    html.includes("body.parentElement.style.setProperty('--tgw'") && html.includes('function vHeadSync'));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();
