@@ -333,7 +333,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.19.1</span>
+  <h1>LogLens</h1><span class="ver">v1.19.2</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -655,7 +655,7 @@ body[data-logtheme="solarized"] .vbody mark{background:#B58900;color:#002B36}
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.19.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.19.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -3498,6 +3498,43 @@ $('msTable').addEventListener('click', async e=>{
   const row = $('vBody').querySelector(`[data-byte="${rec.b}"]`);
   if (row) vSetFocusMark(row);
 });
+
+// inline × clear button for a text input: wraps it, shows ✕ only when it holds
+// text, and clearing fires the input's normal `input` event so existing
+// listeners (filters, validation borders, chips) react as if typed
+function addInputClear(id){
+  const inp = $(id);
+  if (!inp || inp.dataset.hasClear) return;
+  inp.dataset.hasClear = '1';
+  if (inp.parentNode && inp.parentNode.insertBefore){    // real DOM only (headless stubs skip)
+    const wrap = document.createElement('div');
+    wrap.className = 'vsearchwrap';
+    wrap.style.cssText = inp.getAttribute('style') || '';
+    inp.removeAttribute('style');
+    inp.style.width = '100%';
+    inp.style.paddingRight = '24px';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'clr_' + id;
+    btn.className = 'vclr';
+    btn.title = 'clear';
+    btn.textContent = '✕';
+    btn.onclick = () => {
+      inp.value = '';
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      if (inp.focus) inp.focus();
+    };
+    wrap.appendChild(btn);
+    const sync = () => btn.classList.toggle('vis', !!inp.value);
+    inp.addEventListener('input', sync);
+    sync();
+  }
+}
+addInputClear('msq');
+addInputClear('msFilter');
+addInputClear('resFilter');
 
 // ---------- AI wizard ----------
 const AI_EXAMPLES = [

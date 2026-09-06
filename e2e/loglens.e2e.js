@@ -280,6 +280,17 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
   }));
   check('wrap toggle switches to one-line rows', wrapState.nowrap && wrapState.ws === 'pre');
   await page.locator('#msWrapT').click();         // restore wrap
+  // inline × clear on the text fields (v1.19.2)
+  await page.locator('#msFilter').fill('zzz');
+  await page.waitForTimeout(350);                 // debounced filter applies → no rows
+  const filteredRows = await page.locator('#msBody tr').count();
+  await page.locator('#clr_msFilter').click();
+  await page.waitForTimeout(350);
+  const clearedRows = await page.locator('#msBody tr').count();
+  check('search results filter has a working × clear', filteredRows === 0 && clearedRows === 1);
+  await page.locator('#msq').fill('zzz');
+  await page.locator('#clr_msq').click();
+  check('search pattern field has a working × clear', (await page.locator('#msq').inputValue()) === '');
   await page.locator('#tabBtnView').click();
   await page.locator('#tabBtnWork').click();
 

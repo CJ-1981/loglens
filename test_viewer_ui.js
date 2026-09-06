@@ -151,6 +151,9 @@ new Function(uiCode).call(global);
     html.includes('#msBody tr:nth-child(2n) td{background:var(--stripeT)}') &&
     html.includes('#msWrap.nowrap td') && html.includes('function msRerenderShown') &&
     html.includes('function msDisplayText'));
+  check('inline × clear on text fields (msq/msFilter/resFilter)',
+    html.includes("function addInputClear") &&
+    html.includes("addInputClear('msq')") && html.includes("addInputClear('msFilter')") && html.includes("addInputClear('resFilter')"));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
