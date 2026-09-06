@@ -343,7 +343,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.21.0</span>
+  <h1>LogLens</h1><span class="ver">v1.21.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -693,7 +693,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.21.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.21.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -1838,6 +1838,18 @@ function WORKER_DRIVER(self){
     const agg = new Map();
     const lineHits = [];
     let lines = 0, hits = 0, lastPost = 0;
+    const scanLine = line => {
+      lines++;
+      lineHits.length = 0;
+      const found = CORE.scanLinePII(line, dets, lineHits);
+      for (let k = 0; k < found.length; k++){
+        hits++;
+        const hit = found[k], key = hit.name + '\u0000' + hit.shape;
+        let e = agg.get(key);
+        if (!e) agg.set(key, e = { name:hit.name, shape:hit.shape, count:0, example:hit.value, pattern:hit.pattern });
+        e.count++;
+      }
+    };
     for (let fi = 0; fi < msg.files.length; fi++){
       const file = msg.files[fi], name = msg.names[fi];
       const reader = file.stream().getReader();
@@ -1851,24 +1863,19 @@ function WORKER_DRIVER(self){
         buf += dec.decode(value, { stream:true });
         let pos = 0, i;
         while ((i = buf.indexOf('\n', pos)) >= 0){
-          const line = chomp(buf.slice(pos, i)); pos = i + 1;
-          lines++;
-          lineHits.length = 0;
-          const found = CORE.scanLinePII(line, dets, lineHits);
-          for (let k = 0; k < found.length; k++){
-            hits++;
-            const hit = found[k], key = hit.name + '\u0000' + hit.shape;
-            let e = agg.get(key);
-            if (!e) agg.set(key, e = { name:hit.name, shape:hit.shape, count:0, example:hit.value, pattern:hit.pattern });
-            e.count++;
-          }
+          scanLine(chomp(buf.slice(pos, i))); pos = i + 1;
         }
         buf = buf.slice(pos);
+        if (buf.length > 8*1048576){          // newline valve: pathological single line
+          scanLine(chomp(buf));
+          buf = '';
+        }
         if (read - lastPost > 8*1048576){
           lastPost = read;
           self.postMessage({ type:'piiProg', name, read, size:file.size, lines, hits });
         }
       }
+      if (buf && !self.__abort) scanLine(chomp(buf));   // final line without a trailing newline
       if (reader.releaseLock) reader.releaseLock();
     }
     self.postMessage({ type:'piiDone', scannedLines:lines, hits,
@@ -1884,6 +1891,19 @@ function WORKER_DRIVER(self){
     const errish = msg.errish ? new RegExp(msg.errish, 'i') : null;
     const pri = [], res = [];
     let lines = 0, seen = 0, lastPost = 0;
+    const consider = line => {
+      lines++;
+      const h = CORE.parseHeader(line, msg.tsFamily || null);
+      const hot = (h && (h.lvl === 'E' || h.lvl === 'W')) || (errish && errish.test(line));
+      if (hot && pri.length < cap){
+        pri.push({ ln: lines, ts: (h && h.ts) || '', text: line });
+      } else if (!hot){
+        seen++;
+        const cand = { ln: lines, ts: (h && h.ts) || '', text: line };
+        if (res.length < cap) res.push(cand);
+        else { const j = Math.floor(Math.random() * seen); if (j < cap) res[j] = cand; }
+      }
+    };
     for (let fi = 0; fi < msg.files.length; fi++){
       const file = msg.files[fi], name = msg.names[fi];
       const reader = file.stream().getReader();
@@ -1897,25 +1917,20 @@ function WORKER_DRIVER(self){
         buf += dec.decode(value, { stream:true });
         let pos = 0, i;
         while ((i = buf.indexOf('\n', pos)) >= 0){
-          const line = chomp(buf.slice(pos, i)); pos = i + 1;
-          lines++;
-          const h = CORE.parseHeader(line, msg.tsFamily || null);
-          const hot = (h && (h.lvl === 'E' || h.lvl === 'W')) || (errish && errish.test(line));
-          if (hot && pri.length < cap){
-            pri.push({ ln: lines, ts: (h && h.ts) || '', text: line });
-          } else if (!hot){
-            seen++;
-            const cand = { ln: lines, ts: (h && h.ts) || '', text: line };
-            if (res.length < cap) res.push(cand);
-            else { const j = Math.floor(Math.random() * seen); if (j < cap) res[j] = cand; }
-          }
+          consider(chomp(buf.slice(pos, i)));
+          pos = i + 1;
         }
         buf = buf.slice(pos);
+        if (buf.length > 8*1048576){          // newline valve: pathological single line
+          consider(chomp(buf));
+          buf = '';
+        }
         if (read - lastPost > 8*1048576){
           lastPost = read;
           self.postMessage({ type:'deepProg', name, read, size:file.size, lines, kept:pri.length + Math.min(res.length, cap - pri.length) });
         }
       }
+      if (buf && !self.__abort) consider(chomp(buf));   // final line without a trailing newline
       if (reader.releaseLock) reader.releaseLock();
     }
     const take = Math.max(0, cap - pri.length);
@@ -3517,6 +3532,18 @@ async function deepSampleInPage(files, sampleN){
   try{ errishRe = new RegExp(errishSrc, 'i'); }catch(e){}
   const pri = [], res = [];
   let lines = 0, seen = 0;
+  const consider = line => {
+    lines++;
+    const h = CORE.parseHeader(line, S.tsFamily || null);
+    const hot = (h && (h.lvl === 'E' || h.lvl === 'W')) || (errishRe && errishRe.test(line));
+    if (hot && pri.length < sampleN) pri.push({ln:lines, ts:(h&&h.ts)||'', text:line});
+    else if (!hot){
+      seen++;
+      const cand = {ln:lines, ts:(h&&h.ts)||'', text:line};
+      if (res.length < sampleN) res.push(cand);
+      else { const j = Math.floor(Math.random() * seen); if (j < sampleN) res[j] = cand; }
+    }
+  };
   for (const f of files){
     if (DS.abort.signal.aborted) break;
     const reader = f.file.stream().getReader();
@@ -3530,18 +3557,14 @@ async function deepSampleInPage(files, sampleN){
       buf += dec.decode(value, {stream:true});
       let pos = 0, i;
       while ((i = buf.indexOf('\n', pos)) >= 0){
-        const line = chomp(buf.slice(pos, i)); pos = i + 1; lines++;
-        const h = CORE.parseHeader(line, S.tsFamily || null);
-        const hot = (h && (h.lvl === 'E' || h.lvl === 'W')) || (errishRe && errishRe.test(line));
-        if (hot && pri.length < sampleN) pri.push({ln:lines, ts:(h&&h.ts)||'', text:line});
-        else if (!hot){
-          seen++;
-          const cand = {ln:lines, ts:(h&&h.ts)||'', text:line};
-          if (res.length < sampleN) res.push(cand);
-          else { const j = Math.floor(Math.random() * seen); if (j < sampleN) res[j] = cand; }
-        }
+        consider(chomp(buf.slice(pos, i)));
+        pos = i + 1;
       }
       buf = buf.slice(pos);
+      if (buf.length > 8*1048576){          // newline valve: pathological single line
+        consider(chomp(buf));
+        buf = '';
+      }
       if (read - lastYield > 8*1048576){
         lastYield = read;
         $('dsProgBar').style.width = Math.min(99, 100*read/f.file.size) + '%';
@@ -3549,6 +3572,7 @@ async function deepSampleInPage(files, sampleN){
         await new Promise(r=>setTimeout(r));
       }
     }
+    if (buf && !DS.abort.signal.aborted) consider(chomp(buf));   // final line without a trailing newline
     try{ await reader.cancel(); }catch(e){}
   }
   const take = Math.max(0, sampleN - pri.length);

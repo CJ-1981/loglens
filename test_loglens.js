@@ -565,6 +565,23 @@ check('consent gate present as checkbox',
     const done = await waitMsg(msgs, 'deepDone', 10000);
     check('deep: abort stops sampling early', done.stopped === true && done.scannedLines < 20000);
   }
+  { // v1.21.1: final line without a trailing newline must still be sampled
+    const { self, msgs } = makeSelf();
+    const f = mkFile('08-24 10:00:00.000  1  1 I T: one SECRET1\n08-24 10:00:01.000  1  1 I T: last SECRET2', 'tail.log');
+    self.onmessage({ data: { type:'deep', files:[f], names:['tail.log'], sample:100, maskRules, errish:'', tsFamily:null } });
+    const done = await waitMsg(msgs, 'deepDone', 5000);
+    check('deep: final line without a trailing newline still sampled',
+      done.scannedLines === 2 && done.sample.some(r => r.text.includes('last') && r.text.includes('[S]')));
+  }
+  { // v1.21.1: pii driver — same tail guarantee
+    const { self, msgs } = makeSelf();
+    const f = mkFile('08-24 10:00:00.000  1  1 I T: clean line\nsomeone@example.com wrote last', 'tail2.log');
+    self.onmessage({ data: { type:'pii', files:[f], names:['tail2.log'],
+      detectors: CORE.PII_DETECTORS.filter(d=>d.enabled).map(d=>d.name) } });
+    const done = await waitMsg(msgs, 'piiDone', 5000);
+    check('pii: final line without a trailing newline still scanned',
+      done.scannedLines === 2 && done.detectors.some(d => d.name === 'email'));
+  }
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

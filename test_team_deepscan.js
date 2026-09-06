@@ -118,6 +118,8 @@ function stubLlmFetch(){
   check('D2: request carries the deep system prompt + masked lines (no raw VIN)',
     llmCalls[0].body.messages[0].role === 'system' && llmCalls[0].body.messages[0].content.includes('ALREADY been masked') &&
     llmCalls.every(c => !JSON.stringify(c.body).includes('YV4DEM0123AB34567')));
+  check('D2: the demo tail line (file has no trailing newline) made it into the sample',
+    llmCalls.some(c => JSON.stringify(c.body).includes('vel=0.0')));
   check('D2: findings rendered', el('dsFindings').innerHTML.includes('person name') &&
     el('dsFindings').innerHTML.includes('Alice Smith') && el('dsActs').style.display === 'flex');
   global.document.querySelectorAll = () => [{ dataset: { i:'0' }, checked: true }];
