@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node test_loglens.js && node test_loglens_v15.js && node test_viewer_ui.js && node test_viewer_search.js && node test_team_nav.js && node test_team_denoise.js && node test_team_workbench.js && node test_team_deepscan.js && node test_team_marks.js",
     "test:e2e": "node e2e/loglens.e2e.js",
+    "test:e2e:viewer": "node e2e/loglens.viewer.e2e.js",
     "perf": "node perf_loglens.js"
   },
   "devDependencies": {
