@@ -343,7 +343,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.21.3</span>
+  <h1>LogLens</h1><span class="ver">v1.21.4</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -693,7 +693,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.21.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.21.4 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2698,13 +2698,18 @@ async function vWindow(anchor, dir, mode){
   } finally { V.loading = false; if ($('vStatus').textContent === 'reading…') $('vStatus').textContent = ''; }
 }
 // scroll anchoring: remember which pixel of which row sits at the viewport top,
-// so a buffer mutation (chain/trim) keeps the view visually frozen in place
+// so a buffer mutation (chain/trim) keeps the view visually frozen in place.
+// Rows are <tr class="vrow"> inside the viewer table — never #vBody.children
+// (that is the wrapper table since the v1.20 table refactor).
+const vRowsOf = b => b.querySelectorAll('tr.vrow');
 function vTopOf(b, el){
   return el.getBoundingClientRect().top - b.getBoundingClientRect().top + b.scrollTop;
 }
 function vCaptureAnchor(){
-  const b = $('vBody'), rows = b.children;
-  if (!rows.length) return null;
+  const b = $('vBody'), rows = vRowsOf(b);
+  if (!rows.length || !rows[0].getBoundingClientRect) return null;
+  const savedLeft = b.scrollLeft;
+  if (savedLeft) b.scrollLeft = 0;   // measure rows at origin; wide nowrap rows can scroll the gutter away
   const br = b.getBoundingClientRect(), st = b.scrollTop;
   let idx = 0, i = 0;
   for (; i < rows.length; i++){
@@ -2714,12 +2719,17 @@ function vCaptureAnchor(){
   }
   if (i >= rows.length) idx = rows.length - 1;
   const top = rows[idx].getBoundingClientRect().top - br.top + st;
-  return { idx, into: Math.max(0, st - top) };
+  const a = { idx, into: Math.max(0, st - top) };
+  if (savedLeft) b.scrollLeft = savedLeft;
+  return a;
 }
 function vRestoreScroll(b, a){
-  const rows = b.children;
-  if (!a || !rows.length || a.idx >= rows.length){ b.scrollTop = 0; return; }
+  const rows = vRowsOf(b);
+  if (!a || !rows.length || a.idx >= rows.length || !rows[a.idx].getBoundingClientRect){ b.scrollTop = 0; return; }
+  const savedLeft = b.scrollLeft;
+  if (savedLeft) b.scrollLeft = 0;
   b.scrollTop = Math.max(0, vTopOf(b, rows[a.idx]) + a.into);
+  if (savedLeft) b.scrollLeft = savedLeft;
 }
 function vRender(mode, anchor){
   anchor = Math.round(anchor || 0);
@@ -2779,9 +2789,9 @@ function vRender(mode, anchor){
   // tag column: manual width wins; otherwise it hugs the longest tag in the
   // buffer, so short tags don't leave a blank stretch before the message
   body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
-  if (mode === 'bottom') body.scrollTop = body.scrollHeight;
+  if (mode === 'bottom'){ body.scrollTop = body.scrollHeight; body.scrollLeft = 0; }
   else if (mode === 'keep') vRestoreScroll(body, anchor);
-  else body.scrollTop = 0;
+  else { body.scrollTop = 0; body.scrollLeft = 0; }   // fresh window: back to the gutter origin
   // keep the active search highlighted across chained renders
   let marked = 0, markRows = [];
   if (V.rx && V.lastQ != null && V.lastQ === $('vSearch').value.trim()){ markRows = vMarkRows(); marked = markRows.length; }
@@ -2840,8 +2850,21 @@ function vThumb(){
 }
 // ---- edge chaining: append / prepend lines, keeping the view pixel-frozen ----
 const vChain = { busy:false };
+// the four window arrays are always replaced together; if anything ever desyncs
+// them (a half-finished mutation, a future refactor), rebuild the window rather
+// than dereferencing null inside the chain — and keep the stack for diagnosis
+function vStateSane(){
+  return Array.isArray(V.lines) && Array.isArray(V.disp) && Array.isArray(V.hdr) &&
+         Array.isArray(V.blen) && V.lines.length === V.blen.length &&
+         V.disp.length === V.lines.length && V.hdr.length === V.lines.length;
+}
+function vChainFail(e){
+  toast('read error: ' + e.message);
+  try{ localStorage.setItem('loglens.lastReadErr', String(e.stack || e.message).slice(0, 500)); }catch(_){}
+}
 async function vChainForward(){
   if (!V.file || vChain.busy || V.loading || V.winEnd >= V.total) return;
+  if (!vStateSane()){ await vWindow(V.winStart, 'forward'); return; }   // rebuild instead of crashing
   vChain.busy = true;
   let rendered = false;
   try{
@@ -2864,7 +2887,7 @@ async function vChainForward(){
     if (a) a.idx = Math.max(0, a.idx - drop);
     vRender('keep', a);
     rendered = true;
-  }catch(e){ toast('read error: ' + e.message); }
+  }catch(e){ vChainFail(e); }
   finally{
     vChain.busy = false;
     if (rendered) vScheduleEdgeCheck();   // still at an edge? chain again (async, no timer)
@@ -2872,6 +2895,7 @@ async function vChainForward(){
 }
 async function vChainBackward(){
   if (!V.file || vChain.busy || V.loading || V.winStart <= 0) return;
+  if (!vStateSane()){ await vWindow(V.winStart, 'forward'); return; }
   vChain.busy = true;
   let rendered = false;
   try{
@@ -2894,7 +2918,7 @@ async function vChainBackward(){
     if (a) a.idx += add;
     vRender('keep', a);
     rendered = true;
-  }catch(e){ toast('read error: ' + e.message); }
+  }catch(e){ vChainFail(e); }
   finally{
     vChain.busy = false;
     if (rendered) vScheduleEdgeCheck();
@@ -2902,8 +2926,8 @@ async function vChainBackward(){
 }
 // page / line movement: native viewport scroll first, disk only at the buffer edge
 function vRowH(){
-  const b = $('vBody'), rows = b.children;
-  if (!rows.length) return 19;
+  const b = $('vBody'), rows = vRowsOf(b);
+  if (!rows.length || !rows[0].getBoundingClientRect) return 19;
   const br = b.getBoundingClientRect(), st = b.scrollTop;
   let h = 0, n = 0;
   for (let i = rows.length - 1; i >= 0 && n < 10; i--){
@@ -3248,7 +3272,7 @@ function vSetFocusMark(el, scroll){
   if (!el) return;
   el.classList.add('mfocus');
   V.markByte = el.dataset.byte;   // stable line identity — survives buffer shifts
-  if (scroll !== false) el.scrollIntoView({behavior:'smooth', block:'center'});
+  if (scroll !== false){ b.scrollLeft = 0; el.scrollIntoView({behavior:'smooth', block:'center'}); }
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
 // continue with the byte scan (Enter / n semantics) into the rest of the file
@@ -4527,7 +4551,7 @@ function vMarksRefresh(){
 }
 // the .vrow containing (or nearest) the viewport's vertical middle
 function vMarkCenterRow(){
-  const b = $('vBody'), rows = b.children, n = rows.length;
+  const b = $('vBody'), rows = vRowsOf(b), n = rows.length;
   if (!n || !rows[0].getBoundingClientRect) return null;
   const br = b.getBoundingClientRect(), mid = br.top + br.height / 2;
   let best = rows[0], bd = Infinity;

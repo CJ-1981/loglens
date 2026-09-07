@@ -98,9 +98,12 @@ new Function(uiCode).call(global);
   el('vBody').fire('keydown', { key: 'b', ctrlKey: false, altKey: false, metaKey: false, preventDefault(){} });
   check("'b' ignored while focus is in an input", JSON.parse(LS[pinKey]).length === 1);
 
-  // pin via the 'b' keydown path (vBody focused; center row is faked)
+  // pin via the 'b' keydown path (vBody focused; center row is faked — exposed
+  // both as children and via querySelectorAll('tr.vrow'), the post-v1.21.4 query)
   document.activeElement = el('vBody');
-  el('vBody').children = [{ dataset: { byte: '1234', idx: '0' }, getBoundingClientRect(){ return { top: 100, bottom: 120, height: 20 }; } }];
+  const fakeRows = [{ dataset: { byte: '1234', idx: '0' }, getBoundingClientRect(){ return { top: 100, bottom: 120, height: 20 }; } }];
+  el('vBody').children = fakeRows;
+  el('vBody').querySelectorAll = sel => (sel === 'tr.vrow' ? fakeRows : []);
   el('vBody').fire('keydown', { key: 'b', ctrlKey: false, altKey: false, metaKey: false, preventDefault(){} });
   let pins = JSON.parse(LS[pinKey] || '[]');
   check("'b' keydown pins the centered row into the store", pins.length === 2 && pins.some(p => p.byte === 1234) && typeof pins.find(p => p.byte === 1234).text === 'string');
@@ -125,7 +128,8 @@ new Function(uiCode).call(global);
   check('del removes the selected pin and persists', pins.length === 1 && pins[0].byte === 4321);
 
   // copy: all pinned lines joined one per line
-  el('vBody').children = [{ dataset: { byte: '1234', idx: '0' }, getBoundingClientRect(){ return { top: 100, bottom: 120, height: 20 }; } }];
+  el('vBody').children = fakeRows;
+  el('vBody').querySelectorAll = sel => (sel === 'tr.vrow' ? fakeRows : []);
   el('vBody').fire('keydown', { key: 'b', ctrlKey: false, altKey: false, metaKey: false, preventDefault(){} });
   pins = JSON.parse(LS[pinKey]);
   el('vMarkCopy').onclick();
