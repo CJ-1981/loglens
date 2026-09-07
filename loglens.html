@@ -164,6 +164,10 @@ body[data-logtheme="solarized"]{--stripe:rgba(255,255,255,.07);--stripeT:rgba(25
    content-sized so stripes and row backgrounds cover the full scrolled width */
 #vBody.nowrap .vtable{width:max-content}
 #vBody.nowrap td{white-space:pre;word-break:normal}
+/* viewer level filter chips (toolbar) */
+#vLvls{display:inline-flex;gap:3px;align-items:center}
+#vLvls .vchip{border:1px solid var(--line);background:transparent;border-radius:4px;padding:0 6px;font-size:10px;font-weight:700;cursor:pointer;user-select:none;color:var(--mut);line-height:1.6}
+#vLvls .vchip.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .vfoot{padding:4px 10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);font-family:var(--mono)}
 .vstatus{font-size:10.5px;color:var(--mut);font-family:var(--mono);white-space:nowrap}
 #msCase.on,#msMask.on,#msWrapT.on,#vCase.on,#vWrap.on,#vDlt.on,#vColBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -343,7 +347,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.21.4</span>
+  <h1>LogLens</h1><span class="ver">v1.22.0</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -579,6 +583,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
     <button class="btn sec on" id="vWrap" title="wrap long lines — click for one-line rows (scroll sideways)">wrap</button>
     <button class="btn sec" id="vFontDn" title="decrease viewer font size">A−</button>
     <button class="btn sec" id="vFontUp" title="increase viewer font size">A+</button>
+    <span id="vLvls" title="show only these levels (lines without a level are always shown)"></span>
     <div class="vsearchwrap"><input type="text" id="vSearch" class="vsearch" placeholder="search (regex) — Enter for next, Shift+Enter for prev" spellcheck="false"><button type="button" class="vclr" id="vSearchClr" title="clear search">✕</button></div>
     <button class="btn sec" id="vPrev" title="previous match (N)">‹</button>
     <button class="btn sec" id="vNext" title="next match (Enter / n)">›</button>
@@ -693,7 +698,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.21.4 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2503,8 +2508,12 @@ function loadDemoFile(){
 // runs viewerEnsure at load, which touches V — keep it out of the TDZ) ----------
 const V = { file:null, anchor:0, lines:[], disp:[], hdr:[], blen:[], winStart:0, winEnd:0,
             total:0, est:0, maskCm:null, loading:false, lastHit:null, avgLen:80,
-            searchFrom:null, lastQ:null, seq:0, tgwUser:null, markByte:null };
+            searchFrom:null, lastQ:null, seq:0, tgwUser:null, markByte:null, lvls:null, lvlAvail:new Set() };
 try{ const t = parseFloat(localStorage.getItem('loglens.tgw')); if (t > 0) V.tgwUser = t; }catch(e){}
+try{ const l = localStorage.getItem('loglens.vlvls'); if (l) V.lvls = new Set(JSON.parse(l)); }catch(e){}
+const V_LEVELS = ['V','D','I','W','E','F'];
+const vLvlActive = () => !!V.lvls && V.lvls.size < V_LEVELS.length;   // all-on = no filtering
+const vLvlKept = h => !vLvlActive() || !h || !h.lvl || V.lvls.has(h.lvl);   // level-less lines always shown
 
 // ---------- tabs ----------
 function setTab(t){
@@ -2618,9 +2627,33 @@ function applyLogTheme(t){
   try{ localStorage.setItem('loglens.logtheme', t); }catch(e){}
 }
 function vApplyTheme(){ applyLogTheme($('vTheme').value); }
+// level filter chips in the viewer toolbar — only levels present in the open
+// file get a chip ("when available"); all-on means no filtering at all
+function vRenderLvlChips(){
+  const box = $('vLvls');
+  const present = V_LEVELS.filter(l => V.lvlAvail.has(l));
+  box.innerHTML = '';
+  box.style.display = present.length ? 'inline-flex' : 'none';
+  present.forEach(l => {
+    const on = !vLvlActive() || V.lvls.has(l);
+    const c = document.createElement('span');
+    c.className = 'vchip' + (on ? ' on' : '');
+    c.textContent = l;
+    c.title = (on ? 'hide level ' : 'show level ') + l + ' lines';
+    c.onclick = () => {
+      if (!V.lvls) V.lvls = new Set(V_LEVELS);
+      if (V.lvls.has(l)) V.lvls.delete(l); else V.lvls.add(l);
+      try{ localStorage.setItem('loglens.vlvls', JSON.stringify([...V.lvls])); }catch(e){}
+      vRenderLvlChips();
+      if (V.file) vRender('keep', vCaptureAnchor());
+    };
+    box.appendChild(c);
+  });
+}
 async function vOpen(f){
   if (!f) return;
   V.file = f.file; V.total = V.file.size; V.anchor = 0; V.maskCm = null; V.lastHit = null; V.searchFrom = null; V.lastQ = null;
+  V.lvlAvail = new Set();   // levels present in this file — chips render from this
   // sample head for line estimate + theme restore
   const head = await vReadText(0, 65536);
   V.est = CORE.estimateLineCount(head, V.total);
@@ -2736,17 +2769,23 @@ function vRender(mode, anchor){
   const body = $('vBody');
   const firstEst = Math.round(V.winStart / V.avgLen);
   const frag = new Array(V.lines.length);
+  const starts = new Array(V.lines.length);   // byte offset of each window line
   const colOn = $('vColBtn').classList.contains('on');
   const sigs = colOn ? new Array(V.lines.length) : null;
   if (colOn) dnColSync();   // expanded-run set is keyed to the open file
   let maxTag = 0;
   let byteCursor = V.winStart;
   let prevMs = null;   // previous parsed timestamp (ms since midnight) for the Δt column
+  const lvlFilter = vLvlActive();
+  let availGrew = false;
   for (let i = 0; i < V.lines.length; i++){
     const raw = V.lines[i];
+    starts[i] = byteCursor;
     if (colOn) sigs[i] = raw.replace(/\d+/g, '#');   // line shape: digit/hex runs collapsed
     let h = V.hdr[i];
     if (h === undefined){ h = CORE.parseHeader(raw); V.hdr[i] = h; }
+    if (h && h.lvl && !V.lvlAvail.has(h.lvl)){ V.lvlAvail.add(h.lvl); availGrew = true; }
+    if (lvlFilter && h && h.lvl && !V.lvls.has(h.lvl)){ frag[i] = null; byteCursor += V.blen[i] || 0; continue; }
     let m = V.disp[i];
     if (m == null){ m = vApplyMask(raw); V.disp[i] = m; }
     // stable per-line identity: byte offset — walkers/anchors survive buffer shifts
@@ -2769,22 +2808,23 @@ function vRender(mode, anchor){
     }
     byteCursor += V.blen[i] || 0;
   }
-  let html = frag.join('');
+  let html = frag.filter(x => x !== null).join('');
   if (colOn){
-    // group consecutive equal-shape lines into runs; a run >= 2 renders as its
-    // first line (dimmed) + count badge, unless that run is in the expanded set
-    const fb = new Array(frag.length); let acc = V.winStart;
-    for (let i = 0; i < frag.length; i++){ fb[i] = acc; acc += V.blen[i] || 0; }
+    // group consecutive equal-shape *kept* lines into runs; a run >= 2 renders as
+    // its first line (dimmed) + count badge, unless that run is in the expanded set
     const shown = [];
     for (let i = 0, j; i < frag.length; i = j){
-      for (j = i + 1; j < frag.length && sigs[j] === sigs[i]; j++);
-      if (j - i >= 2 && !dnExp.has(String(fb[i]))){
+      if (frag[i] === null){ j = i + 1; continue; }
+      let kept = 1;
+      for (j = i + 1; j < frag.length && frag[j] !== null && sigs[j] === sigs[i]; j++) kept++;
+      if (kept >= 2 && !dnExp.has(String(starts[i]))){
         const f = frag[i].replace(/<tr class="vrow( alt)?"/, '<tr class="vrow coll$1"');
-        shown.push(f.replace(/<\/tr>$/, `<td><span class="runcount" data-run="${fb[i]}">× ${j - i}</span></td></tr>`));
-      } else for (let k = i; k < j; k++) shown.push(frag[k]);
+        shown.push(f.replace(/<\/tr>$/, `<td><span class="runcount" data-run="${starts[i]}">× ${kept}</span></td></tr>`));
+      } else for (let k = i; k < j; k++) if (frag[k] !== null) shown.push(frag[k]);
     }
     html = shown.join('');
   }
+  if (availGrew) vRenderLvlChips();
   body.innerHTML = '<table class="vtable"><thead class="vhead"><tr><th class="h-ln">#</th><th class="h-ts">time</th><th class="h-lv">lvl</th><th class="h-dlt">Δt</th><th class="h-tg">tag</th><th class="h-msg">message</th></tr></thead><tbody>' + (html || '<tr><td class="ln">—</td><td colspan="5" class="raw">(end of file)</td></tr>') + '</tbody></table>';
   // tag column: manual width wins; otherwise it hugs the longest tag in the
   // buffer, so short tags don't leave a blank stretch before the message
@@ -3134,6 +3174,7 @@ async function vFind(dir){
     if (dir > 0){
       let from = (V.searchFrom != null) ? V.searchFrom : V.winStart;
       let scanned = 0, lastProg = 0;
+      const scanFilter = vLvlActive();
       while (from < V.total && scanned < 512*1048576){
         if (vFindAbort){ V.searchFrom = from; $('vFoot').textContent = 'search stopped at ' + (100*from/V.total).toFixed(1) + '% — Enter continues from there'; toast('search stopped'); return; }
         const text = await vReadText(from, from + V_CHUNK);
@@ -3141,6 +3182,7 @@ async function vFind(dir){
         while (pos < text.length){
           const nl = text.indexOf('\n', pos);
           const line = text.slice(pos, nl<0?text.length:nl).replace(/\r$/,'');
+          if (scanFilter){ const hh = CORE.parseHeader(line); if (hh && hh.lvl && !V.lvls.has(hh.lvl)){ if (nl < 0) break; pos = nl + 1; continue; } }
           if (rx.test(line)){
             // re-render the window starting 10 lines before the match
             const lineByte = from + lineStartByte(text, pos);
@@ -3187,6 +3229,7 @@ async function vFind(dir){
       for (let i = lines.length - 1; i >= 0; i--){
         const line = lines[i].replace(/\r$/,'');
         if (!line) continue;
+        if (vLvlActive()){ const hh = CORE.parseHeader(line); if (hh && hh.lvl && !V.lvls.has(hh.lvl)) continue; }
         if (rx.test(line)){
           const pre = Math.max(0, starts[i] - 10 * V.avgLen);
           V.loading = false;   // release the lock so vWindow can run
