@@ -347,7 +347,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.0</span>
+  <h1>LogLens</h1><span class="ver">v1.22.1</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -698,7 +698,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.0 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2518,12 +2518,20 @@ const vLvlKept = h => !vLvlActive() || !h || !h.lvl || V.lvls.has(h.lvl);   // l
 // ---------- tabs ----------
 function setTab(t){
   const map = { work:['tabWork','tabBtnWork'], view:['tabView','tabBtnView'], search:['tabSearch','tabBtnSearch'], pii:['tabPii','tabBtnPii'] };
+  const vb = $('vBody');
+  // remember the viewer's scroll position while it is hidden; some browsers drop
+  // scrollTop of display:none containers, which would throw the reader back to top
+  if (t !== 'view' && $('tabView').style.display !== 'none') V.viewScroll = vb.scrollTop;
   for (const k in map){
     $(map[k][0]).style.display = (k===t) ? '' : 'none';
     $(map[k][1]).classList.toggle('on', k===t);
   }
   try{ localStorage.setItem('loglens.tab', t); }catch(e){}
-  if (t==='view') viewerEnsure();
+  if (t==='view'){
+    viewerEnsure();
+    const want = V.viewScroll || 0;
+    if (want > 0) requestAnimationFrame(()=>{ if (vb.scrollTop < 1) vb.scrollTop = want; });
+  }
   if (t==='search') msRefreshFiles();
   if (t==='pii') piiRefreshFiles();
 }
@@ -2741,6 +2749,7 @@ function vTopOf(b, el){
 function vCaptureAnchor(){
   const b = $('vBody'), rows = vRowsOf(b);
   if (!rows.length || !rows[0].getBoundingClientRect) return null;
+  if (!b.clientHeight) return null;   // hidden viewer has no geometry to anchor against
   const savedLeft = b.scrollLeft;
   if (savedLeft) b.scrollLeft = 0;   // measure rows at origin; wide nowrap rows can scroll the gutter away
   const br = b.getBoundingClientRect(), st = b.scrollTop;
@@ -2868,6 +2877,7 @@ let vPlaceTgGrip = () => {};
   const b = $('vBody');
   const edges = () => {
     if (!V.file || V.loading || !isFinite(b.scrollHeight) || !isFinite(b.scrollTop)) return;
+    if (!b.clientHeight || !b.offsetWidth) return;   // viewer hidden (other tab): zero geometry, never chain
     vPlaceTgGrip();
     if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
     else if (b.scrollTop <= 120) vChainBackward();
