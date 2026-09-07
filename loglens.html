@@ -347,7 +347,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.3</span>
+  <h1>LogLens</h1><span class="ver">v1.22.4</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -699,7 +699,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.4 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -3010,6 +3010,9 @@ const vLine = dir => vMove(dir, vRowH());
 // coalesced seek: drag over the rail lands on the latest requested position
 let vSeekBusy = false, vSeekWant = null, vSeekEnd = false;
 async function vSeekTo(byte, endMode){
+  // land with the target ~a third into the window (context above and below);
+  // EOF seeks must still land at the very end
+  if (!endMode) byte = Math.max(0, byte - Math.round((V_WIN / 3) * V.avgLen));
   vSeekWant = byte; vSeekEnd = !!endMode;
   vUserTopIntent = false;
   if (vSeekBusy) return;
@@ -3200,9 +3203,10 @@ async function vFind(dir){
           const line = text.slice(pos, nl<0?text.length:nl).replace(/\r$/,'');
           if (scanFilter){ const hh = CORE.parseHeader(line); if (hh && hh.lvl && !V.lvls.has(hh.lvl)){ if (nl < 0) break; pos = nl + 1; continue; } }
           if (rx.test(line)){
-            // re-render the window starting 10 lines before the match
+            // re-render the window with the match ~a third down, so there is
+            // context above it and wheel-up never teleports a whole window
             const lineByte = from + lineStartByte(text, pos);
-            const pre = Math.max(0, Math.round(lineByte - 10 * V.avgLen));
+            const pre = Math.max(0, Math.round(lineByte - (V_WIN / 3) * V.avgLen));
             V.loading = false;   // release the lock so vWindow can run
             await vWindow(pre, 'forward');
             vHighlightAndFocus(rx, line);
@@ -3247,7 +3251,7 @@ async function vFind(dir){
         if (!line) continue;
         if (vLvlActive()){ const hh = CORE.parseHeader(line); if (hh && hh.lvl && !V.lvls.has(hh.lvl)) continue; }
         if (rx.test(line)){
-          const pre = Math.max(0, starts[i] - 10 * V.avgLen);
+          const pre = Math.max(0, starts[i] - (V_WIN / 3) * V.avgLen);
           V.loading = false;   // release the lock so vWindow can run
           await vWindow(pre, 'forward');
           vHighlightAndFocus(rx, line);
@@ -3337,11 +3341,9 @@ function vSetFocusMark(el, scroll){
     // "at top — chain backward", sliding the window away from the match
     b.scrollLeft = 0;
     vUserTopIntent = false;   // this jump, not the user, put us here
-    const rc = el.getBoundingClientRect(), bc = b.getBoundingClientRect();
-    const visible = rc.top >= bc.top - 1 && rc.bottom <= bc.bottom + 1;
-    if (!visible){
-      b.scrollTop = Math.max(0, vTopOf(b, el) - Math.round(b.clientHeight / 2) + Math.round(el.offsetHeight / 2));
-    }
+    // always center the focused row: landing at the window top leaves no context
+    // above, so the first wheel-up would teleport a whole window backwards
+    b.scrollTop = Math.max(0, vTopOf(b, el) - Math.round(b.clientHeight / 2) + Math.round(el.offsetHeight / 2));
   }
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
@@ -4229,8 +4231,12 @@ $('aiTest').onclick=async()=>{
       : '<span class="bad">chat failed: HTTP '+r2.status+' — '+esc((await r2.text()).slice(0,160))+'</span>';
   }catch(e){
     const notes=await aiDiagnose(c.base);
+    const corsCase=notes.some(n=>n.indexOf('CORS headers, not connectivity')>=0);
     out.innerHTML='<span class="bad">✗ '+esc(e.message)+'</span><br><span style="color:var(--mut);font-size:10.5px">'+
-      notes.map(n=>'· '+esc(n)).join('<br>')+'</span>';
+      notes.map(n=>'· '+esc(n)).join('<br>')+'</span>'+
+      (corsCase ? '<div style="margin-top:6px"><button class="btn sec" id="aiUseProxy">use local proxy (127.0.0.1:8790)</button> <span style="color:var(--mut);font-size:10.5px">run <span style="font-family:var(--mono)">node cors_proxy.js</span> next to LogLens first, if it is not running</span></div>' : '');
+    const up=$('aiUseProxy');
+    if (up) up.onclick=()=>{ $('aiProxy').value='http://127.0.0.1:8790'; AIZ.save(); $('aiTest').click(); };
   }
 };
 ['aiBase','aiModel'].forEach(id=>$(id).addEventListener('input',()=>AIZ.save()));
