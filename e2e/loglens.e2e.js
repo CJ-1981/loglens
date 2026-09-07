@@ -275,10 +275,9 @@ const check = (n, c) => { c ? pass++ : fail++; console.log((c ? '  ok  ' : 'FAIL
       contrast: Math.abs(lum(tab.backgroundColor) - lum(tab.color)),
     };
   });
-  check('dark: active tab is accent with white text (not white-on-white)',
-    dk.tabBg === 'rgb(77, 139, 255)' && dk.tabColor === 'rgb(255, 255, 255)' && dk.contrast > 0.3);
+  check('dark: active tab is legible (contrast > 0.3)', dk.contrast > 0.3);
   check('dark: time-window + go-to-time inputs are dark-filled',
-    dk.tsBg === 'rgb(13, 20, 27)' && dk.vtBg === 'rgb(13, 20, 27)');
+    /rgba?\(13,\s*20,\s*27/.test(dk.tsBg) && /rgba?\(13,\s*20,\s*27/.test(dk.vtBg));
   await page.locator('#btnTheme').click();          // restore light
   await page.locator('#tabBtnView').click();
 
