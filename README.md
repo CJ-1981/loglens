@@ -10,7 +10,7 @@
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.22.1 · see changelog for the full history; unit suites run via `npm test`
+- **Current version**: v1.22.2 · see changelog for the full history; unit suites run via `npm test`
 
 ## Screenshots
 
@@ -383,7 +383,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.22.1 (current)** — viewer position no longer drifts while you are on another tab: the edge-chain driver and the scroll-anchor helpers now ignore the viewer while it is hidden (zero layout geometry previously made the background edge check chain the window forward behind your back, so returning from the search tab could show a different region at the top); `setTab` also remembers the viewer scroll offset and re-asserts it on return for browsers that drop scrollTop of hidden containers
+- **v1.22.2 (current)** — AI wizard connection failures are now self-diagnosing: on `Failed to fetch` the test button runs a no-cors reachability probe and tells you which case you hit (server unreachable vs CORS headers missing vs https-page→http-endpoint mixed content vs file:// null origin), with the matching fix; a new optional **CORS proxy** field (plus `cors_proxy.js` in the repo, loopback-only) relays chat calls for endpoints that cannot send CORS headers, and the wizard note explains the https/http mixed-content rule that breaks the live demo against local http endpoints
+- **v1.22.1** — viewer position no longer drifts while you are on another tab: the edge-chain driver and the scroll-anchor helpers now ignore the viewer while it is hidden (zero layout geometry previously made the background edge check chain the window forward behind your back, so returning from the search tab could show a different region at the top); `setTab` also remembers the viewer scroll offset and re-asserts it on return for browsers that drop scrollTop of hidden containers
 - **v1.22.0** — viewer **level filter**: a chip cluster (V/D/I/W/E/F) appears in the viewer toolbar once the open file actually contains parsed levels; toggling a chip hides those lines from the view (render-time, so paging/search stay byte-accurate), the selection persists per browser, level-less lines are always shown, and the viewer search scan skips hidden levels so matches always land on visible rows. Δt then measures gaps across hidden lines, which is usually what you want when hunting stalls
 - **v1.21.4** — viewer chain hardening after the v1.20 table refactor: the scroll-anchor, row-height and bookmark-center helpers still measured `#vBody.children` (the wrapper `<table>`, since rows became `<tr>` elements), which produced degenerate anchors and null dereferences in transient states — the `read error: Cannot read properties of null (reading 'length')` toast some viewer searches hit. They now query the real rows (`tr.vrow`); the edge chain sanity-checks its four window arrays and rebuilds the window instead of crashing; any chain failure persists its stack to `localStorage['loglens.lastReadErr']` for diagnosis; horizontal scroll is neutralized around measurements so wide nowrap rows cannot skew anchors
 - **v1.21.3** — AI wizard test button: a missing `/models` route (404/405) no longer shows as an ambiguous warning; the test now falls back to a tiny 1-token chat completion probe and reports `✓ chat works — models route unavailable`, or the real chat error with status and message body

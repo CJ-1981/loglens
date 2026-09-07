@@ -328,6 +328,7 @@ check('ai test falls back to a chat probe when /models is missing', html.include
 check('viewer anchors query real rows + chain self-heals with stack capture', html.includes("querySelectorAll('tr.vrow')") && html.includes('function vStateSane') && html.includes('loglens.lastReadErr'));
 check('viewer level filter: chips render per available level, render-time skip, scan-aware search', html.includes('id="vLvls"') && html.includes('function vRenderLvlChips') && html.includes('const scanFilter = vLvlActive()') && html.includes('loglens.vlvls'));
 check('hidden viewer never chains; tab switch preserves scroll', html.includes('zero geometry, never chain') && html.includes('V.viewScroll = vb.scrollTop'));
+check('ai wizard: staged fetch-failure diagnostics + optional CORS proxy', html.includes('async function aiDiagnose') && html.includes('id="aiProxy"') && html.includes("mode:'no-cors'") && html.includes('viaProxy'));
 check('viewer search: byte-accurate rewrite, clean no-match (continue-cursor removed)', html.includes('vHighlightAndFocus') && html.includes('lineStartByte') && html.includes('no matches for') && !html.includes('press Enter to continue from'));
 const verHdr = (html.match(/<span class="ver">(v[\d.]+)<\/span>/) || [])[1];
 const verFtr = (html.match(/LogLens (v[\d.]+) ·/g) || []).pop().match(/v[\d.]+/)[0];

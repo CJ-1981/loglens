@@ -347,7 +347,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.1</span>
+  <h1>LogLens</h1><span class="ver">v1.22.2</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -535,6 +535,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
     <div>
       <h3 class="mini" style="margin-top:0">endpoint</h3>
       <input class="search" id="aiBase" placeholder="API base URL — e.g. https://api.openai.com/v1" style="margin-bottom:5px">
+      <input class="search" id="aiProxy" placeholder="optional CORS proxy — e.g. http://127.0.0.1:8790 (node cors_proxy.js) for endpoints without CORS" style="margin-bottom:5px">
       <input class="search" id="aiKey" type="password" placeholder="API key (optional for local models)" style="margin-bottom:5px">
       <input class="search" id="aiModel" placeholder="model — e.g. gpt-4o-mini / glm-4.7 / llama3.2" style="margin-bottom:6px">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -542,7 +543,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
         <label class="tgl"><input type="checkbox" id="aiRemember"> remember key</label>
       </div>
       <div id="aiTestOut" style="font-size:11px;margin-top:3px"></div>
-      <div class="note">CORS: Ollama needs <span style="font-family:var(--mono)">OLLAMA_ORIGINS=*</span> · most cloud APIs work</div>
+      <div class="note">CORS: Ollama needs <span style="font-family:var(--mono)">OLLAMA_ORIGINS=*</span> · most cloud APIs work · an <b>https</b> page (the live demo) cannot call a plain-<b>http</b> endpoint on another host — run LogLens locally or set the proxy field (see <span style="font-family:var(--mono)">cors_proxy.js</span> in the repo) · the test button now explains exactly which case you hit</div>
     </div>
     <div>
       <h3 class="mini" style="margin-top:0">prompt</h3>
@@ -698,7 +699,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.1 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -4128,17 +4129,36 @@ const AI_EXAMPLES = [
 ];
 const AIZ = {
   cfg(){ return { base:($('aiBase').value.trim()||'https://api.openai.com/v1').replace(/\/+$/,''),
-                  key:$('aiKey').value.trim(), model:$('aiModel').value.trim(), remember:$('aiRemember').checked }; },
-  save(){ const c=this.cfg(); try{ localStorage.setItem('loglens.ai', JSON.stringify({base:c.base, model:c.model, remember:c.remember, key:c.remember?c.key:''})); }catch(e){} },
+                  key:$('aiKey').value.trim(), model:$('aiModel').value.trim(), remember:$('aiRemember').checked,
+                  proxy:$('aiProxy').value.trim().replace(/\/+$/,'') }; },
+  save(){ const c=this.cfg(); try{ localStorage.setItem('loglens.ai', JSON.stringify({base:c.base, model:c.model, remember:c.remember, key:c.remember?c.key:'', proxy:c.proxy})); }catch(e){} },
   load(){ try{ const c=JSON.parse(localStorage.getItem('loglens.ai')||'{}');
       if(c.base) $('aiBase').value=c.base; if(c.model) $('aiModel').value=c.model;
+      if(c.proxy && $('aiProxy')) $('aiProxy').value=c.proxy;
       $('aiRemember').checked=!!c.remember; if(c.remember&&c.key) $('aiKey').value=c.key; }catch(e){} },
+  // optional same-origin/CORS-friendly relay: POST {url, headers, body} → {status, body}
+  async viaProxy(c, url, headers, body){
+    const res=await fetch(c.proxy,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url, headers, body})});
+    if(!res.ok) throw new Error('proxy error HTTP '+res.status+' — '+(await res.text()).slice(0,160));
+    const d=await res.json();
+    return { ok:(d.status>=200&&d.status<300), status:d.status, json:()=>JSON.parse(d.body), text:d.body };
+  },
   async chat(messages,opts){
     const c=this.cfg();
     if(!c.model) throw new Error('set a model name first');
     const headers={'Content-Type':'application/json'}; if(c.key) headers.Authorization='Bearer '+c.key;
+    const payload=JSON.stringify({model:c.model,messages,temperature:0.2});
+    if(c.proxy){
+      const r=await this.viaProxy(c, c.base+'/chat/completions', headers, payload);
+      if(!r.ok) throw new Error('HTTP '+r.status+' — '+String(r.text).slice(0,200));
+      const d=r.json();
+      const t=d&&d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
+      if(!t) throw new Error('model returned no content');
+      return t;
+    }
     const res=await fetch(c.base+'/chat/completions',{method:'POST',headers,
-      body:JSON.stringify({model:c.model,messages,temperature:0.2}),signal:opts&&opts.signal});
+      body:payload,signal:opts&&opts.signal});
     if(!res.ok) throw new Error('HTTP '+res.status+' — '+(await res.text()).slice(0,200));
     const d=await res.json();
     const t=d&&d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
@@ -4146,11 +4166,38 @@ const AIZ = {
     return t;
   }
 };
+// why did a direct fetch fail? separates CORS refusal from "server unreachable"
+async function aiDiagnose(base){
+  const notes=[];
+  let u=null; try{ u=new URL(base); }catch(e){ return ['base URL is not a valid URL — include scheme and path, e.g. https://api.openai.com/v1 or http://127.0.0.1:11434/v1']; }
+  if (location.protocol==='https:' && u.protocol==='http:'){
+    const local=/^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+    notes.push(local ? 'page is https but the endpoint is plain http on localhost — browsers allow localhost, so this is likely the server\'s CORS policy rejecting the page origin'
+                     : 'MIXED CONTENT: an https page cannot call a plain-http endpoint ('+u.hostname+') — browsers block it before CORS; use an https endpoint, run LogLens locally, or set a proxy below');
+  }
+  if (location.protocol==='file:') notes.push('opened from file:// — the page origin is "null"; the endpoint must send Access-Control-Allow-Origin: * (or run LogLens from a local http server)');
+  try{
+    const r=await fetch(base+'/models',{mode:'no-cors'});
+    void r; notes.push('server IS reachable at the network level — the failure is CORS headers, not connectivity');
+    notes.push('fix on the server: send Access-Control-Allow-Origin for this page origin (Ollama: OLLAMA_ORIGINS=*), or set the proxy field below');
+  }catch(e){
+    notes.push('server not reachable at all from this browser (DNS/connection/refused) — check host, port and that the service is running');
+  }
+  return notes;
+}
 $('aiTest').onclick=async()=>{
   document.getElementById('advTools').open = true;
   const c=AIZ.cfg(); const out=$('aiTestOut');
   out.innerHTML='<span style="color:var(--mut)">testing…</span>'; AIZ.save();
   try{
+    if (c.proxy){
+      const h={'Content-Type':'application/json'}; if(c.key) h.Authorization='Bearer '+c.key;
+      const r=await AIZ.viaProxy(c, c.base+'/chat/completions', h,
+        JSON.stringify({model:c.model||'test',messages:[{role:'user',content:'ping'}],max_tokens:1}));
+      out.innerHTML = r.ok ? '<span class="ok">✓ chat works via proxy</span>'
+        : '<span class="bad">proxy reached endpoint, HTTP '+r.status+' — '+esc(String(r.text).slice(0,140))+'</span>';
+      return;
+    }
     const headers={}; if(c.key) headers.Authorization='Bearer '+c.key;
     const res=await fetch(c.base+'/models',{headers});
     if (res.ok){ out.innerHTML='<span class="ok">✓ reachable ('+res.status+')</span>'; return; }
@@ -4165,7 +4212,9 @@ $('aiTest').onclick=async()=>{
       : (r2.status===401||r2.status===403) ? '<span class="bad">key rejected by chat ('+r2.status+')</span>'
       : '<span class="bad">chat failed: HTTP '+r2.status+' — '+esc((await r2.text()).slice(0,160))+'</span>';
   }catch(e){
-    out.innerHTML='<span class="bad">✗ '+esc(e.message)+'</span> — check base URL / CORS note';
+    const notes=await aiDiagnose(c.base);
+    out.innerHTML='<span class="bad">✗ '+esc(e.message)+'</span><br><span style="color:var(--mut);font-size:10.5px">'+
+      notes.map(n=>'· '+esc(n)).join('<br>')+'</span>';
   }
 };
 ['aiBase','aiModel'].forEach(id=>$(id).addEventListener('input',()=>AIZ.save()));
