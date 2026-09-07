@@ -10,7 +10,7 @@
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.22.5 · see changelog for the full history; unit suites run via `npm test`
+- **Current version**: v1.22.6 · see changelog for the full history; unit suites run via `npm test`
 
 ## Screenshots
 
@@ -383,7 +383,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.22.5 (current)** — viewer gutter numbers are now EXACT instead of estimated: a byte→line-number anchor is seeded at file open (line 1) and re-seeded from the search tab's true line numbers on match jumps, so the focused row's number matches what the search tab reported (previously the estimate drifted — e.g. showing 25540 for line 25000 — which made jumps look like they landed on the wrong line); zebra striping follows the true line parity; without an anchor (arbitrary rail seeks) numbers fall back to the old estimate
+- **v1.22.6 (current)** — wider viewer on large monitors (wrap max-width 1400→1800px, vbody 75vh→calc(100vh−160px), reswrap fills viewport height), plus a comprehensive 45-check viewer+search E2E suite and a hardened flaky dark-theme color check
+- **v1.22.5** — viewer gutter numbers are now EXACT instead of estimated: a byte→line-number anchor is seeded at file open (line 1) and re-seeded from the search tab's true line numbers on match jumps, so the focused row's number matches what the search tab reported (previously the estimate drifted — e.g. showing 25540 for line 25000 — which made jumps look like they landed on the wrong line); zebra striping follows the true line parity; without an anchor (arbitrary rail seeks) numbers fall back to the old estimate
 - **v1.22.4** — jumps now land with the target row centered and ~a third of a window of context above it (search Enter/n, search-tab match clicks, rail, go-to-time, bookmarks): previously the match sat at the window top with scrollTop 0, so the first wheel-up chained a whole window backward and felt like a teleport to the top. When the AI wizard diagnoses a CORS-blocked endpoint it now offers a one-click "use local proxy (127.0.0.1:8790)" button that fills the proxy field and retries (start `node cors_proxy.js` once next to LogLens)
 - **v1.22.3** — viewer search and match-selection no longer snap back to the top: a fresh search-jump render left scrollTop at 0 while the focus scroll animated, so the edge check read "at top" and chained the window backward away from the match (visible as the view sliding to earlier lines and losing the highlight). Programmatic jumps now position instantly (no smooth animation) and mark the position as seek-set: the edge driver only chains backward after the user actually scrolls up (wheel-up / paging up), so seeks stay put while manual top-scrolling still fetches earlier context; match-walks only scroll when the focused row is off-screen
 - **v1.22.2** — AI wizard connection failures are now self-diagnosing: on `Failed to fetch` the test button runs a no-cors reachability probe and tells you which case you hit (server unreachable vs CORS headers missing vs https-page→http-endpoint mixed content vs file:// null origin), with the matching fix; a new optional **CORS proxy** field (plus `cors_proxy.js` in the repo, loopback-only) relays chat calls for endpoints that cannot send CORS headers, and the wizard note explains the https/http mixed-content rule that breaks the live demo against local http endpoints
