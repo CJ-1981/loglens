@@ -347,7 +347,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.2</span>
+  <h1>LogLens</h1><span class="ver">v1.22.3</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -699,7 +699,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.2 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.3 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2736,6 +2736,7 @@ async function vWindow(anchor, dir, mode){
     V.hdr = new Array(r.lines.length);                  // parsed-header cache
     V.blen = r.blens;
     V.winStart = r.startByte; V.winEnd = r.endByte; V.anchor = r.startByte;
+    vUserTopIntent = false;   // a fresh window top is a seek position, not the user at top
     vRender((dir === 'backward' || mode === 'end') ? 'bottom' : 'top');
   } finally { V.loading = false; if ($('vStatus').textContent === 'reading…') $('vStatus').textContent = ''; }
 }
@@ -2874,6 +2875,7 @@ function vFmtDlt(d){
 // interval only covers content changes that no scroll event announces.
 let vScheduleEdgeCheck = () => {};
 let vPlaceTgGrip = () => {};
+let vUserTopIntent = false;   // backward chaining only after the user actually scrolls up
 (function(){
   const b = $('vBody');
   const edges = () => {
@@ -2881,8 +2883,9 @@ let vPlaceTgGrip = () => {};
     if (!b.clientHeight || !b.offsetWidth) return;   // viewer hidden (other tab): zero geometry, never chain
     vPlaceTgGrip();
     if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
-    else if (b.scrollTop <= 120) vChainBackward();
+    else if (b.scrollTop <= 120 && vUserTopIntent) vChainBackward();
   };
+  b.addEventListener('wheel', e => { if (e.deltaY < 0) vUserTopIntent = true; }, { passive:true });
   vScheduleEdgeCheck = edges;
   b.addEventListener('scroll', edges, { passive:true });
   setInterval(edges, 500);
@@ -2995,6 +2998,7 @@ async function vMove(dir, px){
     if (dir > 0){
       if (b.scrollTop >= b.scrollHeight - b.clientHeight - 1 && V.winEnd < V.total) await vChainForward();
     } else {
+      vUserTopIntent = true;   // paging up at the top is explicit intent for earlier context
       if (b.scrollTop <= 1 && V.winStart > 0) await vChainBackward();
     }
     const max = Math.max(0, b.scrollHeight - b.clientHeight);
@@ -3007,6 +3011,7 @@ const vLine = dir => vMove(dir, vRowH());
 let vSeekBusy = false, vSeekWant = null, vSeekEnd = false;
 async function vSeekTo(byte, endMode){
   vSeekWant = byte; vSeekEnd = !!endMode;
+  vUserTopIntent = false;
   if (vSeekBusy) return;
   vSeekBusy = true;
   try{
@@ -3326,7 +3331,18 @@ function vSetFocusMark(el, scroll){
   if (!el) return;
   el.classList.add('mfocus');
   V.markByte = el.dataset.byte;   // stable line identity — survives buffer shifts
-  if (scroll !== false){ b.scrollLeft = 0; el.scrollIntoView({behavior:'smooth', block:'center'}); }
+  if (scroll !== false){
+    // position instantly (log tools jump, they don't glide): a smooth animation
+    // would leave scrollTop near 0 mid-flight, which the edge driver misreads as
+    // "at top — chain backward", sliding the window away from the match
+    b.scrollLeft = 0;
+    vUserTopIntent = false;   // this jump, not the user, put us here
+    const rc = el.getBoundingClientRect(), bc = b.getBoundingClientRect();
+    const visible = rc.top >= bc.top - 1 && rc.bottom <= bc.bottom + 1;
+    if (!visible){
+      b.scrollTop = Math.max(0, vTopOf(b, el) - Math.round(b.clientHeight / 2) + Math.round(el.offsetHeight / 2));
+    }
+  }
 }
 // ←/→ walking: step through the highlighted matches in view; at either edge
 // continue with the byte scan (Enter / n semantics) into the rest of the file
