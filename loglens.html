@@ -347,7 +347,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.4</span>
+  <h1>LogLens</h1><span class="ver">v1.22.5</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -699,7 +699,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.4 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.5 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2509,7 +2509,8 @@ function loadDemoFile(){
 // runs viewerEnsure at load, which touches V — keep it out of the TDZ) ----------
 const V = { file:null, anchor:0, lines:[], disp:[], hdr:[], blen:[], winStart:0, winEnd:0,
             total:0, est:0, maskCm:null, loading:false, lastHit:null, avgLen:80,
-            searchFrom:null, lastQ:null, seq:0, tgwUser:null, markByte:null, lvls:null, lvlAvail:new Set() };
+            searchFrom:null, lastQ:null, seq:0, tgwUser:null, markByte:null, lvls:null, lvlAvail:new Set(),
+            lnAnchor:null };   // {byte, ln}: a known true line number; makes gutter numbers exact
 try{ const t = parseFloat(localStorage.getItem('loglens.tgw')); if (t > 0) V.tgwUser = t; }catch(e){}
 try{ const l = localStorage.getItem('loglens.vlvls'); if (l) V.lvls = new Set(JSON.parse(l)); }catch(e){}
 const V_LEVELS = ['V','D','I','W','E','F'];
@@ -2663,6 +2664,7 @@ async function vOpen(f){
   if (!f) return;
   V.file = f.file; V.total = V.file.size; V.anchor = 0; V.maskCm = null; V.lastHit = null; V.searchFrom = null; V.lastQ = null;
   V.lvlAvail = new Set();   // levels present in this file — chips render from this
+  V.lnAnchor = { byte: 0, ln: 1 };   // file start is line 1 — gutter numbers exact from here
   // sample head for line estimate + theme restore
   const head = await vReadText(0, 65536);
   V.est = CORE.estimateLineCount(head, V.total);
@@ -2778,30 +2780,37 @@ function vRestoreScroll(b, a){
 function vRender(mode, anchor){
   anchor = Math.round(anchor || 0);
   const body = $('vBody');
-  const firstEst = Math.round(V.winStart / V.avgLen);
   const frag = new Array(V.lines.length);
   const starts = new Array(V.lines.length);   // byte offset of each window line
   const colOn = $('vColBtn').classList.contains('on');
   const sigs = colOn ? new Array(V.lines.length) : null;
   if (colOn) dnColSync();   // expanded-run set is keyed to the open file
   let maxTag = 0;
-  let byteCursor = V.winStart;
-  let prevMs = null;   // previous parsed timestamp (ms since midnight) for the Δt column
+  // byte offset of every window line; with a known line-number anchor these also
+  // give EXACT gutter numbers (estimates only until an anchor exists)
+  let acc = V.winStart;
+  for (let i = 0; i < V.lines.length; i++){ starts[i] = acc; acc += V.blen[i] || 0; }
+  let anchorIdx = -1;
+  if (V.lnAnchor && V.lnAnchor.byte >= V.winStart && V.lnAnchor.byte <= acc){
+    for (let i = 0; i < V.lines.length; i++){ if (starts[i] === V.lnAnchor.byte){ anchorIdx = i; break; } }
+    if (anchorIdx < 0 && V.lnAnchor.byte === acc) anchorIdx = V.lines.length;   // anchor at window end
+  }
+  const lnOf = i => (anchorIdx >= 0 ? V.lnAnchor.ln + (i - anchorIdx) : Math.round(V.winStart / V.avgLen) + i);
   const lvlFilter = vLvlActive();
   let availGrew = false;
+  let prevMs = null;   // previous parsed timestamp (ms since midnight) for the Δt column
   for (let i = 0; i < V.lines.length; i++){
     const raw = V.lines[i];
-    starts[i] = byteCursor;
     if (colOn) sigs[i] = raw.replace(/\d+/g, '#');   // line shape: digit/hex runs collapsed
     let h = V.hdr[i];
     if (h === undefined){ h = CORE.parseHeader(raw); V.hdr[i] = h; }
     if (h && h.lvl && !V.lvlAvail.has(h.lvl)){ V.lvlAvail.add(h.lvl); availGrew = true; }
-    if (lvlFilter && h && h.lvl && !V.lvls.has(h.lvl)){ frag[i] = null; byteCursor += V.blen[i] || 0; continue; }
+    if (lvlFilter && h && h.lvl && !V.lvls.has(h.lvl)){ frag[i] = null; continue; }
     let m = V.disp[i];
     if (m == null){ m = vApplyMask(raw); V.disp[i] = m; }
     // stable per-line identity: byte offset — walkers/anchors survive buffer shifts
-    const idAttr = ` data-byte="${byteCursor}" data-idx="${i}"`;
-    const rowCls = (firstEst + i) & 1 ? 'vrow alt' : 'vrow';   // zebra matches the gutter number
+    const idAttr = ` data-byte="${starts[i]}" data-idx="${i}"`;
+    const rowCls = lnOf(i) & 1 ? 'vrow alt' : 'vrow';   // zebra matches the gutter number
     if (h && h.ts){
       if (h.tag && h.tag.length > maxTag) maxTag = h.tag.length;
       const msg = esc(m.includes(h.tag) ? m.slice(m.indexOf(h.tag)+h.tag.length).replace(/^\s*:\s*/,'') : m);
@@ -2813,11 +2822,10 @@ function vRender(mode, anchor){
         dltCell = `<td class="dlt${d >= 5000 ? ' gap' : ''}">${vFmtDlt(d)}</td>`;
       }
       prevMs = tms;
-      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="ts">${esc(h.ts)}</td><td class="lvl">${h.lvl?`<span class="lv lv${h.lvl}">${h.lvl}</span>`:''}</td>${dltCell}<td class="tg">${esc(h.tag)}</td><td class="vmsg">${msg}</td></tr>`;
+      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${lnOf(i)}</td><td class="ts">${esc(h.ts)}</td><td class="lvl">${h.lvl?`<span class="lv lv${h.lvl}">${h.lvl}</span>`:''}</td>${dltCell}<td class="tg">${esc(h.tag)}</td><td class="vmsg">${msg}</td></tr>`;
     } else {
-      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${firstEst+i}</td><td class="raw" colspan="5">${esc(m)}</td></tr>`;
+      frag[i] = `<tr class="${rowCls}"${idAttr}><td class="ln">${lnOf(i)}</td><td class="raw" colspan="5">${esc(m)}</td></tr>`;
     }
-    byteCursor += V.blen[i] || 0;
   }
   let html = frag.filter(x => x !== null).join('');
   if (colOn){
@@ -3210,7 +3218,7 @@ async function vFind(dir){
             V.loading = false;   // release the lock so vWindow can run
             await vWindow(pre, 'forward');
             vHighlightAndFocus(rx, line);
-            V.searchFrom = lineByte + vByteLen(line) + 1;   // next Enter continues after this hit
+            V.searchFrom = lineByte + vByteLen(line) + 1;   // next Enter continues AFTER this match
             return;
           }
           if (nl < 0) break;
@@ -4096,6 +4104,7 @@ $('msTable').addEventListener('click', async e=>{
   setTab('view');
   const cur = S.files.find(f=>f.name===$('vFile').value && f.use!==false);
   if (!cur || cur.file !== file.file){ await vOpen(file); $('vFile').value = file.name; }
+  if (rec.ln) V.lnAnchor = { byte: rec.b, ln: rec.ln };   // search tab knows true line numbers
   await vSeekTo(rec.b);
   const row = $('vBody').querySelector(`[data-byte="${rec.b}"]`);
   if (row) vSetFocusMark(row);

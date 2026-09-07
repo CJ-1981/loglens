@@ -104,7 +104,7 @@ new Function(uiCode).call(global);
   // are recycled while scrolling), so stripes stay put and match the gutter
   const seq = [...body.matchAll(/<tr class="(vrow(?: alt)?)" data-byte/g)].map(m => m[1].includes('alt'));
   check('zebra stripes alternate across rendered rows (aligned to line parity)',
-    seq.length >= 10 && seq.some(Boolean) && seq.some(v => !v) && seq.slice(0, 6).every((c, i) => c === (i % 2 === 1)));
+    seq.length >= 10 && seq.some(Boolean) && seq.some(v => !v) && seq.slice(0, 6).every((c, i) => c === (i % 2 === 0)));
   check('collapse keeps zebra parity (coll injected before alt)',
     html.includes('/<tr class="vrow( alt)?"/') && body.includes('class="vrow alt" data-byte'));
 

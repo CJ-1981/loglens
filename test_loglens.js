@@ -331,6 +331,7 @@ check('hidden viewer never chains; tab switch preserves scroll', html.includes('
 check('ai wizard: staged fetch-failure diagnostics + optional CORS proxy', html.includes('async function aiDiagnose') && html.includes('id="aiProxy"') && html.includes("mode:'no-cors'") && html.includes('viaProxy'));
 check('search jump no longer triggers backward chaining', html.includes('let vUserTopIntent = false') && html.includes('b.scrollTop <= 120 && vUserTopIntent') && html.includes('vUserTopIntent = false;   // this jump, not the user, put us here'));
 check('jumps center the target with headroom', html.includes('Math.round(lineByte - (V_WIN / 3) * V.avgLen)') && html.includes('always center the focused row'));
+check('gutter numbers exact via line anchor', html.includes('lnAnchor') && html.includes('const lnOf = i =>') && html.includes('V.lnAnchor = { byte: rec.b, ln: rec.ln }'));
 check('wizard offers one-click local proxy on CORS diagnosis', html.includes('aiUseProxy') && html.includes('http://127.0.0.1:8790'));
 check('viewer search: byte-accurate rewrite, clean no-match (continue-cursor removed)', html.includes('vHighlightAndFocus') && html.includes('lineStartByte') && html.includes('no matches for') && !html.includes('press Enter to continue from'));
 const verHdr = (html.match(/<span class="ver">(v[\d.]+)<\/span>/) || [])[1];

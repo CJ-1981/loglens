@@ -110,8 +110,8 @@ const fireBadge = run => { const spy = { called: false };
   let body = el('vBody').innerHTML;
   check('collapse ON renders one row per run with count badges (× 3, × 2) and dimmed class',
     (body.match(/class="runcount"/g) || []).length === 2 && body.includes('× 3') && body.includes('× 2') &&
-    body.includes('class="vrow coll" data-byte="0" data-idx="0"'));
-  check('collapsed rows keep data-byte/data-idx of the first line', /data-byte="0" data-idx="0"/.test(body) && /class="vrow coll"/.test(body));
+    /class="vrow coll( alt)?" data-byte="0" data-idx="0"/.test(body));
+  check('collapsed rows keep data-byte/data-idx of the first line', /data-byte="0" data-idx="0"/.test(body) && /class="vrow coll( alt)?"/.test(body));
 
   const spy = fireBadge('0');
   body = el('vBody').innerHTML;
