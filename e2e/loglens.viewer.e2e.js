@@ -517,8 +517,38 @@ function fixture() {
   });
   await page.waitForTimeout(300);
 
-  // ==================== 26. Console errors ====================
-  console.log('\n== 26. Console errors ==');
+  // ==================== 26. DARK THEME: computed variables actually apply ====================
+  // v1.22.6 accidentally deleted the @media(max-width:640px){ opener; the stray
+  // closing brace made Chromium swallow the body[data-theme=dark]{--bg...} rule,
+  // so dark mode rendered a light page with dark-on-dark controls. Structural
+  // rule-text checks stayed green through all of it — assert COMPUTED values.
+  console.log('\n== 26. Dark theme: computed variables apply ==');
+  await page.evaluate(() => { try { localStorage.setItem('loglens.theme', 'light'); } catch(e){} });
+  await page.reload();
+  await page.waitForTimeout(600);
+  await page.locator('#btnTheme').click();
+  await page.waitForTimeout(300);
+  const darkComputed = await page.evaluate(() => {
+    const cs = (sel, prop) => getComputedStyle(document.querySelector(sel))[prop];
+    return {
+      attr: document.body.getAttribute('data-theme'),
+      bodyBg: cs('body', 'backgroundColor'),
+      cardBg: cs('.card', 'backgroundColor'),
+      selectColor: cs('select', 'color'),
+    };
+  });
+  check('dark toggle sets body[data-theme=dark]', darkComputed.attr === 'dark');
+  check('dark body background uses the dark --bg (#0d1218)', darkComputed.bodyBg === 'rgb(13, 18, 24)');
+  check('dark cards use the dark --card (#151c24)', darkComputed.cardBg === 'rgb(21, 28, 36)');
+  check('dark selects use light --ink text (no dark-on-dark)', darkComputed.selectColor === 'rgb(215, 227, 238)');
+  await page.locator('#btnTheme').click();
+  await page.waitForTimeout(300);
+  const lightBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check('toggling back restores the light background', lightBg === 'rgb(246, 247, 249)');
+  await page.evaluate(() => { try { localStorage.removeItem('loglens.theme'); } catch(e){} });
+
+  // ==================== 27. Console errors ====================
+  console.log('\n== 27. Console errors ==');
   check('no page errors during full flow', errors.length === 0);
   if (errors.length) console.log('  ERRORS:', errors.join('\n'));
 
