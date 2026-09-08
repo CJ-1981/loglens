@@ -424,8 +424,56 @@ function fixture() {
   const toast = await page.locator('#toast').innerText();
   check('invalid go-to-time shows toast', toast.includes('unrecognized') || toast.includes('time'));
 
-  // ==================== 25. Console errors ====================
-  console.log('\n== 25. Console errors ==');
+  // ==================== 25. VIEWER: wheel down from the top never snaps back ====================
+  // v1.14.5 introduced `anchor = Math.round(anchor || 0)` in vRender: the chain
+  // passes a {idx,into} object, Math.round made it NaN, and vRestoreScroll then
+  // reset scrollTop to 0 — every forward chain snapped the view back to the top.
+  // scrollTop itself legitimately drops when a chain trims the window (the
+  // buffer slides under a frozen viewport), so assert CONTENT continuity: the
+  // line at the viewport top must stay ~the same across the trim boundary.
+  console.log('\n== 25. Wheel down from the top: continuous, no snap-back ==');
+  await page.locator('#tabBtnView').click();
+  await page.waitForTimeout(300);
+  await page.locator('#vBody').click();          // focus for keys
+  await page.locator('#vBody').press('Home');    // deterministic start: top of file
+  await page.waitForTimeout(700);
+  const startState = await page.evaluate(() => ({
+    top: document.getElementById('vBody').scrollTop,
+    foot: document.getElementById('vFoot').textContent,
+  }));
+  check('test starts at the top of the file', startState.top < 40 && startState.foot.startsWith('0.0'));
+  const box = await page.locator('#vBody').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const firstVisLn = () => page.evaluate(() => {
+    const b = document.getElementById('vBody');
+    const st = b.scrollTop, br = b.getBoundingClientRect();
+    for (const r of b.querySelectorAll('tr.vrow')){
+      const rt = r.getBoundingClientRect().top - br.top + st;
+      if (rt + r.offsetHeight > st) return +r.querySelector('td.ln').textContent;
+    }
+    return null;
+  });
+  let prev = { top: 0, ln: await firstVisLn(), pct: 0 };
+  let trimJumps = 0, snapped = false, pctEnd = 0;
+  for (let i = 0; i < 80; i++) {
+    await page.mouse.wheel(0, 1200);
+    await page.waitForTimeout(90);
+    const top = await page.evaluate(() => document.getElementById('vBody').scrollTop);
+    const pct = parseFloat(await page.evaluate(() => document.getElementById('vFoot').textContent)) || 0;
+    const ln = await firstVisLn();
+    if (prev.top > 1000 && top === 0) snapped = true;        // the NaN signature: hard reset to 0
+    if (prev.ln != null && ln != null && ln < prev.ln - 3) snapped = true;  // content slid backward
+    if (prev.top > 1000 && top < prev.top - 2000) trimJumps++;  // window trim: scrollTop drops by design
+    prev = { top, ln, pct };
+    if (pct >= 6) break;
+  }
+  pctEnd = prev.pct;
+  check('wheeling reached past the initial window (forward chains ran)', pctEnd >= 6);
+  check('at least one buffer trim happened mid-scroll', trimJumps >= 1);
+  check('no snap-back: scrollTop never hard-resets, content never slides backward', !snapped);
+
+  // ==================== 26. Console errors ====================
+  console.log('\n== 26. Console errors ==');
   check('no page errors during full flow', errors.length === 0);
   if (errors.length) console.log('  ERRORS:', errors.join('\n'));
 

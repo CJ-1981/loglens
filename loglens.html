@@ -362,7 +362,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.10</span>
+  <h1>LogLens</h1><span class="ver">v1.22.11</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -713,7 +713,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.10 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.11 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2803,14 +2803,16 @@ function vCaptureAnchor(){
 }
 function vRestoreScroll(b, a){
   const rows = vRowsOf(b);
-  if (!a || !rows.length || a.idx >= rows.length || !rows[a.idx].getBoundingClientRect){ b.scrollTop = 0; return; }
+  if (!a || typeof a !== 'object' || !rows.length || a.idx >= rows.length || !rows[a.idx].getBoundingClientRect){ b.scrollTop = 0; return; }
   const savedLeft = b.scrollLeft;
   if (savedLeft) b.scrollLeft = 0;
   b.scrollTop = Math.max(0, vTopOf(b, rows[a.idx]) + a.into);
   if (savedLeft) b.scrollLeft = savedLeft;
 }
 function vRender(mode, anchor){
-  anchor = Math.round(anchor || 0);
+  // `anchor` is a {idx,into} object from vCaptureAnchor (or undefined) — never
+  // coerce it here; vRestoreScroll consumes it as-is (a Math.round here once
+  // turned every anchored re-render into a silent snap to the top).
   const body = $('vBody');
   const frag = new Array(V.lines.length);
   const starts = new Array(V.lines.length);   // byte offset of each window line
@@ -2974,9 +2976,8 @@ async function vChainForward(){
     let drop = 0;
     if (V.lines.length > V_KEEP) drop = V.lines.length - 1000; // keep the buffer lean
     if (drop > 0){
-      V.lines.splice(0, drop); V.disp.splice(0, drop); V.hdr.splice(0, drop);
-      for (let i = 0; i < drop; i++) V.winStart += V.blen[i];
-      V.blen.splice(0, drop);
+      for (let i = 0; i < drop; i++) V.winStart += V.blen[i];  // measure BEFORE splicing — the dropped lines' own lengths
+      V.lines.splice(0, drop); V.disp.splice(0, drop); V.hdr.splice(0, drop); V.blen.splice(0, drop);
     }
     if (a) a.idx = Math.max(0, a.idx - drop);
     vRender('keep', a);
