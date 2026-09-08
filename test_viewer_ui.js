@@ -178,6 +178,34 @@ new Function(uiCode).call(global);
     /<select id="vTheme" title="logcat color theme">\s*<option value="default">/.test(html) &&
     /<select id="logThemeSel">\s*<option value="default">/.test(html));
 
+  // v1.22.8: .txt files are first-class inputs — picker filter, drop-zone copy,
+  // extension filter (drop + folder walk), plus real .txt loads through all three paths
+  if (typeof File === 'undefined') global.File = class extends Blob { constructor(parts, name, opts){ super(parts, opts); this.name = name; this.lastModified = Date.now(); } };
+  check('picker accept lists .txt (+ text/plain MIME group)',
+    /id="fpick"[^>]*accept="\.log,\.txt,\.text,text\/plain"/.test(html));
+  check('drop zone copy advertises .log/.txt', html.includes('drop .log/.txt files or folders · or click to browse'));
+  check('LOG_EXT filter covers .txt (drop + folder walk)', html.includes('const LOG_EXT=/\\.(log|txt|text)$/i;'));
+
+  const mkFile = name => new File(['08-24 15:37:34.001  1001  1001 D ' + name + ' : vin=YV4TXT012AB34567 pairing ok\n'], name, { type: 'text/plain' });
+  el('fpick').files = [mkFile('notes.txt')];
+  el('fpick').onchange();
+  check('picker path: a .txt file lands in the workbench file list',
+    el('filelist').children.some(c => (c.innerHTML || '').includes('notes.txt')));
+
+  await el('drop').ondrop({ preventDefault(){}, dataTransfer:{ items:[{ getAsFile: () => mkFile('dropped.txt') }] } });
+  check('file-drop path: a dropped .txt is added', el('filelist').children.some(c => (c.innerHTML || '').includes('dropped.txt')));
+
+  let refused = null;
+  try { await el('drop').ondrop({ preventDefault(){}, dataTransfer:{ items:[{ getAsFile: () => mkFile('blob.dat') }] } }); } catch(e){ refused = e.message; }
+  check('file-drop path: a non-log/txt drop is refused with the .log/.txt alert',
+    refused === 'alert called: No .log/.txt files found.');
+
+  const dirEntry = files => ({ isDirectory:true, createReader(){ let sent=false; return { readEntries(cb){ if (sent) return cb([]); sent=true; cb(files.map(f => ({ isFile:true, file:(ok)=>ok(f) }))); } }; } });
+  await el('drop').ondrop({ preventDefault(){}, dataTransfer:{ items:[{ webkitGetAsEntry: () => dirEntry([mkFile('folder.txt'), mkFile('skip.dat')]) }] } });
+  check('folder-drop path: .txt picked up, other extensions skipped',
+    el('filelist').children.some(c => (c.innerHTML || '').includes('folder.txt')) &&
+    !el('filelist').children.some(c => (c.innerHTML || '').includes('skip.dat')));
+
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

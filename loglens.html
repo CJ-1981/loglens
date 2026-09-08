@@ -351,7 +351,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.7</span>
+  <h1>LogLens</h1><span class="ver">v1.22.8</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -375,8 +375,8 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <!-- FILES · step 1 -->
 <div class="card" id="secFiles">
   <h2 title="streamed line-by-line, any size · timestamps auto-detected (logcat / syslog / ISO / CLF)">step 1 · input files</h2>
-  <div class="drop" id="drop" title="drop files or folders · or click to browse">drop files or folders · or click to browse</div>
-  <input type="file" id="fpick" multiple accept=".log,.txt,.text" style="display:none">
+  <div class="drop" id="drop" title="drop .log/.txt files or folders · or click to browse">drop .log/.txt files or folders · or click to browse</div>
+  <input type="file" id="fpick" multiple accept=".log,.txt,.text,text/plain" style="display:none">
   <input type="file" id="dpick" webkitdirectory multiple style="display:none">
   <div style="margin-top:4px"><button class="btn sec" id="dpickBtn" title="add a folder recursively">add folder</button></div>
   <div class="filelist" id="filelist"></div>
@@ -702,7 +702,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.7 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.8 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
