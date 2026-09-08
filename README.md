@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
-![version](https://img.shields.io/badge/version-v1.21.2-blue)
-![tests](https://img.shields.io/badge/assertions-510%20passing-green)
+![version](https://img.shields.io/badge/version-v1.22.7-blue)
+![tests](https://img.shields.io/badge/assertions-462%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.22.6 · see changelog for the full history; unit suites run via `npm test`
+- **Current version**: v1.22.7 · see changelog for the full history; unit suites run via `npm test`
 
 ## Screenshots
 
@@ -59,7 +59,7 @@
 3. Or drop your `.log` files (or a whole folder) into **step 1 · input files**.
 4. Set up **step 2 · filter** (level chips, include/exclude rules, time window, mask rules) — most controls re-run automatically.
 5. Press **run** (step 3) — results appear below with stats, histogram, and a filterable table.
-6. Browse in **step 4 · results**, export from **step 4 · export** — output is masked by default, `[Lnnn]` prefixes optional.
+6. Browse the full log in the **viewer** tab, copy or download from the **export** card — output is masked by default, `[Lnnn]` prefixes optional.
 
 The default profile matches **all lines** with the default PII mask rules enabled — add include rules to filter down.
 
@@ -72,10 +72,9 @@ The workbench follows the triage pipeline, top to bottom. A **stepper bar** show
 | **1 load files** | input files | files loaded |
 | **2 filter** | extract rules + mask rules | include / exclude / mask rule counts |
 | **3 run** | run bar (sticky) | readiness summary |
-| **4 results** | overview · matches · export | match totals |
-| **5 advanced** | sanitize copy · ai rule wizard (collapsed) | — |
+| **4 advanced** | sanitize copy · ai rule wizard (collapsed) | — |
 
-The current step highlights as you scroll. Steps 4 and 5 appear/appear-expanded when relevant (results after the first run; the AI wizard opens itself when you generate or send to it).
+The current step highlights as you scroll. After a run the results cards (scan overview, matches, export) appear between step 3 and the advanced section — they have no stepper entry because day-to-day browsing happens in the **viewer** tab. The advanced section appears expanded when relevant (the AI wizard opens itself when you generate or send to it).
 
 ## 1 · Input files
 
@@ -186,7 +185,7 @@ Level chips, context ±, cap, err-ish and the time window **re-run automatically
 
 ## AI rule wizard
 
-Lives under **step 5 · advanced**. Describe what you want in plain language ("extract Bluetooth pairing failures, mask phone numbers, exclude HCI dumps") → a validated rule JSON comes back.
+Lives under **step 4 · advanced**. Describe what you want in plain language ("extract Bluetooth pairing failures, mask phone numbers, exclude HCI dumps") → a validated rule JSON comes back.
 
 - **Any OpenAI-compatible endpoint**: base URL (`https://api.openai.com/v1`, GLM, Azure, Ollama, LM Studio, corporate proxies…) + API key + model. **Test connection** checks reachability/key.
 - **Key handling**: sent only to the endpoint you configure; stored in `localStorage` *only* if you tick "remember key".
@@ -312,7 +311,7 @@ Find unmasked personal data in loaded logs and turn findings into mask rules.
     python presidio_bridge.py                 # http://localhost:8699
     ```
     (The stock `presidio-analyzer` Docker image also works if you front it with any CORS proxy — plain, without the IVI tuning.)
-  - **LLM** — reuses the AI wizard connection (step 5 · advanced; any OpenAI-compatible endpoint incl. Ollama/LM Studio). A dedicated system prompt asks for residual findings as JSON with suggested patterns; `parseDeepFindings` validates every suggested regex before it can become a rule.
+  - **LLM** — reuses the AI wizard connection (step 4 · advanced; any OpenAI-compatible endpoint incl. Ollama/LM Studio). A dedicated system prompt asks for residual findings as JSON with suggested patterns; `parseDeepFindings` validates every suggested regex before it can become a rule.
 - Nothing is sent until you pick an engine **and** tick **allow sending masked samples** (session-only — never persisted); the target endpoint is shown next to the checkbox. Findings render grouped by type with samples and counts — structured entities (IP, email, phone, URL, card, IBAN, SSN, and the bridge's VIN/IMEI/MAC/GNSS types) carry a one-click suggested pattern, fuzzy ones (person, location) stay **report-only** (a global regex built from a name shape would mask ordinary text — use **→ draft rules in AI wizard** for those instead). **apply as mask rules** validates and appends `deep: <type>` rules to your profile; **download deep findings .json** exports the raw report.
 
 ### Tuning Presidio for in-vehicle / telematics logs
@@ -383,7 +382,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.22.6 (current)** — wider viewer on large monitors (wrap max-width 1400→1800px, vbody 75vh→calc(100vh−160px), reswrap fills viewport height), plus a comprehensive 45-check viewer+search E2E suite and a hardened flaky dark-theme color check
+- **v1.22.7 (current)** — **workbench stepper is 4 steps again**: the "4 results" entry is gone — the scan-overview/matches/export cards stay where they are after a run, but the stepper now reads `1 load files → 2 filter → 3 run → 4 advanced`, because day-to-day browsing of results happens in the viewer tab (the cards' "step 4 ·" headings were dropped accordingly, and the advanced section + its cross-references renumbered 5→4)
+- **v1.22.6** — wider viewer on large monitors (wrap max-width 1400→1800px, vbody 75vh→calc(100vh−160px), reswrap fills viewport height), plus a comprehensive 45-check viewer+search E2E suite and a hardened flaky dark-theme color check
 - **v1.22.5** — viewer gutter numbers are now EXACT instead of estimated: a byte→line-number anchor is seeded at file open (line 1) and re-seeded from the search tab's true line numbers on match jumps, so the focused row's number matches what the search tab reported (previously the estimate drifted — e.g. showing 25540 for line 25000 — which made jumps look like they landed on the wrong line); zebra striping follows the true line parity; without an anchor (arbitrary rail seeks) numbers fall back to the old estimate
 - **v1.22.4** — jumps now land with the target row centered and ~a third of a window of context above it (search Enter/n, search-tab match clicks, rail, go-to-time, bookmarks): previously the match sat at the window top with scrollTop 0, so the first wheel-up chained a whole window backward and felt like a teleport to the top. When the AI wizard diagnoses a CORS-blocked endpoint it now offers a one-click "use local proxy (127.0.0.1:8790)" button that fills the proxy field and retries (start `node cors_proxy.js` once next to LogLens)
 - **v1.22.3** — viewer search and match-selection no longer snap back to the top: a fresh search-jump render left scrollTop at 0 while the focus scroll animated, so the edge check read "at top" and chained the window backward away from the match (visible as the view sliding to earlier lines and losing the highlight). Programmatic jumps now position instantly (no smooth animation) and mark the position as seek-set: the edge driver only chains backward after the user actually scrolls up (wheel-up / paging up), so seeks stay put while manual top-scrolling still fetches earlier context; match-walks only scroll when the focused row is off-screen

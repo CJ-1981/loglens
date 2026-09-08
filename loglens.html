@@ -351,7 +351,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.6</span>
+  <h1>LogLens</h1><span class="ver">v1.22.7</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -369,8 +369,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
   <span class="step on" data-sec="secFiles"><b>1</b> load files<em id="wfFiles"></em></span>
   <span class="step" data-sec="secExtract"><b>2</b> filter<em id="wfFilters"></em></span>
   <span class="step" data-sec="runCard"><b>3</b> run</span>
-  <span class="step" data-sec="statsCard"><b>4</b> results<em id="wfResults"></em></span>
-  <span class="step" data-sec="advTools"><b>5</b> advanced</span>
+  <span class="step" data-sec="advTools"><b>4</b> advanced</span>
 </div>
 
 <!-- FILES · step 1 -->
@@ -464,7 +463,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <!-- STATS -->
 <div class="card" id="statsCard" style="display:none">
-  <h2 title="click a histogram bar to time-filter the scan">step 4 · overview</h2>
+  <h2 title="click a histogram bar to time-filter the scan">scan overview</h2>
   <div class="stats" id="statCards"></div>
   <div id="truncNote" class="note warn" style="display:none"></div>
   <div class="hbox"><div id="histBox"></div></div>
@@ -477,7 +476,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <!-- RESULTS -->
 <div class="card" id="resCard" style="display:none">
-  <h2 title="click a row to copy the full masked line">step 4 · matches</h2>
+  <h2 title="click a row to copy the full masked line">matches</h2>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <label class="tgl">font
       <select id="fontSel"></select>
@@ -505,7 +504,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <!-- EXPORT -->
 <div class="card" id="expCard" style="display:none">
-  <h2 title="extracts are masked by default — raw lines are never stored in memory, so an unmasked export is impossible by design">step 4 · export</h2>
+  <h2 title="extracts are masked by default — raw lines are never stored in memory, so an unmasked export is impossible by design">export</h2>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <button class="btn" id="dlExtract">extract .log</button>
     <button class="btn sec" id="cpExtract" title="copy the masked extract to the clipboard">copy</button>
@@ -517,7 +516,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 </div>
 
 <details id="advTools" class="adv">
-<summary><b>step 5</b> · advanced — sanitize copy · ai rule wizard <span class="badge gray">beta</span></summary>
+<summary><b>step 4</b> · advanced — sanitize copy · ai rule wizard <span class="badge gray">beta</span></summary>
 <!-- MASK-ONLY MODE -->
 <div class="card" id="secMaskOnly">
   <h2 title="run the mask rules over every line of the checked files and write complete &lt;original&gt;.masked.log copies — no rules, no cap, no prefixes">sanitize copy <span class="badge green">full file</span></h2>
@@ -686,7 +685,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
     <div class="note">
       <label title="required consent — nothing is sent while unchecked"><input type="checkbox" id="dsAllow"> allow sending masked samples</label>
       — only lines your mask rules already cleaned (≤ <span id="dsMaxChars">400</span> chars each, ≤ <span id="dsSampleN">1000</span> lines) go directly from your browser to <span id="dsTarget" class="mono">no endpoint configured</span>; no file names, no raw values.
-      Presidio needs a CORS-enabled endpoint (see <span class="mono">presidio_bridge.py</span> in the repo) · LLM engines reuse the AI wizard connection — <button class="btn sec" id="dsAiJump" style="padding:1px 6px;font-size:10px">open step 5</button>
+      Presidio needs a CORS-enabled endpoint (see <span class="mono">presidio_bridge.py</span> in the repo) · LLM engines reuse the AI wizard connection — <button class="btn sec" id="dsAiJump" style="padding:1px 6px;font-size:10px">open step 4</button>
     </div>
     <div class="progress" id="dsProg" style="display:none"><div class="bar" id="dsProgBar"></div></div>
     <div class="ptext" id="dsProgText" style="display:none"></div>
@@ -703,7 +702,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.6 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.7 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2556,7 +2555,6 @@ function wfUpdate(){
   const exc = S.extRules.filter(r => r.kind === 'exclude' && r.enabled !== false).length;
   const mk = S.maskRules.filter(r => r.enabled !== false).length;
   set('wfFilters', '(' + inc + ' in · ' + exc + ' out · ' + mk + ' mask)');
-  set('wfResults', S.result ? '(' + S.result.state.matched.toLocaleString() + ' matches)' : '');
 }
 (function(){
   const steps = () => [...document.querySelectorAll('#wfSteps .step')];
@@ -3819,7 +3817,7 @@ $('dsRun').onclick = async ()=>{
   const engine = $('dsEngine').value;
   if (engine === 'off'){ alert('Pick an engine first (presidio or LLM).'); return; }
   if (!$('dsAllow').checked){ alert('Tick the consent checkbox first — deep scan sends masked sample lines to an external endpoint.'); return; }
-  if (engine === 'llm' && !AIZ.cfg().model){ alert('Set a model in the AI wizard connection first (step 5 · advanced).'); return; }
+  if (engine === 'llm' && !AIZ.cfg().model){ alert('Set a model in the AI wizard connection first (step 4 · advanced).'); return; }
   const sampleN = Math.max(100, Math.min(5000, parseInt($('dsSample').value, 10) || 1000));
   DS.abort = new AbortController();
   dsSetBusy(true);
