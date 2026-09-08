@@ -362,7 +362,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.11</span>
+  <h1>LogLens</h1><span class="ver">v1.22.12</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -713,7 +713,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.11 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.12 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2797,20 +2797,32 @@ function vCaptureAnchor(){
   }
   if (i >= rows.length) idx = rows.length - 1;
   const top = rows[idx].getBoundingClientRect().top - br.top + st;
-  const a = { idx, into: Math.max(0, st - top) };
+  // anchor by the row's BYTE IDENTITY, not its DOM index: with a level filter
+  // active, rendered-row indices and window-line indices diverge (hidden lines
+  // render no row), so index arithmetic in the chains restored the wrong row
+  const byte = parseInt(rows[idx].dataset && rows[idx].dataset.byte, 10);
+  const a = isFinite(byte) ? { byte, into: Math.max(0, st - top) } : null;
   if (savedLeft) b.scrollLeft = savedLeft;
   return a;
 }
 function vRestoreScroll(b, a){
   const rows = vRowsOf(b);
-  if (!a || typeof a !== 'object' || !rows.length || a.idx >= rows.length || !rows[a.idx].getBoundingClientRect){ b.scrollTop = 0; return; }
+  if (!a || typeof a !== 'object' || !isFinite(a.byte) || !rows.length || !rows[0].getBoundingClientRect){ b.scrollTop = 0; return; }
   const savedLeft = b.scrollLeft;
   if (savedLeft) b.scrollLeft = 0;
-  b.scrollTop = Math.max(0, vTopOf(b, rows[a.idx]) + a.into);
+  // exact row first; if that line is filtered out of this render, the nearest
+  // row at-or-after keeps the same content region in view
+  let el = null;
+  for (const r of rows){
+    const db = parseInt(r.dataset && r.dataset.byte, 10);
+    if (isFinite(db) && db >= a.byte){ el = r; break; }
+  }
+  if (el) b.scrollTop = Math.max(0, vTopOf(b, el) + a.into);
+  else b.scrollTop = Math.max(0, b.scrollHeight - b.clientHeight);   // anchor beyond the render (EOF) — pin low
   if (savedLeft) b.scrollLeft = savedLeft;
 }
 function vRender(mode, anchor){
-  // `anchor` is a {idx,into} object from vCaptureAnchor (or undefined) — never
+  // `anchor` is a {byte,into} object from vCaptureAnchor (or undefined) — never
   // coerce it here; vRestoreScroll consumes it as-is (a Math.round here once
   // turned every anchored re-render into a silent snap to the top).
   const body = $('vBody');
@@ -2979,8 +2991,7 @@ async function vChainForward(){
       for (let i = 0; i < drop; i++) V.winStart += V.blen[i];  // measure BEFORE splicing — the dropped lines' own lengths
       V.lines.splice(0, drop); V.disp.splice(0, drop); V.hdr.splice(0, drop); V.blen.splice(0, drop);
     }
-    if (a) a.idx = Math.max(0, a.idx - drop);
-    vRender('keep', a);
+    vRender('keep', a);   // byte anchor needs no drop adjustment — it identifies the row directly
     rendered = true;
   }catch(e){ vChainFail(e); }
   finally{
@@ -3010,8 +3021,7 @@ async function vChainBackward(){
       for (let i = 0; i < drop; i++) V.winEnd -= V.blen[V.blen.length - 1 - i];
       V.lines.length -= drop; V.disp.length -= drop; V.hdr.length -= drop; V.blen.length -= drop;
     }
-    if (a) a.idx += add;
-    vRender('keep', a);
+    vRender('keep', a);   // byte anchor is immune to prepends, too
     rendered = true;
   }catch(e){ vChainFail(e); }
   finally{

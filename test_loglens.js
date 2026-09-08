@@ -341,12 +341,18 @@ check('bookmark jump detects level-filtered pins too',
 check('warning toast is one-click actionable (enables the level + re-jumps)',
   html.includes('function toast(msg, opts)') && html.includes('.toast.act{pointer-events:auto') &&
   html.includes('V.lvls.add(lvl)'));
-// v1.22.11: vRender must not coerce the {idx,into} anchor — Math.round(anchor || 0)
+// v1.22.11: vRender must not coerce the {byte,into} anchor — Math.round(anchor || 0)
 // produced NaN and every chained/keep render snapped scrollTop back to 0
 check('chain anchor reaches vRestoreScroll intact (no Math.round coercion)',
   !html.includes('Math.round(anchor || 0)') &&
-  /vRender\(mode, anchor\)\{\s*\/\/ `anchor` is a \{idx,into\} object/.test(html) &&
+  /vRender\(mode, anchor\)\{\s*\/\/ `anchor` is a \{byte,into\} object/.test(html) &&
   html.includes("typeof a !== 'object'"));
+// v1.22.12: anchors are byte-identity based — with a level filter active,
+// rendered-row indices diverge from window-line indices and index arithmetic
+// in the chains restored the wrong row (visible as snapping toward the top)
+check('scroll anchor is byte-based, immune to level filtering and trims',
+  html.includes('{ byte, into:') && html.includes('const db = parseInt(r.dataset && r.dataset.byte, 10);') &&
+  !html.includes('a.idx = Math.max(0, a.idx - drop)') && !html.includes('if (a) a.idx += add;'));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
 check('viewer arrow match-walking + mfocus', html.includes("e.key==='ArrowRight' && $('vBody').querySelector('[data-hit=\"1\"]')") && html.includes("vWalkMark(e.key==='ArrowRight' ? 1 : -1)") && html.includes("classList.add('mfocus')"));

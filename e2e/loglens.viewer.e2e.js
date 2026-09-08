@@ -472,6 +472,51 @@ function fixture() {
   check('at least one buffer trim happened mid-scroll', trimJumps >= 1);
   check('no snap-back: scrollTop never hard-resets, content never slides backward', !snapped);
 
+  // ==================== 25b. WHEEL + LEVEL FILTER: filter must not skew the anchor ====================
+  // With levels hidden, rendered-row indices diverge from window-line indices —
+  // the old index-based anchor arithmetic restored the wrong row and the view
+  // snapped toward the top on every forward chain. Anchors are byte-based now.
+  console.log('\n== 25b. Wheel down with a level filter: no snap-back ==');
+  const hid = await page.evaluate(() => {
+    let n = 0;
+    for (const c of document.querySelectorAll('#vLvls .vchip')){
+      if (n < 2 && c.classList.contains('on') && (c.textContent === 'D' || c.textContent === 'I')){ c.click(); n++; }
+    }
+    return n;
+  });
+  check('two level chips toggled off', hid === 2);
+  await page.waitForTimeout(400);
+  await page.locator('#vBody').click();
+  await page.locator('#vBody').press('Home');
+  await page.waitForTimeout(700);
+  const start2 = await page.evaluate(() => document.getElementById('vBody').scrollTop);
+  check('filtered view starts at the top of the file', start2 < 40);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  let prev2 = { top: 0, ln: await firstVisLn(), pct: 0 };
+  let snapped2 = false, trims2 = 0, pctEnd2 = 0;
+  for (let i = 0; i < 100; i++) {
+    await page.mouse.wheel(0, 1200);
+    await page.waitForTimeout(90);
+    const top = await page.evaluate(() => document.getElementById('vBody').scrollTop);
+    const pct = parseFloat(await page.evaluate(() => document.getElementById('vFoot').textContent)) || 0;
+    const ln = await firstVisLn();
+    if (prev2.top > 1000 && top === 0) snapped2 = true;
+    if (prev2.ln != null && ln != null && ln < prev2.ln - 3) snapped2 = true;
+    if (prev2.top > 1000 && top < prev2.top - 2000) trims2++;
+    prev2 = { top, ln, pct };
+    if (pct >= 6) break;
+  }
+  pctEnd2 = prev2.pct;
+  check('filtered wheeling reached past the initial window (chains ran)', pctEnd2 >= 6);
+  check('filter: at least one buffer trim happened mid-scroll', trims2 >= 1);
+  check('filter: no snap-back — scrollTop never resets, content never slides backward', !snapped2);
+  // restore all levels for the sections that follow
+  await page.evaluate(() => {
+    for (const c of document.querySelectorAll('#vLvls .vchip')) if (!c.classList.contains('on')) c.click();
+    try { localStorage.removeItem('loglens.vlvls'); } catch(e){}
+  });
+  await page.waitForTimeout(300);
+
   // ==================== 26. Console errors ====================
   console.log('\n== 26. Console errors ==');
   check('no page errors during full flow', errors.length === 0);
