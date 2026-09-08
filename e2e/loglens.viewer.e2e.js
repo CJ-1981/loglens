@@ -306,6 +306,60 @@ function fixture() {
   check('clicking a search result jumps to the viewer and focuses the line', focusLn !== null);
   check('viewer gutter matches search result line number', Math.abs(focusLn - searchLn) <= 2);
 
+  // ==================== 18b. SEARCH JUMP vs VIEWER LEVEL FILTER ====================
+  // A match whose level the viewer chips hide used to land silently on a nearby
+  // line; now it must raise an actionable warning instead.
+  console.log('\n== 18b. Search jump to a level-filtered match warns ==');
+  await page.locator('#tabBtnSearch').click();
+  await page.waitForTimeout(400);
+  const rowInfo = await page.evaluate(() => {
+    for (const tr of document.querySelectorAll('#msBody tr')){
+      const tds = tr.querySelectorAll('td');
+      const lvl = tds[3] ? tds[3].textContent.trim() : '';
+      if (lvl) return { i: tr.dataset.i, ln: +tds[1].textContent, lvl };
+    }
+    return null;
+  });
+  check('fixture has a leveled match to test with', !!rowInfo);
+  // first click: unfiltered — jump works, viewer opens the file, chips render
+  await page.locator('#msBody tr[data-i="' + rowInfo.i + '"]').click();
+  await page.waitForTimeout(1200);
+  // hide that level via its chip (viewer is visible, so the re-render is safe)
+  const chipOn = await page.evaluate(lvl => {
+    const chip = [...document.querySelectorAll('#vLvls .vchip')].find(c => c.textContent === lvl);
+    if (chip && chip.classList.contains('on')) { chip.click(); return true; }
+    return false;
+  }, rowInfo.lvl);
+  check('level chip for the match level was on (now toggled off)', chipOn);
+  await page.waitForTimeout(400);
+  // second click: the exact line is now filtered out of the viewer render
+  await page.locator('#tabBtnSearch').click();
+  await page.waitForTimeout(300);
+  await page.locator('#msBody tr[data-i="' + rowInfo.i + '"]').click();
+  await page.waitForTimeout(1200);
+  const warn = await page.evaluate(() => {
+    const t = document.getElementById('toast');
+    return { on: t.classList.contains('show'), act: t.classList.contains('act'), text: t.textContent };
+  });
+  check('hidden match raises the level-filter warning (no silent near-jump)',
+    warn.on && warn.act && warn.text.includes('level ' + rowInfo.lvl) && warn.text.includes('filter'));
+  const hiddenLn = await page.evaluate(() => {
+    const m = document.querySelector('#vBody tr.mfocus');
+    return m ? +m.querySelector('td.ln').textContent : null;
+  });
+  check('no focus ring lands on a wrong (visible) line', hiddenLn === null);
+  // clicking the warning enables the level and re-jumps to the exact line
+  await page.evaluate(() => document.getElementById('toast').click());
+  await page.waitForTimeout(1500);
+  const fixedLn = await page.evaluate(() => {
+    const m = document.querySelector('#vBody tr.mfocus');
+    return m ? +m.querySelector('td.ln').textContent : null;
+  });
+  check('clicking the warning shows the level and focuses the match line',
+    fixedLn !== null && Math.abs(fixedLn - rowInfo.ln) <= 2);
+  // leave the level filter clean for the sections that follow
+  await page.evaluate(() => { try { localStorage.removeItem('loglens.vlvls'); } catch(e){} });
+
   // ==================== 19. SEARCH TAB: Mask toggle ====================
   console.log('\n== 19. Search tab: mask toggle ==');
   await page.locator('#tabBtnSearch').click();

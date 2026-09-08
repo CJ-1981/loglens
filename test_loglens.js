@@ -332,6 +332,15 @@ check('horizontal scrollbar stays, themed to match the rail',
   html.includes('.vbody::-webkit-scrollbar-thumb:horizontal{background:#9aa7b4;border-radius:3px}'));
 check('wheel over the rail scrolls the log (it replaced the native bar at the right edge)',
   html.includes("rail.addEventListener('wheel'") && html.includes("$('vBody').scrollTop += e.deltaY"));
+// v1.22.10: jumping to a level-filtered line must warn, not land on a nearby line
+check('search-tab jump warns when the viewer level filter hides the match',
+  html.includes('function vLvlBlockedToast') && html.includes('vLvlBlockedToast(rec.lvl, rec.ln') &&
+  html.includes('hidden by the viewer level filter'));
+check('bookmark jump detects level-filtered pins too',
+  /vMarksSel'\)\.onchange = async/.test(html) && html.includes('vLvlBlockedToast(lvl, null'));
+check('warning toast is one-click actionable (enables the level + re-jumps)',
+  html.includes('function toast(msg, opts)') && html.includes('.toast.act{pointer-events:auto') &&
+  html.includes('V.lvls.add(lvl)'));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
 check('viewer arrow match-walking + mfocus', html.includes("e.key==='ArrowRight' && $('vBody').querySelector('[data-hit=\"1\"]')") && html.includes("vWalkMark(e.key==='ArrowRight' ? 1 : -1)") && html.includes("classList.add('mfocus')"));

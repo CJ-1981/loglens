@@ -101,6 +101,8 @@ h3.mini{margin:10px 0 4px;font-size:9.5px;color:var(--mut);text-transform:upperc
 .footer{margin-top:18px;color:var(--mut);font-size:10.5px;border-top:1px solid var(--line);padding-top:8px}
 .toast{position:fixed;right:14px;bottom:14px;background:var(--dark);color:#fff;padding:6px 11px;border-radius:5px;font-size:11.5px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
 .toast.show{opacity:.96}
+.toast.act{pointer-events:auto;cursor:pointer;box-shadow:inset 0 0 0 2px var(--accent)}
+.toast.act:hover{background:var(--accent)}
 .reswrap tr[data-i]{cursor:copy}
 input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 /* ---- tabs ---- */
@@ -360,7 +362,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.9</span>
+  <h1>LogLens</h1><span class="ver">v1.22.10</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -711,7 +713,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.9 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.10 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2399,9 +2401,12 @@ $('logThemeSel').onchange=()=>applyLogTheme($('logThemeSel').value);
 })();
 
 // ---------- toast / readiness / theme / nav ----------
-function toast(msg){
+function toast(msg, opts){
   const t = $('toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 1800);
+  const act = opts && opts.act;                       // optional click action
+  t.classList.toggle('act', !!act);
+  t.onclick = act || null;
+  clearTimeout(t._h); t._h = setTimeout(()=>{ t.classList.remove('show','act'); t.onclick = null; }, (opts && opts.ms) || 1800);
 }
 function updateReady(){
   const files = S.files.filter(f=>f.use!==false).length;
@@ -2528,6 +2533,21 @@ try{ const l = localStorage.getItem('loglens.vlvls'); if (l) V.lvls = new Set(JS
 const V_LEVELS = ['V','D','I','W','E','F'];
 const vLvlActive = () => !!V.lvls && V.lvls.size < V_LEVELS.length;   // all-on = no filtering
 const vLvlKept = h => !vLvlActive() || !h || !h.lvl || V.lvls.has(h.lvl);   // level-less lines always shown
+// A byte-targeted jump (search-tab match click, bookmark) aims at one exact
+// line — but vRender skips level-filtered rows, so the view would silently
+// land on a nearby line instead. Never mis-aim quietly: raise a warning and
+// let one click on it enable the level and re-jump to the exact line.
+function vLvlBlockedToast(lvl, ln, rejump){
+  if (!lvl || !vLvlActive() || V.lvls.has(lvl)) return false;
+  toast('match ' + (ln ? 'line ' + ln + ' ' : '') + 'is level ' + lvl + ' — hidden by the viewer level filter · click to show ' + lvl + ' and re-jump', { ms: 7000, act: async () => {
+    if (!V.lvls) V.lvls = new Set(V_LEVELS);
+    V.lvls.add(lvl);
+    try{ localStorage.setItem('loglens.vlvls', JSON.stringify([...V.lvls])); }catch(e){}
+    vRenderLvlChips();
+    if (rejump) await rejump();
+  } });
+  return true;
+}
 
 // ---------- tabs ----------
 function setTab(t){
@@ -4127,6 +4147,11 @@ $('msTable').addEventListener('click', async e=>{
   await vSeekTo(rec.b);
   const row = $('vBody').querySelector(`[data-byte="${rec.b}"]`);
   if (row) vSetFocusMark(row);
+  else vLvlBlockedToast(rec.lvl, rec.ln, async () => {   // exact row filtered out (e.g. its level is off)
+    await vSeekTo(rec.b);
+    const r2 = $('vBody').querySelector(`[data-byte="${rec.b}"]`);
+    if (r2) vSetFocusMark(r2);
+  });
 });
 
 // inline × clear button for a text input: wraps it, shows ✕ only when it holds
@@ -4727,11 +4752,14 @@ function vMarkPin(){
   vMarksSave(pins); vMarksRefresh();
   toast('bookmarked #' + byte + ' ✓');
 }
-$('vMarksSel').onchange = () => {
+$('vMarksSel').onchange = async () => {
   const v = $('vMarksSel').value; if (v === '' || !V.file) return;
   const byte = +v, p = vMarksLoad().find(x => x.byte === byte);
-  vSeekTo(byte);
-  toast(p && p.text ? String(p.text).slice(0,60) : 'byte ' + byte);
+  await vSeekTo(byte);
+  const row = $('vBody').querySelector(`[data-byte="${byte}"]`);
+  const lvl = p && p.text ? (CORE.parseHeader(String(p.text)) || {}).lvl : null;
+  if (row || !vLvlBlockedToast(lvl, null, () => vSeekTo(byte)))
+    toast(p && p.text ? String(p.text).slice(0,60) : 'byte ' + byte);
 };
 $('vMarkDel').onclick = () => {
   if (!V.file) return;
