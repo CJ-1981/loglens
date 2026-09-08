@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/CJ-1981/loglens/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-0f62fe)](https://cj-1981.github.io/loglens/)
-![version](https://img.shields.io/badge/version-v1.22.8-blue)
-![tests](https://img.shields.io/badge/assertions-469%20passing-green)
+![version](https://img.shields.io/badge/version-v1.22.9-blue)
+![tests](https://img.shields.io/badge/assertions-473%20passing-green)
 
 **Single-file, browser-based tool for log triage**: load huge log files (logcat, syslog, ISO-8601, Apache/CLF, or any line-based text), filter them with regex rules, mask personal data (VINs, emails, MACs, IPs…), analyze the results, and export sanitized extracts — all client-side, no server, files never leave the machine.
 
 - **Try it live**: https://cj-1981.github.io/loglens/ — the whole tool is one HTML file, no install
 - **File**: `loglens.html` (~200 KB, zero dependencies)
 - **Open it**: double-click, or `start loglens.html` — works from any location, including network shares
-- **Current version**: v1.22.8 · see changelog for the full history; unit suites run via `npm test`
+- **Current version**: v1.22.9 · see changelog for the full history; unit suites run via `npm test`
 
 ## Screenshots
 
@@ -264,7 +264,7 @@ For **any other text format** (JSON lines, CSV, custom app logs), extraction and
 | **viewer**: `PgUp`/`PgDn`, `↑`/`↓`, `Home`/`End` | page / line / file edges (mouse wheel scrolls continuously) |
 | **viewer**: `/`, `Enter`/`n`, `Shift+Enter`/`N`, `Aa` | focus search, next / previous match, case toggle |
 | **viewer**: `←`/`→` after a search | previous / next highlighted match (steps in view instantly, byte-scans past the edges) |
-| **viewer**: drag left rail | jump by byte position (grab point preserved) |
+| **viewer**: drag right rail | jump by byte position (grab point preserved) — the rail is the viewer's only vertical scroll bar |
 | **viewer**: drag tag/message edge (double-click = auto-fit) | resize tag column |
 | **viewer**: `wrap` toggle | long-line wrap on/off (off = one line per entry, horizontal scroll) |
 | **viewer**: `A−`/`A+` | viewer font size (persisted) |
@@ -281,7 +281,7 @@ For **any other text format** (JSON lines, CSV, custom app logs), extraction and
 
 A second top-level tab for reading logs end-to-end — no rules, no re-scanning:
 
-- **Virtualized streaming**: any file size, constant memory. The view buffers ~900–1600 lines read straight from disk via byte ranges; **wheel / touchpad / touch scroll continuously** — when the buffer edge comes into view the next chunk chains in seamlessly (both directions), with the view pixel-anchored so nothing jumps. The left rail is the whole-file byte map (drag to jump, grab point preserved); window byte offsets are exact UTF-8 lengths, so paging never duplicates or skips lines on non-ASCII content.
+- **Virtualized streaming**: any file size, constant memory. The view buffers ~900–1600 lines read straight from disk via byte ranges; **wheel / touchpad / touch scroll continuously** — when the buffer edge comes into view the next chunk chains in seamlessly (both directions), with the view pixel-anchored so nothing jumps. The bar on the **right** is the whole-file byte rail and the viewer's **only** vertical scrollbar (the body's native one is hidden, so position is never shown twice) — drag it to jump, grab point preserved, or wheel over it to scroll the log. Window byte offsets are exact UTF-8 lengths, so paging never duplicates or skips lines on non-ASCII content.
 - **High-contrast by default** (near-black surface, near-white text) with the shared logcat theme presets in the toolbar.
 - **Columns** when lines parse (≈line · timestamp · level · Δt · tag · message), raw monospace otherwise; PII masking applied on display by default (toggle in the toolbar). Δt cells ≥ 5 s are highlighted — a quick read of stalls and silences.
 - **Go-to-time**: type an absolute time (`08-25 14:03`) or a relative offset (`+90s`, `-5m30s`, `+2h`) and the view byte-bisects to it — works on multi-GB files without any index.
@@ -382,7 +382,8 @@ From the v1.17 planning pass — all incremental over the byte-window architectu
 
 ## Changelog
 
-- **v1.22.8 (current)** — **.txt inputs made explicit and dialog-proof**: the browser file picker's `accept` filter now also carries the `text/plain` MIME group (some Windows dialogs exposed only a bare "Custom Files" filter before, making `.txt` hard to spot), and the drop zone says "drop .log/.txt files or folders" instead of just "files". Loading itself already accepted `.txt` in all three paths (browse, drag-drop, folder walk — since v1.8); 7 new UI-suite checks now lock that in end-to-end (picker load, file-drop load, non-log/txt refusal, folder walk picks .txt and skips other extensions)
+- **v1.22.9 (current)** — **one scroll bar in the viewer**: the byte rail moved from the left edge to the **right**, and the log body's native vertical scrollbar is hidden — the rail is now the single vertical scroll indicator, so position is never shown twice (and never disagreed, since the rail shows whole-file progress while the native bar only showed the buffered window). Wheeling over the rail scrolls the log (it sits where the native bar used to be), rail drag/click behavior is unchanged, and wide nowrap rows keep a horizontal scrollbar themed to match the rail (dark-theme track included). Verified in real Chromium on a 200k-line log: rail renders right of the body, `clientWidth` confirms zero native vertical gutter, wheel + drag + jump all move the view, no page errors
+- **v1.22.8** — **.txt inputs made explicit and dialog-proof**: the browser file picker's `accept` filter now also carries the `text/plain` MIME group (some Windows dialogs exposed only a bare "Custom Files" filter before, making `.txt` hard to spot), and the drop zone says "drop .log/.txt files or folders" instead of just "files". Loading itself already accepted `.txt` in all three paths (browse, drag-drop, folder walk — since v1.8); 7 new UI-suite checks now lock that in end-to-end (picker load, file-drop load, non-log/txt refusal, folder walk picks .txt and skips other extensions)
 - **v1.22.7** — **workbench stepper is 4 steps again**: the "4 results" entry is gone — the scan-overview/matches/export cards stay where they are after a run, but the stepper now reads `1 load files → 2 filter → 3 run → 4 advanced`, because day-to-day browsing of results happens in the viewer tab (the cards' "step 4 ·" headings were dropped accordingly, and the advanced section + its cross-references renumbered 5→4)
 - **v1.22.6** — wider viewer on large monitors (wrap max-width 1400→1800px, vbody 75vh→calc(100vh−160px), reswrap fills viewport height), plus a comprehensive 45-check viewer+search E2E suite and a hardened flaky dark-theme color check
 - **v1.22.5** — viewer gutter numbers are now EXACT instead of estimated: a byte→line-number anchor is seeded at file open (line 1) and re-seeded from the search tab's true line numbers on match jumps, so the focused row's number matches what the search tab reported (previously the estimate drifted — e.g. showing 25540 for line 25000 — which made jumps look like they landed on the wrong line); zebra striping follows the true line parity; without an anchor (arbitrary rail seeks) numbers fall back to the old estimate

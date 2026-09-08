@@ -120,8 +120,17 @@ input[type=text]:disabled,input[type=number]:disabled{opacity:.45}
 #viewCard{display:flex;flex-direction:column}
 .vscroll{width:12px;background:#eceff3;cursor:grab;position:relative;flex:0 0 12px;min-height:40px;touch-action:none;user-select:none}
 .vscroll:active{cursor:grabbing}
-.vthumb{position:absolute;left:1px;top:0;width:10px;background:#9aa7b4;border-radius:0 3px 3px 0;min-height:24px}
+.vthumb{position:absolute;left:1px;top:0;width:10px;background:#9aa7b4;border-radius:3px 0 0 3px;min-height:24px}
 .vthumb:hover{background:var(--accent)}
+/* the byte rail (right of the log body) is the viewer's only vertical scrollbar —
+   the body's native one is hidden so position isn't shown twice. Only the vertical
+   axis is suppressed; wide nowrap rows keep a horizontal bar, themed to match. */
+.vbody::-webkit-scrollbar:vertical{width:0}
+.vbody::-webkit-scrollbar:horizontal{height:10px}
+.vbody::-webkit-scrollbar-track:horizontal{background:#eceff3}
+.vbody::-webkit-scrollbar-thumb:horizontal{background:#9aa7b4;border-radius:3px}
+.vbody::-webkit-scrollbar-thumb:horizontal:hover{background:var(--accent)}
+body[data-theme=dark] .vbody::-webkit-scrollbar-track:horizontal{background:#1a2330}
 /* zebra: every other line, keyed to the line number's parity (not :nth-child —
    rows are recycled while scrolling, so DOM parity would slide). Stripe strength
    is a per-theme variable: one fixed alpha is either invisible or glaring
@@ -351,7 +360,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.8</span>
+  <h1>LogLens</h1><span class="ver">v1.22.9</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -612,13 +621,13 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
             <span id="vStatus" class="vstatus"></span>
   </div>
   <div class="vmain">
-    <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position"></div></div>
     <div class="vbody" id="vBody" tabindex="0"></div>
+    <div class="vscroll" id="vScroll" tabindex="0"><div class="vthumb" id="vThumb" title="drag to jump by byte position · the viewer's scroll bar"></div></div>
     <div id="vTgGrip" title="drag: tag column width · double-click: auto-fit"></div>
   </div>
   <div class="vfoot" id="vFoot"></div>
 </div>
-<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · ←/→ previous/next match (after a search) · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · drag the left rail to jump by byte position · drag the tag/message edge to resize the tag column (double-click = auto-fit)</div>
+<div class="note" style="margin-top:8px">keys: PgUp/PgDn page · ↑/↓ line · ←/→ previous/next match (after a search) · Home/End file · / search · n/N match · wheel/touch scroll continuously (lines chain in at the edges) · the right-hand bar is the whole-file scroll rail — drag it to jump by byte position · drag the tag/message edge to resize the tag column (double-click = auto-fit)</div>
 </div><!-- /tabView -->
 
 <!-- MULTI-FILE SEARCH TAB -->
@@ -702,7 +711,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.8 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.9 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2591,7 +2600,8 @@ function wfUpdate(){
 // and touch scroll natively; a scroll listener chains more lines in at either
 // edge (pixel-anchored), so scrolling is continuous over any file size. Page
 // and arrow keys move the viewport natively and only hit the disk at the
-// buffer edge. The left rail is the whole-file byte map. All window byte
+// buffer edge. The rail right of the body is the whole-file byte map (and the
+// only vertical scrollbar — the body's native one is hidden). All window byte
 // offsets are true UTF-8 lengths, so paging never duplicates or skips lines.
 const V_CHUNK = 262144, V_BACK = 524288, V_WIN = 900, V_KEEP = 1600;
 const V_ENC = new TextEncoder();
@@ -3056,6 +3066,13 @@ async function vSeekTo(byte, endMode){
   rail.addEventListener('pointermove', e => { if (dragging) seek(e.clientY); });
   rail.addEventListener('pointerup', () => { dragging = false; });
   rail.addEventListener('pointercancel', () => { dragging = false; });
+  // the rail replaced the native vertical scrollbar at the right edge —
+  // wheeling over it must scroll the log like the bar it stands in for
+  rail.addEventListener('wheel', e => {
+    if (!V.file) return;
+    e.preventDefault();
+    $('vBody').scrollTop += e.deltaY;
+  }, { passive:false });
   // the rail is focusable — mirror the body navigation keys
   rail.addEventListener('keydown', e => {
     if (!V.file) return;

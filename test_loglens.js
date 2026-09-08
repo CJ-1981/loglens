@@ -320,6 +320,18 @@ check('viewer core ids present', ['vFile','vSearch','vPrev','vNext','vMask','vTh
 check('no separate viewer demo button (header one is shared)', !html.includes('id="vDemo"') && !html.includes('id="piiDemo"'));
 check('header demo is tab-aware (viewer + pii)', html.includes('function loadDemoFile()') && html.includes("$('btnDemo').onclick") && html.includes("tabView').style.display !== 'none'") && html.includes("tabPii').style.display !== 'none'"));
 check('viewer rail/body wrapped in .vmain flex row', html.includes('<div class="vmain">'));
+// v1.22.9: the byte rail is the ONLY vertical scrollbar and it sits on the right
+check('byte rail sits right of the log body (no competing scrollbars)',
+  /<div class="vmain">\s*<div class="vbody" id="vBody"/.test(html) &&
+  html.indexOf('id="vBody"') < html.indexOf('id="vScroll"') &&
+  html.indexOf('id="vScroll"') < html.indexOf('id="vTgGrip"'));
+check('body native vertical scrollbar hidden (rail is the only one)',
+  html.includes('.vbody::-webkit-scrollbar:vertical{width:0}'));
+check('horizontal scrollbar stays, themed to match the rail',
+  html.includes('.vbody::-webkit-scrollbar:horizontal{height:10px}') &&
+  html.includes('.vbody::-webkit-scrollbar-thumb:horizontal{background:#9aa7b4;border-radius:3px}'));
+check('wheel over the rail scrolls the log (it replaced the native bar at the right edge)',
+  html.includes("rail.addEventListener('wheel'") && html.includes("$('vBody').scrollTop += e.deltaY"));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
 check('viewer arrow match-walking + mfocus', html.includes("e.key==='ArrowRight' && $('vBody').querySelector('[data-hit=\"1\"]')") && html.includes("vWalkMark(e.key==='ArrowRight' ? 1 : -1)") && html.includes("classList.add('mfocus')"));
