@@ -364,7 +364,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.13</span>
+  <h1>LogLens</h1><span class="ver">v1.22.14</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -715,7 +715,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.13 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.14 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -4298,8 +4298,13 @@ $('aiTest').onclick=async()=>{
   }catch(e){
     const notes=await aiDiagnose(c.base);
     const corsCase=notes.some(n=>n.indexOf('CORS headers, not connectivity')>=0);
+    // the proxy itself refused: on current Chrome an https page needs the Local
+    // Network Access gate to even reach a 127.0.0.1 proxy — name that case
+    const pnaCase = c.proxy && /Failed to fetch/i.test(e.message) && location.protocol==='https:' &&
+      /^http:\/\/(localhost|127\.0\.0\.1)/.test(c.proxy);
     out.innerHTML='<span class="bad">✗ '+esc(e.message)+'</span><br><span style="color:var(--mut);font-size:10.5px">'+
       notes.map(n=>'· '+esc(n)).join('<br>')+'</span>'+
+      (pnaCase ? '<div style="margin-top:6px;color:var(--amber);font-size:10.5px">· the https page is calling a local proxy — current Chrome gates loopback access (Local Network Access): allow the site in the address-bar prompt / Site settings, or open LogLens from file:// — and make sure the updated cors_proxy.js (with the Allow-Private-Network header) is running</div>' : '')+
       (corsCase ? '<div style="margin-top:6px"><button class="btn sec" id="aiUseProxy">use local proxy (127.0.0.1:8790)</button> <span style="color:var(--mut);font-size:10.5px">run <span style="font-family:var(--mono)">node cors_proxy.js</span> next to LogLens first, if it is not running</span></div>' : '');
     const up=$('aiUseProxy');
     if (up) up.onclick=()=>{ $('aiProxy').value='http://127.0.0.1:8790'; AIZ.save(); $('aiTest').click(); };

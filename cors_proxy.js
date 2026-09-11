@@ -19,7 +19,12 @@ http.createServer((req, res) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': '*'
+    'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || '*',
+    // Chrome's Private Network Access / Local Network Access: a public https
+    // page (the live demo) calling this loopback proxy gets a preflight that
+    // must be answered with this header, or the browser blocks the request
+    'Access-Control-Allow-Private-Network': 'true',
+    'Access-Control-Max-Age': '600'
   };
   if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
   let raw = '';

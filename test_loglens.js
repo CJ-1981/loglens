@@ -366,6 +366,13 @@ check('search jump no longer triggers backward chaining', html.includes('let vUs
 check('jumps center the target with headroom', html.includes('Math.round(lineByte - (V_WIN / 3) * V.avgLen)') && html.includes('always center the focused row'));
 check('gutter numbers exact via line anchor', html.includes('lnAnchor') && html.includes('const lnOf = i =>') && html.includes('V.lnAnchor = { byte: rec.b, ln: rec.ln }'));
 check('wizard offers one-click local proxy on CORS diagnosis', html.includes('aiUseProxy') && html.includes('http://127.0.0.1:8790'));
+// v1.22.14: Chrome's Private/Local Network Access gate blocks https pages from
+// calling a loopback proxy unless its preflight carries Allow-Private-Network
+const proxySrc = fs.readFileSync(path.join(__dirname, 'cors_proxy.js'), 'utf8');
+check('cors_proxy answers the Private Network Access preflight (Allow-Private-Network)',
+  proxySrc.includes("'Access-Control-Allow-Private-Network': 'true'"));
+check('wizard names the Local-Network-Access case when the proxy fetch is refused',
+  html.includes('pnaCase') && html.includes('Local Network Access') && html.includes('/^http:\\/\\/(localhost|127\\.0\\.0\\.1)/.test(c.proxy)'));
 check('viewer search: byte-accurate rewrite, clean no-match (continue-cursor removed)', html.includes('vHighlightAndFocus') && html.includes('lineStartByte') && html.includes('no matches for') && !html.includes('press Enter to continue from'));
 const verHdr = (html.match(/<span class="ver">(v[\d.]+)<\/span>/) || [])[1];
 const verFtr = (html.match(/LogLens (v[\d.]+) ·/g) || []).pop().match(/v[\d.]+/)[0];
