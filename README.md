@@ -351,6 +351,7 @@ npm run test:stress # multi-GB stress: 3 files (2+2+1.5 GB), all functions, real
 - search tab: multi-file regex past the 20k stored-rows cap (totals must stay exact)
 - workbench: full 5.5 GB match-all scan (exact line/match totals) + capped masked-extract download
 - PII audit across all files; JS heap must stay bounded (<400 MB) and the page must throw zero errors
+- `node e2e/stress/search_validate.js` — dedicated multi-file search validation: exact per-file totals across 5.5 GB, per-file cap share, one-file patterns, case toggle, zero-match, stop + fresh re-run, pagination and per-file jumps into the viewer
 
 Fixtures are written to the system temp dir (outside OneDrive sync — synced folders starve multi-GB IO) and regenerate on demand; delete `C:UsersCHIMIN~1.JUNAppDataLocalTemp\\loglens_stress` to reclaim ~5.5 GB.
 
