@@ -340,7 +340,19 @@ LogLens is tool-agnostic: its `[Lnnn] <masked line>` extract format and stats JS
 npm test          # 9 suites — 448 assertions (engine, regression, viewer UI/search, team features, deep scan)
 npm run test:e2e  # real-Chromium end-to-end (Playwright, demo→run→viewer→search→theme→deep scan)
 npm run perf      # throughput benchmark (~600k lines synthetic)
+npm run test:stress # multi-GB stress: 3 files (2+2+1.5 GB), all functions, real Chromium (~15-30 min)
 ```
+
+### Stress testing (multi-GB)
+
+`npm run test:stress` generates **three real log files (2 + 2 + 1.5 GB, ~78M lines total)** with exactly computable expectations (E-line counts, VIN mask hits, an injected 10 s timestamp gap, a rare marker block at 90% of file A, a clock reset at 40% of file C) and then drives the app in real Chromium:
+
+- viewer: 260+ mouse-wheel downs across forward chains, wheel-ups across backward chains, rail wheel + rail drags to 50%/95%, deep backward wheeling from EOF, level-filtered wheeling, go-to-time bisect, cross-GB forward search (4 × 512 MB segments) + match walk, gap detector, boot scan, collapse/wrap/font/Δt/themes/mask/bookmarks
+- search tab: multi-file regex past the 20k stored-rows cap (totals must stay exact)
+- workbench: full 5.5 GB match-all scan (exact line/match totals) + capped masked-extract download
+- PII audit across all files; JS heap must stay bounded (<400 MB) and the page must throw zero errors
+
+Fixtures are written to the system temp dir (outside OneDrive sync — synced folders starve multi-GB IO) and regenerate on demand; delete `C:UsersCHIMIN~1.JUNAppDataLocalTemp\\loglens_stress` to reclaim ~5.5 GB.
 
 The E2E drives `loglens.html` in headless Chromium through the full user journey: demo load → run extraction → viewer tab (masked rows) → search-jump with highlight → logcat theme switch — and fails on any console error.
 
