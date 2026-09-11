@@ -26,7 +26,9 @@ function fixture() {
     // groups of 3 identical-shape lines every 10 lines, for collapse testing
     else if (i % 10 < 3) msg = 'heartbeat status ok';
     else msg = 'heartbeat ' + i + ' status ok latency ' + (i % 300) + 'ms';
-    const useLvl = (i % 10 < 3) ? 'I' : lvl;
+    // F is deliberately RARE (1 per 500): selecting only F leaves the window with
+    // 1-2 rendered rows, which is the short-content case of the level-filter fix
+    const useLvl = (i % 500 === 0) ? 'F' : ((i % 10 < 3) ? 'I' : lvl);
     const useTag = (i % 10 < 3) ? 'Tag0' : ('Tag' + (i % 7));
     lines.push(mm + '-' + dd + ' ' + hh + ':' + mi + ':' + ss + '.' + String(i % 1000).padStart(3, '0') + '  1234  5678 ' + useLvl + ' ' + useTag + ' : ' + msg);
   }
@@ -67,7 +69,7 @@ function fixture() {
   const lvlChips = () => page.evaluate(() =>
     [...document.querySelectorAll('#vLvls .vchip')].map(c => c.textContent + (c.classList.contains('on') ? '+' : '-')));
   const chips = await lvlChips();
-  check('level chips appear for present levels (no F)', chips.length === 5 && chips.join('') === 'V+D+I+W+E+');
+  check('level chips appear for present levels (incl. rare F)', chips.length === 6 && chips.join('') === 'V+D+I+W+E+F+');
 
   const lvlsInView = () => page.evaluate(() => {
     const seen = new Set();
@@ -75,7 +77,7 @@ function fixture() {
     return [...seen].sort().join('');
   });
   const before = await lvlsInView();
-  check('initial view shows all 5 levels', before.length === 5);
+  check('initial view shows all 6 levels', before.length === 6);
 
   // turn off I
   await page.evaluate(() => {
@@ -83,7 +85,7 @@ function fixture() {
   });
   await page.waitForTimeout(500);
   const after = await lvlsInView();
-  check('turning off I removes I rows', !after.includes('I') && after.length === 4);
+  check('turning off I removes I rows', !after.includes('I') && after.length === 5);
   check('continuation line still shown', (await page.locator('#vBody').innerText()).includes('Stack.java'));
 
   // turn I back on
@@ -91,7 +93,48 @@ function fixture() {
     [...document.querySelectorAll('#vLvls .vchip')].find(c => c.textContent === 'I').click();
   });
   await page.waitForTimeout(500);
-  check('turning I back on restores all levels', (await lvlsInView()).length === 5);
+  check('turning I back on restores all levels', (await lvlsInView()).length === 6);
+
+  // ==================== 2b. SINGLE RARE LEVEL: no flicker, wheel pages ====================
+  // Selecting only F leaves the 900-line window with 1-2 rendered rows. The old
+  // edge driver read that short content as "at the bottom edge" from every scroll
+  // event and chained the entire file away in a flickering render loop.
+  console.log('\n== 2b. Single rare level (F): stable view, wheel pages forward ==');
+  await page.evaluate(() => {
+    for (const c of document.querySelectorAll('#vLvls .vchip')) {
+      if (c.textContent !== 'F' && c.classList.contains('on')) c.click();
+    }
+  });
+  await page.waitForTimeout(1500);
+  const mutationCount = () => page.evaluate(async () => {
+    let n = 0;
+    const mo = new MutationObserver(ms => { n += ms.length; });
+    mo.observe(document.getElementById('vBody'), { childList: true, subtree: true });
+    await new Promise(r => setTimeout(r, 2000));
+    mo.disconnect();
+    return n;
+  });
+  const idleMutations = await mutationCount();
+  check('idle with only F selected: no render storm (mutations ' + idleMutations + ' ≤ 6)', idleMutations <= 6);
+  const footA = await page.evaluate(() => document.getElementById('vFoot').textContent);
+  await page.waitForTimeout(1600);
+  const footB = await page.evaluate(() => document.getElementById('vFoot').textContent);
+  check('view does not drift while idle (no self-driving chains)', footA === footB, footA.slice(0, 30) + ' vs ' + footB.slice(0, 30));
+  // wheel down: pages forward window-by-window (hint row appears on empty stretches)
+  const boxF = await page.locator('#vBody').boundingBox();
+  await page.mouse.move(boxF.x + boxF.width / 2, boxF.y + boxF.height / 2);
+  const startFoot = await page.evaluate(() => document.getElementById('vFoot').textContent);
+  for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 600); await page.waitForTimeout(250); }
+  await page.waitForTimeout(1200);
+  const endFoot = await page.evaluate(() => document.getElementById('vFoot').textContent);
+  check('wheel-down with a single level advances through the file', endFoot !== startFoot, startFoot.slice(0, 24) + ' → ' + endFoot.slice(0, 24));
+  const postMutations = await mutationCount();
+  check('no render storm after wheel paging (mutations ' + postMutations + ' ≤ 6)', postMutations <= 6);
+  // restore all levels for later sections
+  await page.evaluate(() => {
+    for (const c of document.querySelectorAll('#vLvls .vchip')) if (!c.classList.contains('on')) c.click();
+  });
+  await page.waitForTimeout(400);
 
   // ==================== 3. VIEWER: Search + match walking ====================
   console.log('\n== 3. Viewer: search + match walking ==');

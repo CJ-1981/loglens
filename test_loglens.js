@@ -354,6 +354,17 @@ check('scroll anchor is byte-based, immune to level filtering and trims',
   html.includes('{ byte, into:') && html.includes('const db = parseInt(r.dataset && r.dataset.byte, 10);') &&
   !html.includes('a.idx = Math.max(0, a.idx - drop)') && !html.includes('if (a) a.idx += add;'));
 check('viewer default theme is High Contrast', /<option value="hc">High Contrast<\/option>/.test(html));
+// v1.22.15: a narrow level filter can leave fewer rows than a screenful — then
+// scrollTop pins to 0 and every position reads as "at the bottom edge", so the
+// old heuristic chained the whole file away in a flickering render loop
+check('edge driver: short (filtered) content never auto-chains from the position heuristic',
+  html.includes('if (b.scrollHeight > b.clientHeight + 320){') &&
+  html.includes('Short content never auto-chains'));
+check('short content pages on wheel intent instead',
+  html.includes('let vEdgeDown = false;') && html.includes('vSeekTo(V.winEnd)') &&
+  html.includes('vSeekTo(Math.max(0, V.winStart - V_CHUNK))'));
+check('fully-filtered stretch renders a hint row, not a fake end-of-file',
+  html.includes('hidden by the level filter') && html.includes('(end of file)'));
 check('viewer keyboard wiring', html.includes("e.key==='PageDown'") && html.includes("e.key==='/'"));
 check('viewer arrow match-walking + mfocus', html.includes("e.key==='ArrowRight' && $('vBody').querySelector('[data-hit=\"1\"]')") && html.includes("vWalkMark(e.key==='ArrowRight' ? 1 : -1)") && html.includes("classList.add('mfocus')"));
 check('viewer search spans every column', html.includes("row.querySelectorAll('td')") && html.includes("querySelector('.runcount')"));

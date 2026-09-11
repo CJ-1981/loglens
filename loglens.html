@@ -364,7 +364,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 <div class="wrap">
 
 <header class="top" title="Log extraction &amp; PII masking — 100% client-side, files never leave this machine">
-  <h1>LogLens</h1><span class="ver">v1.22.14</span>
+  <h1>LogLens</h1><span class="ver">v1.22.15</span>
   <div class="spacer"></div>
   <button class="btn sec" id="btnDemo" title="load a small synthetic sample">demo</button>
   <button class="btn sec" id="btnTheme" title="toggle dark mode">◐</button>
@@ -715,7 +715,7 @@ body[data-logtheme="solarized"] .vhead{background:#002B36;color:#839496;border-b
 
 <div class="toast" id="toast"></div>
 <div class="footer">
-  LogLens v1.22.14 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
+  LogLens v1.22.15 · single-file · no server · offline · workbench + viewer + search + pii-scan tabs · deep scan (presidio / LLM residual-PII audit) · 16 default PII mask rules (incl. GNSS coordinates) · optional [Lnnn] prefix · AI rule wizard (bring your own OpenAI-compatible endpoint) · worker-accelerated scans (main-thread fallback) · zebra log viewer.
 </div>
 </div>
 
@@ -2688,6 +2688,7 @@ function vRenderLvlChips(){
       if (!V.lvls) V.lvls = new Set(V_LEVELS);
       if (V.lvls.has(l)) V.lvls.delete(l); else V.lvls.add(l);
       try{ localStorage.setItem('loglens.vlvls', JSON.stringify([...V.lvls])); }catch(e){}
+      vUserTopIntent = false; vEdgeDown = false;   // a filter change is not a scroll gesture
       vRenderLvlChips();
       if (V.file) vRender('keep', vCaptureAnchor());
     };
@@ -2892,7 +2893,10 @@ function vRender(mode, anchor){
     html = shown.join('');
   }
   if (availGrew) vRenderLvlChips();
-  body.innerHTML = '<table class="vtable"><thead class="vhead"><tr><th class="h-ln">#</th><th class="h-ts">time</th><th class="h-lv">lvl</th><th class="h-dlt">Δt</th><th class="h-tg">tag</th><th class="h-msg">message</th></tr></thead><tbody>' + (html || '<tr><td class="ln">—</td><td colspan="5" class="raw">(end of file)</td></tr>') + '</tbody></table>';
+  const emptyRow = html ? '' : (lvlFilter && V.lines.length
+    ? '<tr><td class="ln">—</td><td colspan="5" class="raw">(all lines in this stretch are hidden by the level filter — wheel down for the next ones)</td></tr>'
+    : '<tr><td class="ln">—</td><td colspan="5" class="raw">(end of file)</td></tr>');
+  body.innerHTML = '<table class="vtable"><thead class="vhead"><tr><th class="h-ln">#</th><th class="h-ts">time</th><th class="h-lv">lvl</th><th class="h-dlt">Δt</th><th class="h-tg">tag</th><th class="h-msg">message</th></tr></thead><tbody>' + (html || emptyRow) + '</tbody></table>';
   // tag column: manual width wins; otherwise it hugs the longest tag in the
   // buffer, so short tags don't leave a blank stretch before the message
   body.style.setProperty('--tgw', V.tgwUser != null ? V.tgwUser + 'px' : Math.min(24, Math.max(10, maxTag)) + 'ch');
@@ -2932,16 +2936,31 @@ function vFmtDlt(d){
 let vScheduleEdgeCheck = () => {};
 let vPlaceTgGrip = () => {};
 let vUserTopIntent = false;   // backward chaining only after the user actually scrolls up
+let vEdgeDown = false;        // wheel-down seen — with short (heavily filtered) content the wheel handler pages instead
 (function(){
   const b = $('vBody');
   const edges = () => {
     if (!V.file || V.loading || !isFinite(b.scrollHeight) || !isFinite(b.scrollTop)) return;
     if (!b.clientHeight || !b.offsetWidth) return;   // viewer hidden (other tab): zero geometry, never chain
     vPlaceTgGrip();
-    if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
-    else if (b.scrollTop <= 120 && vUserTopIntent) vChainBackward();
+    // A narrow level filter can leave fewer rows than a screenful: scrollTop is
+    // then pinned to 0 and EVERY position reads as "at the bottom edge", so the
+    // position heuristic would chain the whole file away in a flickering render
+    // loop. Short content never auto-chains — the wheel listener below chains it
+    // on explicit wheel intent instead.
+    if (b.scrollHeight > b.clientHeight + 320){
+      if (b.scrollTop + b.clientHeight >= b.scrollHeight - 320) vChainForward();
+      else if (b.scrollTop <= 120 && vUserTopIntent) vChainBackward();
+    }
   };
-  b.addEventListener('wheel', e => { if (e.deltaY < 0) vUserTopIntent = true; }, { passive:true });
+  b.addEventListener('wheel', e => {
+    if (e.deltaY < 0) vUserTopIntent = true; else vEdgeDown = true;
+    // short content: scrollTop cannot reach an edge — wheel pages window-by-window
+    if (b.scrollHeight <= b.clientHeight + 320 && V.file && !V.loading && !vChain.busy && !vSeekBusy){
+      if (e.deltaY > 0 && V.winEnd < V.total) vSeekTo(V.winEnd);
+      else if (e.deltaY < 0 && V.winStart > 0) vSeekTo(Math.max(0, V.winStart - V_CHUNK));
+    }
+  }, { passive:true });
   vScheduleEdgeCheck = edges;
   b.addEventListener('scroll', edges, { passive:true });
   setInterval(edges, 500);
